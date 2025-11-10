@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>API Response Interceptor - Settings</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <div class="container">
+    <aside class="sidebar">
+      <div class="logo">
+        <h1>🔧 API Interceptor</h1>
+      </div>
+      <nav class="nav">
+        <a href="#" class="nav-item active" data-tab="rules">
+          <span>📋 Rules</span>
+        </a>
+        <a href="#" class="nav-item" data-tab="new-rule">
+          <span>➕ New Rule</span>
+        </a>
+        <a href="#" class="nav-item" data-tab="import-export">
+          <span>📦 Import/Export</span>
+        </a>
+        <a href="#" class="nav-item" data-tab="help">
+          <span>❓ Help</span>
+        </a>
+      </nav>
+    </aside>
+
+    <main class="main-content">
+      <!-- Rules Tab -->
+      <div id="rules-tab" class="tab-content active">
+        <div class="header">
+          <h2>Manage Rules</h2>
+          <button id="addNewRuleBtn" class="btn btn-primary">+ Add New Rule</button>
+        </div>
+
+        <div id="rulesList" class="rules-grid">
+          <!-- Rules will be populated here -->
+        </div>
+
+        <div id="emptyState" class="empty-state" style="display: none;">
+          <div class="empty-icon">📭</div>
+          <h3>No Rules Yet</h3>
+          <p>Create your first rule to start intercepting and modifying API responses</p>
+          <button class="btn btn-primary" onclick="showTab('new-rule')">Create Rule</button>
+        </div>
+      </div>
+
+      <!-- New Rule Tab -->
+      <div id="new-rule-tab" class="tab-content">
+        <div class="header">
+          <h2 id="formTitle">Create New Rule</h2>
+        </div>
+
+        <form id="ruleForm" class="rule-form">
+          <input type="hidden" id="ruleId" value="">
+
+          <div class="form-group">
+            <label for="ruleName">Rule Name</label>
+            <input type="text" id="ruleName" class="form-control" placeholder="My API Rule" required>
+          </div>
+
+          <div class="form-group">
+            <label for="ruleDescription">Description (optional)</label>
+            <textarea id="ruleDescription" class="form-control" rows="2" placeholder="What does this rule do?"></textarea>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="urlPattern">URL Pattern</label>
+              <input type="text" id="urlPattern" class="form-control" placeholder="*://*/api/*" required>
+              <small class="form-hint">Use * for wildcards, ** for any path</small>
+            </div>
+
+            <div class="form-group">
+              <label for="matchType">Match Type</label>
+              <select id="matchType" class="form-control">
+                <option value="wildcard">Wildcard</option>
+                <option value="regex">Regex</option>
+                <option value="exact">Exact</option>
+                <option value="contains">Contains</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>HTTP Methods</label>
+            <div class="checkbox-group">
+              <label class="checkbox-label">
+                <input type="checkbox" name="methods" value="GET" checked> GET
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" name="methods" value="POST"> POST
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" name="methods" value="PUT"> PUT
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" name="methods" value="DELETE"> DELETE
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" name="methods" value="PATCH"> PATCH
+              </label>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="modifyType">Modification Type</label>
+            <select id="modifyType" class="form-control">
+              <option value="replace">Replace Entire Body</option>
+              <option value="json-path">Modify JSON Path</option>
+              <option value="regex">Regex Find & Replace</option>
+              <option value="function">Custom Function</option>
+            </select>
+          </div>
+
+          <!-- Replace Body -->
+          <div id="replaceOptions" class="modification-options">
+            <div class="form-group">
+              <label for="replaceValue">New Response Body</label>
+              <textarea id="replaceValue" class="form-control code-editor" rows="10" placeholder='{"message": "Modified response"}'></textarea>
+              <small class="form-hint">Enter the complete response body to return</small>
+            </div>
+          </div>
+
+          <!-- JSON Path -->
+          <div id="jsonPathOptions" class="modification-options" style="display: none;">
+            <div class="form-group">
+              <label for="jsonPath">JSON Path</label>
+              <input type="text" id="jsonPath" class="form-control" placeholder="data.status">
+              <small class="form-hint">Use dot notation: data.user.name</small>
+            </div>
+            <div class="form-group">
+              <label for="jsonValue">New Value</label>
+              <input type="text" id="jsonValue" class="form-control" placeholder='"success"'>
+              <small class="form-hint">Enter JSON value (strings need quotes)</small>
+            </div>
+          </div>
+
+          <!-- Regex Replace -->
+          <div id="regexOptions" class="modification-options" style="display: none;">
+            <div class="form-group">
+              <label for="regexPattern">Regex Pattern</label>
+              <input type="text" id="regexPattern" class="form-control" placeholder="error">
+              <small class="form-hint">Pattern to search for</small>
+            </div>
+            <div class="form-group">
+              <label for="regexReplacement">Replacement</label>
+              <input type="text" id="regexReplacement" class="form-control" placeholder="success">
+              <small class="form-hint">Text to replace matches with</small>
+            </div>
+            <div class="form-group">
+              <label for="regexFlags">Flags (optional)</label>
+              <input type="text" id="regexFlags" class="form-control" placeholder="gi" value="g">
+              <small class="form-hint">g=global, i=case-insensitive, m=multiline</small>
+            </div>
+          </div>
+
+          <!-- Function -->
+          <div id="functionOptions" class="modification-options" style="display: none;">
+            <div class="form-group">
+              <label for="functionCode">JavaScript Function</label>
+              <textarea id="functionCode" class="form-control code-editor" rows="10" placeholder="// body parameter contains the original response&#10;return body.replace('error', 'success');"></textarea>
+              <small class="form-hint warning">⚠️ Function receives 'body' parameter and must return modified body</small>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="ruleEnabled" checked> Enable this rule
+            </label>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Save Rule</button>
+            <button type="button" id="cancelBtn" class="btn btn-secondary">Cancel</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Import/Export Tab -->
+      <div id="import-export-tab" class="tab-content">
+        <div class="header">
+          <h2>Import/Export Rules</h2>
+        </div>
+
+        <div class="card">
+          <h3>Export Rules</h3>
+          <p>Download all your rules as a JSON file to back up or share</p>
+          <button id="exportBtn" class="btn btn-primary">Export All Rules</button>
+        </div>
+
+        <div class="card">
+          <h3>Import Rules</h3>
+          <p>Import rules from a JSON file. This will add to your existing rules.</p>
+          <input type="file" id="importFile" accept=".json" style="display: none;">
+          <button id="importBtn" class="btn btn-secondary">Import Rules</button>
+        </div>
+
+        <div class="card danger">
+          <h3>Clear All Rules</h3>
+          <p>⚠️ This will permanently delete all your rules. This action cannot be undone.</p>
+          <button id="clearAllBtn" class="btn btn-danger">Clear All Rules</button>
+        </div>
+      </div>
+
+      <!-- Help Tab -->
+      <div id="help-tab" class="tab-content">
+        <div class="header">
+          <h2>Help & Documentation</h2>
+        </div>
+
+        <div class="help-content">
+          <section class="help-section">
+            <h3>Getting Started</h3>
+            <ol>
+              <li>Create a new rule with a URL pattern to match</li>
+              <li>Choose how you want to modify the response</li>
+              <li>Click the extension icon and attach the debugger to a tab</li>
+              <li>Navigate to URLs matching your pattern to see modifications</li>
+            </ol>
+          </section>
+
+          <section class="help-section">
+            <h3>URL Pattern Examples</h3>
+            <div class="code-block">
+              <code>*://*/api/*</code> - Matches all API endpoints<br>
+              <code>https://example.com/*</code> - Matches all URLs on example.com<br>
+              <code>*/users/*</code> - Matches any URL containing /users/<br>
+              <code>https://api.example.com/v1/.*</code> - Regex pattern
+            </div>
+          </section>
+
+          <section class="help-section">
+            <h3>Modification Types</h3>
+            <ul>
+              <li><strong>Replace Entire Body:</strong> Replace the complete response with your custom content</li>
+              <li><strong>Modify JSON Path:</strong> Change specific fields in JSON responses</li>
+              <li><strong>Regex Find & Replace:</strong> Use regex to find and replace text patterns</li>
+              <li><strong>Custom Function:</strong> Write JavaScript to transform the response</li>
+            </ul>
+          </section>
+
+          <section class="help-section">
+            <h3>Tips</h3>
+            <ul>
+              <li>Test your patterns on a single tab first before enabling globally</li>
+              <li>Check the browser console for debugging information</li>
+              <li>The debugger must be attached to a tab for interception to work</li>
+              <li>Be careful with custom functions - they execute with extension privileges</li>
+            </ul>
+          </section>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>

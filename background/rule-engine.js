@@ -1,0 +1,205 @@
+// Rule Engine - Matches requests against rules and applies modifications
+export class RuleEngine {
+  constructor() {
+    this.rules = [];
+    this.compiledPatterns = new Map();
+  }
+
+  setRules(rules) {
+    this.rules = rules.filter(rule => rule.enabled);
+    this.compilePatterns();
+    console.log(`Rule engine loaded ${this.rules.length} enabled rules`);
+  }
+
+  compilePatterns() {
+    this.compiledPatterns.clear();
+    this.rules.forEach(rule => {
+      if (rule.matchType === 'regex') {
+        try {
+          this.compiledPatterns.set(rule.id, new RegExp(rule.urlPattern));
+        } catch (error) {
+          console.error(`Failed to compile regex for rule ${rule.id}:`, error);
+        }
+      }
+    });
+  }
+
+  matchUrl(url, pattern, matchType) {
+    switch (matchType) {
+      case 'exact':
+        return url === pattern;
+
+      case 'wildcard':
+        return this.wildcardMatch(url, pattern);
+
+      case 'regex':
+        try {
+          const regex = new RegExp(pattern);
+          return regex.test(url);
+        } catch (error) {
+          console.error('Invalid regex pattern:', error);
+          return false;
+        }
+
+      case 'contains':
+        return url.includes(pattern);
+
+      default:
+        return false;
+    }
+  }
+
+  wildcardMatch(url, pattern) {
+    // Convert wildcard pattern to regex
+    // * matches any characters except /
+    // ** matches any characters including /
+    const regexPattern = pattern
+      .replace(/\./g, '\\.')
+      .replace(/\*\*/g, '<!DOUBLE_WILDCARD!>')
+      .replace(/\*/g, '[^/]*')
+      .replace(/<!DOUBLE_WILDCARD!>/g, '.*');
+
+    const regex = new RegExp(`^${regexPattern}$`);
+    return regex.test(url);
+  }
+
+  findMatchingRules(url, method = 'GET') {
+    const matchingRules = [];
+
+    for (const rule of this.rules) {
+      // Check if method matches
+      if (rule.methods && rule.methods.length > 0) {
+        if (!rule.methods.includes(method)) {
+          continue;
+        }
+      }
+
+      // Check if URL matches
+      if (this.matchUrl(url, rule.urlPattern, rule.matchType)) {
+        matchingRules.push(rule);
+      }
+    }
+
+    return matchingRules;
+  }
+
+  async modifyResponse(url, method, originalBody, contentType) {
+    const matchingRules = this.findMatchingRules(url, method);
+
+    if (matchingRules.length === 0) {
+      return null; // No modification needed
+    }
+
+    // Apply rules in order (first matching rule wins for now)
+    const rule = matchingRules[0];
+
+    console.log(`Applying rule "${rule.name}" to ${url}`);
+
+    try {
+      const modifiedBody = await this.applyModification(
+        originalBody,
+        rule.modification,
+        rule.modifyType,
+        contentType
+      );
+      return modifiedBody;
+    } catch (error) {
+      console.error(`Failed to apply rule "${rule.name}":`, error);
+      return null;
+    }
+  }
+
+  async applyModification(originalBody, modification, modifyType, contentType) {
+    switch (modifyType) {
+      case 'replace':
+        return this.replaceBody(modification);
+
+      case 'json-path':
+        return this.modifyJsonPath(originalBody, modification, contentType);
+
+      case 'regex':
+        return this.regexReplace(originalBody, modification);
+
+      case 'function':
+        return this.executeFunction(originalBody, modification);
+
+      default:
+        console.warn(`Unknown modify type: ${modifyType}`);
+        return null;
+    }
+  }
+
+  replaceBody(modification) {
+    // Simply replace the entire body
+    return modification.value;
+  }
+
+  modifyJsonPath(originalBody, modification, contentType) {
+    // Parse JSON, modify specific paths, return JSON
+    try {
+      if (!contentType || !contentType.includes('application/json')) {
+        console.warn('Content-Type is not JSON, skipping JSON path modification');
+        return null;
+      }
+
+      const jsonData = JSON.parse(originalBody);
+      const { path, value } = modification;
+
+      // Simple path implementation (supports dot notation)
+      this.setNestedProperty(jsonData, path, this.parseValue(value));
+
+      return JSON.stringify(jsonData);
+    } catch (error) {
+      console.error('Failed to modify JSON:', error);
+      return null;
+    }
+  }
+
+  setNestedProperty(obj, path, value) {
+    const keys = path.split('.');
+    let current = obj;
+
+    for (let i = 0; i < keys.length - 1; i++) {
+      const key = keys[i];
+      if (!(key in current)) {
+        current[key] = {};
+      }
+      current = current[key];
+    }
+
+    current[keys[keys.length - 1]] = value;
+  }
+
+  parseValue(value) {
+    // Try to parse as JSON, otherwise return as string
+    try {
+      return JSON.parse(value);
+    } catch {
+      return value;
+    }
+  }
+
+  regexReplace(originalBody, modification) {
+    // Apply regex find and replace
+    try {
+      const { pattern, replacement, flags } = modification;
+      const regex = new RegExp(pattern, flags || 'g');
+      return originalBody.replace(regex, replacement);
+    } catch (error) {
+      console.error('Failed to apply regex replacement:', error);
+      return null;
+    }
+  }
+
+  executeFunction(originalBody, modification) {
+    // Execute custom JavaScript function
+    // WARNING: This is potentially dangerous and should be sandboxed
+    try {
+      const func = new Function('body', modification.code);
+      return func(originalBody);
+    } catch (error) {
+      console.error('Failed to execute custom function:', error);
+      return null;
+    }
+  }
+}

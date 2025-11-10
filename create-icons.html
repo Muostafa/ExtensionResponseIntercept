@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Icon Generator</title>
+</head>
+<body>
+    <h2>Icon Generator for API Response Interceptor</h2>
+    <p>Open this file in a browser and it will generate the required icons.</p>
+
+    <canvas id="canvas16" width="16" height="16" style="border: 1px solid black; margin: 10px;"></canvas>
+    <canvas id="canvas48" width="48" height="48" style="border: 1px solid black; margin: 10px;"></canvas>
+    <canvas id="canvas128" width="128" height="128" style="border: 1px solid black; margin: 10px;"></canvas>
+
+    <div id="downloads" style="margin-top: 20px;"></div>
+
+    <script>
+        function createIcon(size) {
+            const canvas = document.getElementById(`canvas${size}`);
+            const ctx = canvas.getContext('2d');
+
+            // Background gradient
+            const gradient = ctx.createLinearGradient(0, 0, size, size);
+            gradient.addColorStop(0, '#667eea');
+            gradient.addColorStop(1, '#764ba2');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, size, size);
+
+            // Draw a wrench icon
+            ctx.strokeStyle = 'white';
+            ctx.fillStyle = 'white';
+            ctx.lineWidth = Math.max(1, size / 16);
+
+            // Simple wrench representation
+            const centerX = size / 2;
+            const centerY = size / 2;
+            const scale = size / 32;
+
+            // Wrench handle
+            ctx.fillRect(centerX - 2 * scale, centerY - 8 * scale, 4 * scale, 12 * scale);
+
+            // Wrench head
+            ctx.beginPath();
+            ctx.arc(centerX, centerY - 8 * scale, 5 * scale, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Opening
+            ctx.fillStyle = gradient;
+            ctx.fillRect(centerX - 3 * scale, centerY - 10 * scale, 6 * scale, 4 * scale);
+
+            return canvas;
+        }
+
+        function downloadIcon(canvas, filename) {
+            canvas.toBlob(blob => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                a.textContent = `Download ${filename}`;
+                a.style.display = 'block';
+                a.style.margin = '5px';
+                document.getElementById('downloads').appendChild(a);
+            });
+        }
+
+        // Generate icons
+        setTimeout(() => {
+            downloadIcon(createIcon(16), 'icon16.png');
+            downloadIcon(createIcon(48), 'icon48.png');
+            downloadIcon(createIcon(128), 'icon128.png');
+        }, 100);
+    </script>
+</body>
+</html>

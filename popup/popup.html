@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>API Response Interceptor</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🔧 API Response Interceptor</h1>
+    </header>
+
+    <section class="status-section">
+      <div class="status-item">
+        <label>Global Interception</label>
+        <div class="toggle-switch">
+          <input type="checkbox" id="globalToggle" class="toggle-input">
+          <label for="globalToggle" class="toggle-label"></label>
+        </div>
+      </div>
+
+      <div class="status-item">
+        <label>Current Tab</label>
+        <button id="attachTab" class="btn btn-primary">Attach Debugger</button>
+      </div>
+    </section>
+
+    <section class="rules-section">
+      <div class="section-header">
+        <h2>Active Rules</h2>
+        <span id="rulesCount" class="badge">0</span>
+      </div>
+
+      <div id="rulesList" class="rules-list">
+        <!-- Rules will be populated here -->
+      </div>
+
+      <button id="addRuleBtn" class="btn btn-secondary">+ Add New Rule</button>
+    </section>
+
+    <section class="actions-section">
+      <button id="openOptions" class="btn btn-link">Open Settings</button>
+    </section>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
