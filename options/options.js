@@ -4,6 +4,7 @@ let headerModificationCounter = 0;
 
 // Initialize options page
 document.addEventListener('DOMContentLoaded', async () => {
+  await loadGroups();
   await loadRules();
   await loadRecordings();
   await loadRecentHistory();
@@ -58,7 +59,15 @@ async function loadRules() {
     const response = await chrome.runtime.sendMessage({ action: 'getRules' });
     const rules = response.rules || [];
 
+    // Store rules globally for group stats
+    window.currentRules = rules;
+
     displayRules(rules);
+
+    // Refresh group display to update rule counts
+    if (currentGroups.length > 0) {
+      displayGroups(currentGroups);
+    }
   } catch (error) {
     console.error('Failed to load rules:', error);
   }
@@ -82,11 +91,23 @@ function displayRules(rules) {
       ? rule.methods.join(', ')
       : 'All Methods';
 
+    // Get group info if rule belongs to a group
+    let groupIndicator = '';
+    if (rule.groupId) {
+      const group = currentGroups.find(g => g.id === rule.groupId);
+      if (group) {
+        groupIndicator = `<span class="group-indicator" style="border-left-color: ${group.color}; background: ${group.color}20; color: ${group.color};">${escapeHtml(group.name)}</span>`;
+      }
+    }
+
     return `
       <div class="rule-card ${rule.enabled ? '' : 'disabled'}">
         <div class="rule-card-header">
           <div>
-            <div class="rule-card-title">${escapeHtml(rule.name)}</div>
+            <div class="rule-card-title">
+              ${escapeHtml(rule.name)}
+              ${groupIndicator}
+            </div>
             ${rule.description ? `<div class="rule-card-description">${escapeHtml(rule.description)}</div>` : ''}
           </div>
           <div class="toggle-switch-small">
@@ -202,6 +223,20 @@ function setupEventListeners() {
 
   // Recordings button
   document.getElementById('clearRecordingsBtn').addEventListener('click', clearAllRecordings);
+
+  // Group management buttons
+  document.getElementById('addNewGroupBtn').addEventListener('click', openGroupModal);
+  document.getElementById('createFirstGroup').addEventListener('click', openGroupModal);
+  document.getElementById('groupForm').addEventListener('submit', saveGroup);
+  document.getElementById('closeGroupModal').addEventListener('click', closeGroupModal);
+  document.getElementById('cancelGroupBtn').addEventListener('click', closeGroupModal);
+
+  // Close modal when clicking outside
+  document.getElementById('groupModal').addEventListener('click', (e) => {
+    if (e.target.id === 'groupModal') {
+      closeGroupModal();
+    }
+  });
 }
 
 function updateModificationOptions(type) {
@@ -312,6 +347,9 @@ function collectFormData() {
   // Get header modifications
   const modifyHeaders = getHeaderModifications();
 
+  // Get group assignment
+  const groupId = document.getElementById('ruleGroup').value || undefined;
+
   return {
     name,
     description,
@@ -322,6 +360,7 @@ function collectFormData() {
     modification,
     modifyStatusCode,
     modifyHeaders: modifyHeaders.length > 0 ? modifyHeaders : undefined,
+    groupId,
     enabled
   };
 }
@@ -396,6 +435,13 @@ function populateForm(rule) {
     rule.modifyHeaders.forEach(header => {
       addHeaderModification(header.name, header.value, header.action);
     });
+  }
+
+  // Populate group selection
+  if (rule.groupId) {
+    document.getElementById('ruleGroup').value = rule.groupId;
+  } else {
+    document.getElementById('ruleGroup').value = '';
   }
 }
 
@@ -591,6 +637,260 @@ function getHeaderModifications() {
 function clearHeaderModifications() {
   document.getElementById('headerModifications').innerHTML = '';
   headerModificationCounter = 0;
+}
+
+// Groups Management
+let currentGroups = [];
+
+async function loadGroups() {
+  try {
+    const response = await chrome.runtime.sendMessage({ action: 'getGroups' });
+    currentGroups = response.groups || [];
+    displayGroups(currentGroups);
+    updateGroupSelectors();
+  } catch (error) {
+    console.error('Failed to load groups:', error);
+  }
+}
+
+function displayGroups(groups) {
+  const groupsList = document.getElementById('groupsList');
+  const emptyState = document.getElementById('groupsEmptyState');
+
+  if (!groups || groups.length === 0) {
+    groupsList.style.display = 'none';
+    emptyState.style.display = 'block';
+    return;
+  }
+
+  groupsList.style.display = 'grid';
+  emptyState.style.display = 'none';
+
+  groupsList.innerHTML = groups.map(group => {
+    const ruleCount = getRuleCountForGroup(group.id);
+    const enabledRuleCount = getEnabledRuleCountForGroup(group.id);
+
+    return `
+      <div class="group-card" style="border-left-color: ${group.color}">
+        <div class="group-card-header">
+          <div class="group-info">
+            <h3>${escapeHtml(group.name)}</h3>
+            ${group.description ? `<p>${escapeHtml(group.description)}</p>` : ''}
+          </div>
+          <div class="group-actions">
+            <span class="group-badge ${group.enabled ? 'enabled' : 'disabled'}">
+              ${group.enabled ? 'Enabled' : 'Disabled'}
+            </span>
+            <div class="toggle-switch-small">
+              <input type="checkbox" id="group-toggle-${group.id}" ${group.enabled ? 'checked' : ''} data-group-id="${group.id}">
+              <label for="group-toggle-${group.id}"></label>
+            </div>
+          </div>
+        </div>
+        <div class="group-stats">
+          <div class="group-stat">
+            <strong>${ruleCount}</strong> rules
+          </div>
+          <div class="group-stat">
+            <strong>${enabledRuleCount}</strong> enabled
+          </div>
+        </div>
+        <div class="rule-card-actions" style="margin-top: 15px;">
+          <button class="btn btn-secondary btn-small edit-group-btn" data-group-id="${group.id}">Edit</button>
+          <button class="btn btn-danger btn-small delete-group-btn" data-group-id="${group.id}">Delete</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  attachGroupEventListeners();
+}
+
+function attachGroupEventListeners() {
+  // Toggle switches
+  document.querySelectorAll('[id^="group-toggle-"]').forEach(toggle => {
+    toggle.addEventListener('change', async (e) => {
+      const groupId = e.target.dataset.groupId;
+      await toggleGroup(groupId);
+    });
+  });
+
+  // Edit buttons
+  document.querySelectorAll('.edit-group-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const groupId = e.target.dataset.groupId;
+      editGroup(groupId);
+    });
+  });
+
+  // Delete buttons
+  document.querySelectorAll('.delete-group-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const groupId = e.target.dataset.groupId;
+      await deleteGroup(groupId);
+    });
+  });
+}
+
+function getRuleCountForGroup(groupId) {
+  // This will be called after rules are loaded
+  const rulesList = document.getElementById('rulesList');
+  if (!rulesList) return 0;
+
+  // Count from currentRules if available
+  if (window.currentRules) {
+    return window.currentRules.filter(r => r.groupId === groupId).length;
+  }
+  return 0;
+}
+
+function getEnabledRuleCountForGroup(groupId) {
+  if (window.currentRules) {
+    return window.currentRules.filter(r => r.groupId === groupId && r.enabled).length;
+  }
+  return 0;
+}
+
+async function toggleGroup(groupId) {
+  try {
+    await chrome.runtime.sendMessage({
+      action: 'toggleGroup',
+      groupId: groupId
+    });
+    await loadGroups();
+    await loadRules(); // Reload rules to reflect group state changes
+  } catch (error) {
+    console.error('Failed to toggle group:', error);
+    alert('Failed to toggle group');
+  }
+}
+
+function editGroup(groupId) {
+  const group = currentGroups.find(g => g.id === groupId);
+  if (!group) return;
+
+  // Populate form
+  document.getElementById('editGroupId').value = group.id;
+  document.getElementById('groupName').value = group.name;
+  document.getElementById('groupDescription').value = group.description || '';
+  document.getElementById('groupColor').value = group.color || '#4CAF50';
+  document.getElementById('groupEnabled').checked = group.enabled;
+
+  // Update modal title
+  document.getElementById('groupModalTitle').textContent = 'Edit Group';
+
+  // Show modal
+  document.getElementById('groupModal').style.display = 'flex';
+}
+
+async function deleteGroup(groupId) {
+  const group = currentGroups.find(g => g.id === groupId);
+  if (!group) return;
+
+  const ruleCount = getRuleCountForGroup(groupId);
+  let message = `Are you sure you want to delete the group "${group.name}"?`;
+  if (ruleCount > 0) {
+    message += `\n\nThis group contains ${ruleCount} rule(s). The rules will not be deleted, but they will become ungrouped.`;
+  }
+
+  if (!confirm(message)) return;
+
+  try {
+    await chrome.runtime.sendMessage({
+      action: 'deleteGroup',
+      groupId: groupId
+    });
+    await loadGroups();
+    await loadRules(); // Reload rules to update group indicators
+  } catch (error) {
+    console.error('Failed to delete group:', error);
+    alert('Failed to delete group');
+  }
+}
+
+async function saveGroup(e) {
+  e.preventDefault();
+
+  const groupId = document.getElementById('editGroupId').value;
+  const groupData = {
+    name: document.getElementById('groupName').value.trim(),
+    description: document.getElementById('groupDescription').value.trim(),
+    color: document.getElementById('groupColor').value,
+    enabled: document.getElementById('groupEnabled').checked
+  };
+
+  if (!groupData.name) {
+    alert('Please enter a group name');
+    return;
+  }
+
+  try {
+    if (groupId) {
+      // Update existing group
+      await chrome.runtime.sendMessage({
+        action: 'updateGroup',
+        groupId: groupId,
+        group: groupData
+      });
+    } else {
+      // Add new group
+      await chrome.runtime.sendMessage({
+        action: 'addGroup',
+        group: groupData
+      });
+    }
+
+    closeGroupModal();
+    await loadGroups();
+    await loadRules(); // Reload rules to update group indicators
+  } catch (error) {
+    console.error('Failed to save group:', error);
+    alert('Failed to save group');
+  }
+}
+
+function openGroupModal() {
+  // Reset form
+  document.getElementById('editGroupId').value = '';
+  document.getElementById('groupName').value = '';
+  document.getElementById('groupDescription').value = '';
+  document.getElementById('groupColor').value = '#4CAF50';
+  document.getElementById('groupEnabled').checked = true;
+
+  // Update modal title
+  document.getElementById('groupModalTitle').textContent = 'Add New Group';
+
+  // Show modal
+  document.getElementById('groupModal').style.display = 'flex';
+}
+
+function closeGroupModal() {
+  document.getElementById('groupModal').style.display = 'none';
+}
+
+function updateGroupSelectors() {
+  // Update the group selector in the rule form
+  const ruleGroupSelect = document.getElementById('ruleGroup');
+  if (!ruleGroupSelect) return;
+
+  // Keep the current selection
+  const currentValue = ruleGroupSelect.value;
+
+  // Clear and repopulate
+  ruleGroupSelect.innerHTML = '<option value="">No Group</option>';
+
+  currentGroups.forEach(group => {
+    const option = document.createElement('option');
+    option.value = group.id;
+    option.textContent = group.name;
+    option.style.borderLeft = `4px solid ${group.color}`;
+    ruleGroupSelect.appendChild(option);
+  });
+
+  // Restore selection if it still exists
+  if (currentValue) {
+    ruleGroupSelect.value = currentValue;
+  }
 }
 
 // Recordings

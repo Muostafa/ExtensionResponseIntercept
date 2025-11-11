@@ -15,8 +15,9 @@ class ServiceWorker {
   async init() {
     console.log('API Response Interceptor - Service Worker initialized');
 
-    // Load rules, history, and recordings from storage
+    // Load rules, groups, history, and recordings from storage
     await this.storageManager.loadRules();
+    await this.storageManager.loadGroups();
     await this.storageManager.loadHistory();
     await this.storageManager.loadRecordings();
     this.ruleEngine.setRules(this.storageManager.getRules());
@@ -130,6 +131,35 @@ class ServiceWorker {
 
       case 'clearRecordings':
         await this.storageManager.clearAllRecordings();
+        sendResponse({ success: true });
+        break;
+
+      case 'getGroups':
+        sendResponse({ groups: this.storageManager.getGroups() });
+        break;
+
+      case 'addGroup':
+        const newGroup = await this.storageManager.addGroup(request.group);
+        sendResponse({ success: true, group: newGroup });
+        break;
+
+      case 'updateGroup':
+        await this.storageManager.updateGroup(request.groupId, request.group);
+        sendResponse({ success: true });
+        break;
+
+      case 'deleteGroup':
+        await this.storageManager.deleteGroup(request.groupId);
+        sendResponse({ success: true });
+        break;
+
+      case 'toggleGroup':
+        const groupEnabled = await this.storageManager.toggleGroupEnabled(request.groupId);
+        sendResponse({ success: true, enabled: groupEnabled });
+        break;
+
+      case 'assignRuleToGroup':
+        await this.storageManager.assignRuleToGroup(request.ruleId, request.groupId);
         sendResponse({ success: true });
         break;
 

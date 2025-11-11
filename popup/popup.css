@@ -270,3 +270,95 @@ header h1 {
 .rules-list::-webkit-scrollbar-thumb:hover {
   background: #555;
 }
+
+/* Groups Section */
+.groups-section {
+  padding: 20px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.groups-list {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.group-item {
+  background: #f9f9f9;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.group-item.disabled {
+  opacity: 0.5;
+}
+
+.group-color-indicator {
+  width: 4px;
+  height: 40px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.group-info {
+  flex: 1;
+}
+
+.group-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 2px;
+}
+
+.group-description {
+  font-size: 11px;
+  color: #666;
+}
+
+.group-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.group-toggle {
+  width: 40px;
+  height: 20px;
+}
+
+.group-toggle .toggle-label {
+  border-radius: 20px;
+}
+
+.group-toggle .toggle-label:before {
+  height: 16px;
+  width: 16px;
+  left: 2px;
+  bottom: 2px;
+}
+
+.group-toggle .toggle-input:checked + .toggle-label:before {
+  transform: translateX(20px);
+}
+
+.groups-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.groups-list::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.groups-list::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 3px;
+}
+
+.groups-list::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
