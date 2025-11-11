@@ -347,10 +347,11 @@ function collectFormData() {
   // Get header modifications
   const modifyHeaders = getHeaderModifications();
 
-  // Get group assignment
-  const groupId = document.getElementById('ruleGroup').value || undefined;
+  // Get group assignment (use null to explicitly remove group)
+  const groupValue = document.getElementById('ruleGroup').value;
+  const groupId = groupValue ? groupValue : null;
 
-  return {
+  const ruleData = {
     name,
     description,
     urlPattern,
@@ -360,9 +361,15 @@ function collectFormData() {
     modification,
     modifyStatusCode,
     modifyHeaders: modifyHeaders.length > 0 ? modifyHeaders : undefined,
-    groupId,
     enabled
   };
+
+  // Only add groupId if it's not null
+  if (groupId !== null) {
+    ruleData.groupId = groupId;
+  }
+
+  return ruleData;
 }
 
 async function editRule(ruleId) {

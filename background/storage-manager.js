@@ -107,6 +107,13 @@ export class StorageManager {
     const index = this.rules.findIndex(r => r.id === ruleId);
     if (index !== -1) {
       this.rules[index] = { ...this.rules[index], ...updates };
+
+      // If the original rule had a groupId but updates doesn't include it, remove it
+      // This allows removing a rule from a group by not including groupId in updates
+      if (this.rules[index].groupId && !('groupId' in updates)) {
+        delete this.rules[index].groupId;
+      }
+
       await this.saveRules();
       return this.rules[index];
     }
