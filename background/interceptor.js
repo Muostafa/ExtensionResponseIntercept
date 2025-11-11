@@ -1,7 +1,8 @@
 // Response Interceptor - Intercepts and modifies network responses using Chrome Debugger API
 export class ResponseInterceptor {
-  constructor(ruleEngine) {
+  constructor(ruleEngine, storageManager) {
     this.ruleEngine = ruleEngine;
+    this.storageManager = storageManager;
     this.attachedTabs = new Map();
     this.pendingRequests = new Map();
     this.setupDebuggerListener();
@@ -76,6 +77,8 @@ export class ResponseInterceptor {
 
     console.log(`Intercepted response: ${method} ${url} [${responseStatusCode}]`);
 
+    const startTime = Date.now();
+
     try {
       // Get the original response body
       const responseBody = await chrome.debugger.sendCommand(
@@ -95,18 +98,53 @@ export class ResponseInterceptor {
       const contentType = this.getContentType(responseHeaders);
 
       // Check if we need to modify this response
-      const modifiedBody = await this.ruleEngine.modifyResponse(
+      const modificationResult = await this.ruleEngine.modifyResponse(
         url,
         method,
         originalBody,
-        contentType
+        contentType,
+        responseHeaders,
+        responseStatusCode
       );
 
-      if (modifiedBody !== null && modifiedBody !== originalBody) {
+      const modified = modificationResult !== null;
+      const finalBody = modified ? modificationResult.body : originalBody;
+      const finalHeaders = modified ? modificationResult.headers : responseHeaders;
+      const finalStatusCode = modified ? modificationResult.statusCode : responseStatusCode;
+
+      // Log to history
+      if (this.storageManager && this.storageManager.settings.logging) {
+        await this.storageManager.addHistoryEntry({
+          url,
+          method,
+          tabId,
+          request: {
+            headers: request.headers,
+            postData: request.postData
+          },
+          originalResponse: {
+            statusCode: responseStatusCode,
+            headers: responseHeaders,
+            body: this.truncateForStorage(originalBody),
+            contentType
+          },
+          modifiedResponse: modified ? {
+            statusCode: finalStatusCode,
+            headers: finalHeaders,
+            body: this.truncateForStorage(finalBody),
+            contentType
+          } : null,
+          ruleApplied: modified ? modificationResult.ruleApplied : null,
+          ruleId: modified ? modificationResult.ruleId : null,
+          processingTime: Date.now() - startTime
+        });
+      }
+
+      if (modified) {
         console.log(`✓ Modified response for ${url}`);
 
         // Encode the modified body
-        const base64Body = this.base64Encode(modifiedBody);
+        const base64Body = this.base64Encode(finalBody);
 
         // Continue with modified response
         await chrome.debugger.sendCommand(
@@ -114,8 +152,8 @@ export class ResponseInterceptor {
           'Fetch.fulfillRequest',
           {
             requestId,
-            responseCode: responseStatusCode,
-            responseHeaders: this.convertHeaders(responseHeaders),
+            responseCode: finalStatusCode,
+            responseHeaders: this.convertHeaders(finalHeaders),
             body: base64Body
           }
         );
@@ -141,6 +179,14 @@ export class ResponseInterceptor {
         console.error('Failed to continue request:', continueError);
       }
     }
+  }
+
+  truncateForStorage(text, maxLength = 10000) {
+    // Truncate very large responses to avoid storage issues
+    if (typeof text === 'string' && text.length > maxLength) {
+      return text.substring(0, maxLength) + '... [truncated]';
+    }
+    return text;
   }
 
   getContentType(headers) {

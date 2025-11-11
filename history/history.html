@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Request/Response History - API Interceptor</title>
+  <link rel="stylesheet" href="history.css">
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <h1>📊 Request/Response History</h1>
+      <div class="header-actions">
+        <button id="clearHistoryBtn" class="btn btn-danger">Clear History</button>
+        <button id="exportHistoryBtn" class="btn btn-secondary">Export HAR</button>
+        <button id="openOptionsBtn" class="btn btn-secondary">Settings</button>
+      </div>
+    </header>
+
+    <div class="filters">
+      <input type="text" id="searchInput" class="search-input" placeholder="Search URL, method, or rule...">
+
+      <div class="filter-group">
+        <label>
+          <input type="checkbox" id="filterModified" checked> Show Modified Only
+        </label>
+        <label>
+          <input type="checkbox" id="filterUnmodified" checked> Show Unmodified
+        </label>
+      </div>
+
+      <select id="methodFilter" class="filter-select">
+        <option value="">All Methods</option>
+        <option value="GET">GET</option>
+        <option value="POST">POST</option>
+        <option value="PUT">PUT</option>
+        <option value="DELETE">DELETE</option>
+        <option value="PATCH">PATCH</option>
+      </select>
+    </div>
+
+    <div class="stats">
+      <div class="stat-card">
+        <div class="stat-value" id="totalRequests">0</div>
+        <div class="stat-label">Total Requests</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="modifiedRequests">0</div>
+        <div class="stat-label">Modified</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="avgProcessingTime">0ms</div>
+        <div class="stat-label">Avg Processing Time</div>
+      </div>
+    </div>
+
+    <div id="historyList" class="history-list">
+      <!-- History items will be populated here -->
+    </div>
+
+    <div id="emptyState" class="empty-state" style="display: none;">
+      <div class="empty-icon">📭</div>
+      <h3>No History Yet</h3>
+      <p>Attach the debugger to a tab and browse to see intercepted requests</p>
+    </div>
+  </div>
+
+  <!-- Detail Modal -->
+  <div id="detailModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Request Details</h2>
+        <button id="closeModal" class="close-btn">&times;</button>
+      </div>
+      <div class="modal-body" id="modalBody">
+        <!-- Details will be populated here -->
+      </div>
+      <div class="modal-footer">
+        <button id="recordResponseBtn" class="btn btn-primary">Save as Recording</button>
+        <button id="closeModalBtn" class="btn btn-secondary">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="history.js"></script>
+</body>
+</html>

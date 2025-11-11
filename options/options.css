@@ -447,6 +447,29 @@ body {
   margin-top: 10px;
 }
 
+/* Header Modification Rows */
+.header-mod-row {
+  display: grid;
+  grid-template-columns: 120px 1fr 1fr 50px;
+  gap: 10px;
+  margin-bottom: 10px;
+  align-items: center;
+}
+
+.header-action {
+  min-width: 100px;
+}
+
+.header-name,
+.header-value {
+  flex: 1;
+}
+
+.btn-small {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .sidebar {
@@ -463,6 +486,10 @@ body {
   }
 
   .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .header-mod-row {
     grid-template-columns: 1fr;
   }
 }

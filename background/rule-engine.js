@@ -83,7 +83,7 @@ export class RuleEngine {
     return matchingRules;
   }
 
-  async modifyResponse(url, method, originalBody, contentType) {
+  async modifyResponse(url, method, originalBody, contentType, originalHeaders, originalStatusCode) {
     const matchingRules = this.findMatchingRules(url, method);
 
     if (matchingRules.length === 0) {
@@ -96,17 +96,70 @@ export class RuleEngine {
     console.log(`Applying rule "${rule.name}" to ${url}`);
 
     try {
-      const modifiedBody = await this.applyModification(
-        originalBody,
-        rule.modification,
-        rule.modifyType,
-        contentType
-      );
-      return modifiedBody;
+      const result = {
+        body: originalBody,
+        headers: originalHeaders,
+        statusCode: originalStatusCode,
+        ruleApplied: rule.name,
+        ruleId: rule.id
+      };
+
+      // Apply body modification if specified
+      if (rule.modifyType) {
+        const modifiedBody = await this.applyModification(
+          originalBody,
+          rule.modification,
+          rule.modifyType,
+          contentType
+        );
+        if (modifiedBody !== null) {
+          result.body = modifiedBody;
+        }
+      }
+
+      // Apply header modifications if specified
+      if (rule.modifyHeaders && Array.isArray(rule.modifyHeaders)) {
+        result.headers = this.applyHeaderModifications(originalHeaders, rule.modifyHeaders);
+      }
+
+      // Apply status code modification if specified
+      if (rule.modifyStatusCode !== undefined && rule.modifyStatusCode !== null) {
+        result.statusCode = rule.modifyStatusCode;
+      }
+
+      return result;
     } catch (error) {
       console.error(`Failed to apply rule "${rule.name}":`, error);
       return null;
     }
+  }
+
+  applyHeaderModifications(originalHeaders, modifications) {
+    const headersMap = new Map();
+
+    // Convert original headers to map
+    if (originalHeaders) {
+      originalHeaders.forEach(header => {
+        headersMap.set(header.name.toLowerCase(), header.value);
+      });
+    }
+
+    // Apply modifications
+    modifications.forEach(mod => {
+      const headerName = mod.name.toLowerCase();
+
+      if (mod.action === 'add' || mod.action === 'set') {
+        headersMap.set(headerName, mod.value);
+      } else if (mod.action === 'remove') {
+        headersMap.delete(headerName);
+      }
+    });
+
+    // Convert back to array format
+    return Array.from(headersMap.entries()).map(([name, value]) => ({
+      name,
+      value
+    }));
   }
 
   async applyModification(originalBody, modification, modifyType, contentType) {
