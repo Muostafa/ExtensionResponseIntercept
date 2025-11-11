@@ -666,41 +666,54 @@ async function createRuleFromRecording(recordingId) {
       return;
     }
 
-    // Populate form with recording data
+    console.log('Creating rule from recording:', recording);
+
+    // Switch to new rule tab first
+    showTab('new-rule');
+
+    // Reset form and clear editing state
     currentEditingRuleId = null;
     resetForm();
 
-    document.getElementById('ruleName').value = recording.name;
-    document.getElementById('urlPattern').value = recording.urlPattern || recording.url;
-    document.getElementById('matchType').value = recording.matchType || 'exact';
-    document.getElementById('modifyType').value = 'replace';
+    // Use setTimeout to ensure form is ready after reset
+    setTimeout(() => {
+      // Set basic rule information
+      document.getElementById('ruleName').value = recording.name || 'Rule from Recording';
+      document.getElementById('urlPattern').value = recording.urlPattern || recording.url || '';
+      document.getElementById('matchType').value = recording.matchType || 'exact';
+      document.getElementById('modifyType').value = 'replace';
 
-    // Set method
-    document.querySelectorAll('input[name="methods"]').forEach(cb => {
-      cb.checked = cb.value === recording.method;
-    });
-
-    // Set response body
-    updateModificationOptions('replace');
-    document.getElementById('replaceValue').value = recording.response.body || '';
-
-    // Set status code
-    if (recording.response.statusCode) {
-      document.getElementById('modifyStatusCode').value = recording.response.statusCode;
-    }
-
-    // Set headers
-    if (recording.response.headers && recording.response.headers.length > 0) {
-      recording.response.headers.forEach(header => {
-        addHeaderModification(header.name, header.value, 'set');
+      // Set method checkboxes
+      document.querySelectorAll('input[name="methods"]').forEach(cb => {
+        cb.checked = cb.value === recording.method;
       });
-    }
 
-    showTab('new-rule');
-    document.getElementById('formTitle').textContent = 'Create Rule from Recording';
+      // Set response body
+      updateModificationOptions('replace');
+      const bodyValue = recording.response?.body || '';
+      document.getElementById('replaceValue').value = bodyValue;
+
+      // Set status code
+      if (recording.response?.statusCode) {
+        document.getElementById('modifyStatusCode').value = recording.response.statusCode;
+      }
+
+      // Set headers
+      if (recording.response?.headers && Array.isArray(recording.response.headers) && recording.response.headers.length > 0) {
+        recording.response.headers.forEach(header => {
+          if (header.name) {
+            addHeaderModification(header.name, header.value, 'set');
+          }
+        });
+      }
+
+      document.getElementById('formTitle').textContent = 'Create Rule from Recording';
+
+      console.log('Form populated with recording data');
+    }, 100);
   } catch (error) {
     console.error('Failed to create rule from recording:', error);
-    alert('Failed to create rule from recording');
+    alert('Failed to create rule from recording: ' + error.message);
   }
 }
 
