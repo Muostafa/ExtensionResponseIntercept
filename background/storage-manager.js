@@ -2,6 +2,7 @@
 export class StorageManager {
   constructor() {
     this.rules = [];
+    this.groups = [];
     this.settings = {
       globalEnabled: true,
       logging: true,
@@ -10,6 +11,7 @@ export class StorageManager {
     this.history = [];
     this.recordings = [];
     this.listeners = [];
+    this.groupListeners = [];
     this.historyListeners = [];
   }
 
@@ -76,7 +78,18 @@ export class StorageManager {
   }
 
   getEnabledRules() {
-    return this.rules.filter(rule => rule.enabled);
+    return this.rules.filter(rule => {
+      // Rule must be enabled
+      if (!rule.enabled) return false;
+
+      // If rule belongs to a group, the group must also be enabled
+      if (rule.groupId) {
+        const group = this.groups.find(g => g.id === rule.groupId);
+        return group ? group.enabled : true; // If group not found, allow rule
+      }
+
+      return true;
+    });
   }
 
   async addRule(rule) {
@@ -94,6 +107,13 @@ export class StorageManager {
     const index = this.rules.findIndex(r => r.id === ruleId);
     if (index !== -1) {
       this.rules[index] = { ...this.rules[index], ...updates };
+
+      // If the original rule had a groupId but updates doesn't include it, remove it
+      // This allows removing a rule from a group by not including groupId in updates
+      if (this.rules[index].groupId && !('groupId' in updates)) {
+        delete this.rules[index].groupId;
+      }
+
       await this.saveRules();
       return this.rules[index];
     }
@@ -159,29 +179,204 @@ export class StorageManager {
 
   async exportRules() {
     return {
-      version: '1.0',
+      version: '2.0',
       exportDate: new Date().toISOString(),
-      rules: this.rules
+      rules: this.rules,
+      groups: this.groups
     };
   }
 
   async importRules(data) {
-    if (data.rules && Array.isArray(data.rules)) {
-      // Regenerate IDs to avoid conflicts
+    let importedCount = 0;
+
+    // Import groups first (if present)
+    if (data.groups && Array.isArray(data.groups)) {
+      const groupIdMap = {}; // Map old IDs to new IDs
+
+      const importedGroups = data.groups.map(group => {
+        const oldId = group.id;
+        const newGroup = {
+          ...group,
+          id: this.generateGroupId()
+        };
+        groupIdMap[oldId] = newGroup.id;
+        return newGroup;
+      });
+
+      this.groups = [...this.groups, ...importedGroups];
+      await this.saveGroups();
+
+      // Import rules and update group references
+      if (data.rules && Array.isArray(data.rules)) {
+        const importedRules = data.rules.map(rule => {
+          const newRule = {
+            ...rule,
+            id: this.generateId()
+          };
+          // Update groupId if rule was in a group
+          if (newRule.groupId && groupIdMap[newRule.groupId]) {
+            newRule.groupId = groupIdMap[newRule.groupId];
+          }
+          return newRule;
+        });
+        this.rules = [...this.rules, ...importedRules];
+        await this.saveRules();
+        importedCount = importedRules.length;
+      }
+    } else if (data.rules && Array.isArray(data.rules)) {
+      // Legacy import (v1.0) - only rules, no groups
       const importedRules = data.rules.map(rule => ({
         ...rule,
-        id: this.generateId()
+        id: this.generateId(),
+        groupId: undefined // Clear any group references from old import
       }));
       this.rules = [...this.rules, ...importedRules];
       await this.saveRules();
-      return importedRules.length;
+      importedCount = importedRules.length;
     }
-    return 0;
+
+    return importedCount;
   }
 
   async clearAllRules() {
     this.rules = [];
     await this.saveRules();
+  }
+
+  // Group Management
+  async loadGroups() {
+    try {
+      const data = await chrome.storage.local.get(['groups']);
+      if (data.groups) {
+        this.groups = data.groups;
+      } else {
+        // Initialize with default groups
+        this.groups = [
+          {
+            id: this.generateGroupId(),
+            name: 'Development',
+            enabled: true,
+            description: 'Rules for development environment',
+            color: '#4CAF50'
+          },
+          {
+            id: this.generateGroupId(),
+            name: 'Testing',
+            enabled: true,
+            description: 'Rules for testing purposes',
+            color: '#2196F3'
+          }
+        ];
+        await this.saveGroups();
+      }
+      console.log('Groups loaded:', this.groups);
+    } catch (error) {
+      console.error('Failed to load groups:', error);
+    }
+  }
+
+  async saveGroups() {
+    try {
+      await chrome.storage.local.set({ groups: this.groups });
+      this.notifyGroupListeners();
+      console.log('Groups saved');
+    } catch (error) {
+      console.error('Failed to save groups:', error);
+    }
+  }
+
+  getGroups() {
+    return this.groups;
+  }
+
+  getGroupById(groupId) {
+    return this.groups.find(g => g.id === groupId);
+  }
+
+  async addGroup(group) {
+    const newGroup = {
+      ...group,
+      id: this.generateGroupId(),
+      enabled: group.enabled !== undefined ? group.enabled : true
+    };
+    this.groups.push(newGroup);
+    await this.saveGroups();
+    return newGroup;
+  }
+
+  async updateGroup(groupId, updates) {
+    const index = this.groups.findIndex(g => g.id === groupId);
+    if (index !== -1) {
+      this.groups[index] = { ...this.groups[index], ...updates };
+      await this.saveGroups();
+      // Also notify rule listeners since group changes affect enabled rules
+      this.notifyListeners();
+      return this.groups[index];
+    }
+    return null;
+  }
+
+  async deleteGroup(groupId) {
+    const index = this.groups.findIndex(g => g.id === groupId);
+    if (index !== -1) {
+      // Remove group reference from all rules
+      this.rules.forEach(rule => {
+        if (rule.groupId === groupId) {
+          delete rule.groupId;
+        }
+      });
+      this.groups.splice(index, 1);
+      await this.saveGroups();
+      await this.saveRules(); // Save rules to persist removed groupId references
+      return true;
+    }
+    return false;
+  }
+
+  async toggleGroupEnabled(groupId) {
+    const index = this.groups.findIndex(g => g.id === groupId);
+    if (index !== -1) {
+      this.groups[index].enabled = !this.groups[index].enabled;
+      await this.saveGroups();
+      // Also notify rule listeners since group changes affect enabled rules
+      this.notifyListeners();
+      return this.groups[index].enabled;
+    }
+    return null;
+  }
+
+  async assignRuleToGroup(ruleId, groupId) {
+    const rule = this.rules.find(r => r.id === ruleId);
+    if (rule) {
+      if (groupId === null) {
+        delete rule.groupId;
+      } else {
+        rule.groupId = groupId;
+      }
+      await this.saveRules();
+      return true;
+    }
+    return false;
+  }
+
+  getRulesByGroup(groupId) {
+    return this.rules.filter(rule => rule.groupId === groupId);
+  }
+
+  getUngroupedRules() {
+    return this.rules.filter(rule => !rule.groupId);
+  }
+
+  onGroupsChanged(callback) {
+    this.groupListeners.push(callback);
+  }
+
+  notifyGroupListeners() {
+    this.groupListeners.forEach(callback => callback(this.groups));
+  }
+
+  generateGroupId() {
+    return `group_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
 
   // History Management

@@ -16,6 +16,9 @@
         <a href="#" class="nav-item active" data-tab="rules">
           <span>📋 Rules</span>
         </a>
+        <a href="#" class="nav-item" data-tab="groups">
+          <span>🏷️ Groups</span>
+        </a>
         <a href="#" class="nav-item" data-tab="new-rule">
           <span>➕ New Rule</span>
         </a>
@@ -54,6 +57,71 @@
         </div>
       </div>
 
+      <!-- Groups Tab -->
+      <div id="groups-tab" class="tab-content">
+        <div class="header">
+          <h2>Manage Groups</h2>
+          <button id="addNewGroupBtn" class="btn btn-primary">+ Add New Group</button>
+        </div>
+
+        <div class="card">
+          <p>Organize your rules into groups to easily enable/disable multiple rules at once. When a group is disabled, all rules in that group will be inactive regardless of their individual enabled state.</p>
+        </div>
+
+        <div id="groupsList" class="rules-grid">
+          <!-- Groups will be populated here -->
+        </div>
+
+        <div id="groupsEmptyState" class="empty-state" style="display: none;">
+          <div class="empty-icon">🏷️</div>
+          <h3>No Custom Groups Yet</h3>
+          <p>Create groups to organize and manage your rules more efficiently</p>
+          <button class="btn btn-primary" id="createFirstGroup">Create Group</button>
+        </div>
+
+        <!-- Add/Edit Group Modal (hidden by default) -->
+        <div id="groupModal" class="modal" style="display: none;">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h3 id="groupModalTitle">Add New Group</h3>
+              <button class="modal-close" id="closeGroupModal">&times;</button>
+            </div>
+            <form id="groupForm">
+              <input type="hidden" id="editGroupId" value="">
+
+              <div class="form-group">
+                <label for="groupName">Group Name</label>
+                <input type="text" id="groupName" class="form-control" placeholder="e.g., Development, Testing" required>
+              </div>
+
+              <div class="form-group">
+                <label for="groupDescription">Description (optional)</label>
+                <textarea id="groupDescription" class="form-control" rows="2" placeholder="What is this group for?"></textarea>
+              </div>
+
+              <div class="form-group">
+                <label for="groupColor">Color</label>
+                <div class="color-picker">
+                  <input type="color" id="groupColor" class="form-control" value="#4CAF50">
+                  <small class="form-hint">Choose a color to identify this group</small>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="checkbox-label">
+                  <input type="checkbox" id="groupEnabled" checked> Enable this group
+                </label>
+              </div>
+
+              <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Save Group</button>
+                <button type="button" class="btn btn-secondary" id="cancelGroupBtn">Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+
       <!-- New Rule Tab -->
       <div id="new-rule-tab" class="tab-content">
         <div class="header">
@@ -71,6 +139,15 @@
           <div class="form-group">
             <label for="ruleDescription">Description (optional)</label>
             <textarea id="ruleDescription" class="form-control" rows="2" placeholder="What does this rule do?"></textarea>
+          </div>
+
+          <div class="form-group">
+            <label for="ruleGroup">Group (optional)</label>
+            <select id="ruleGroup" class="form-control">
+              <option value="">No Group</option>
+              <!-- Groups will be populated here -->
+            </select>
+            <small class="form-hint">Assign this rule to a group for easier management</small>
           </div>
 
           <div class="form-row">
