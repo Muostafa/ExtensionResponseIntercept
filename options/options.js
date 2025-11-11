@@ -186,8 +186,15 @@ function setupEventListeners() {
   document.getElementById('importFile').addEventListener('change', importRules);
   document.getElementById('clearAllBtn').addEventListener('click', clearAllRules);
 
-  // Header modification button
+  // Header modification buttons
   document.getElementById('addHeaderBtn').addEventListener('click', addHeaderModification);
+  document.getElementById('clearHeadersBtn').addEventListener('click', () => {
+    if (document.querySelectorAll('#headerModifications .header-mod-row').length > 0) {
+      if (confirm('Clear all header modifications?')) {
+        clearHeaderModifications();
+      }
+    }
+  });
 
   // History buttons
   document.getElementById('openHistoryPageBtn').addEventListener('click', openHistoryPage);
