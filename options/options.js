@@ -105,7 +105,7 @@ function displayRules(rules) {
         <div class="rule-card-header">
           <div>
             <div class="rule-card-title">
-              ${escapeHtml(rule.name)}
+              <span>${escapeHtml(rule.name)}</span>
               ${groupIndicator}
             </div>
             ${rule.description ? `<div class="rule-card-description">${escapeHtml(rule.description)}</div>` : ''}

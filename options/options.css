@@ -161,7 +161,7 @@ body {
 .rule-card-header {
   display: flex;
   justify-content: space-between;
-  align-items: start;
+  align-items: center;
   margin-bottom: 15px;
 }
 
@@ -170,6 +170,10 @@ body {
   font-weight: 600;
   color: #333;
   margin-bottom: 5px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .rule-card-description {
@@ -692,11 +696,12 @@ body {
 
 /* Rule card with group indicator */
 .rule-card .group-indicator {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
   padding: 4px 12px;
   border-radius: 20px;
   font-size: 12px;
   font-weight: 600;
-  margin-left: 8px;
   border-left: 4px solid;
+  white-space: nowrap;
 }
