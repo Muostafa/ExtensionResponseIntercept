@@ -1,9 +1,12 @@
 // Options page script
 let currentEditingRuleId = null;
+let headerModificationCounter = 0;
 
 // Initialize options page
 document.addEventListener('DOMContentLoaded', async () => {
   await loadRules();
+  await loadRecordings();
+  await loadRecentHistory();
   setupEventListeners();
   setupNavigation();
 });
@@ -182,6 +185,16 @@ function setupEventListeners() {
   });
   document.getElementById('importFile').addEventListener('change', importRules);
   document.getElementById('clearAllBtn').addEventListener('click', clearAllRules);
+
+  // Header modification button
+  document.getElementById('addHeaderBtn').addEventListener('click', addHeaderModification);
+
+  // History buttons
+  document.getElementById('openHistoryPageBtn').addEventListener('click', openHistoryPage);
+  document.getElementById('openHistoryPageBtn2').addEventListener('click', openHistoryPage);
+
+  // Recordings button
+  document.getElementById('clearRecordingsBtn').addEventListener('click', clearAllRecordings);
 }
 
 function updateModificationOptions(type) {
@@ -285,6 +298,13 @@ function collectFormData() {
       break;
   }
 
+  // Get status code modification
+  const statusCode = document.getElementById('modifyStatusCode').value.trim();
+  const modifyStatusCode = statusCode ? parseInt(statusCode, 10) : null;
+
+  // Get header modifications
+  const modifyHeaders = getHeaderModifications();
+
   return {
     name,
     description,
@@ -293,6 +313,8 @@ function collectFormData() {
     methods,
     modifyType,
     modification,
+    modifyStatusCode,
+    modifyHeaders: modifyHeaders.length > 0 ? modifyHeaders : undefined,
     enabled
   };
 }
@@ -355,6 +377,19 @@ function populateForm(rule) {
       document.getElementById('functionCode').value = rule.modification.code || '';
       break;
   }
+
+  // Populate status code
+  if (rule.modifyStatusCode) {
+    document.getElementById('modifyStatusCode').value = rule.modifyStatusCode;
+  }
+
+  // Populate header modifications
+  clearHeaderModifications();
+  if (rule.modifyHeaders && Array.isArray(rule.modifyHeaders)) {
+    rule.modifyHeaders.forEach(header => {
+      addHeaderModification(header.name, header.value, header.action);
+    });
+  }
 }
 
 function resetForm() {
@@ -364,6 +399,8 @@ function resetForm() {
   document.getElementById('ruleEnabled').checked = true;
   document.querySelectorAll('input[name="methods"]')[0].checked = true; // Check GET by default
   updateModificationOptions('replace');
+  document.getElementById('modifyStatusCode').value = '';
+  clearHeaderModifications();
   currentEditingRuleId = null;
 }
 
@@ -489,7 +526,241 @@ async function clearAllRules() {
   }
 }
 
+// Header Modifications
+function addHeaderModification(name = '', value = '', action = 'set') {
+  const id = ++headerModificationCounter;
+  const container = document.getElementById('headerModifications');
+
+  const headerRow = document.createElement('div');
+  headerRow.className = 'header-mod-row';
+  headerRow.dataset.id = id;
+  headerRow.innerHTML = `
+    <select class="form-control header-action">
+      <option value="set" ${action === 'set' ? 'selected' : ''}>Set</option>
+      <option value="add" ${action === 'add' ? 'selected' : ''}>Add</option>
+      <option value="remove" ${action === 'remove' ? 'selected' : ''}>Remove</option>
+    </select>
+    <input type="text" class="form-control header-name" placeholder="Header Name" value="${escapeHtml(name)}">
+    <input type="text" class="form-control header-value" placeholder="Header Value" value="${escapeHtml(value)}" ${action === 'remove' ? 'disabled' : ''}>
+    <button type="button" class="btn btn-danger btn-small remove-header-btn">×</button>
+  `;
+
+  container.appendChild(headerRow);
+
+  // Add event listener for action change
+  headerRow.querySelector('.header-action').addEventListener('change', (e) => {
+    const valueInput = headerRow.querySelector('.header-value');
+    if (e.target.value === 'remove') {
+      valueInput.disabled = true;
+      valueInput.value = '';
+    } else {
+      valueInput.disabled = false;
+    }
+  });
+
+  // Add event listener for remove button
+  headerRow.querySelector('.remove-header-btn').addEventListener('click', () => {
+    headerRow.remove();
+  });
+}
+
+function getHeaderModifications() {
+  const rows = document.querySelectorAll('#headerModifications .header-mod-row');
+  const modifications = [];
+
+  rows.forEach(row => {
+    const action = row.querySelector('.header-action').value;
+    const name = row.querySelector('.header-name').value.trim();
+    const value = row.querySelector('.header-value').value.trim();
+
+    if (name) {
+      modifications.push({ action, name, value });
+    }
+  });
+
+  return modifications;
+}
+
+function clearHeaderModifications() {
+  document.getElementById('headerModifications').innerHTML = '';
+  headerModificationCounter = 0;
+}
+
+// Recordings
+async function loadRecordings() {
+  try {
+    const response = await chrome.runtime.sendMessage({ action: 'getRecordings' });
+    const recordings = response.recordings || [];
+    displayRecordings(recordings);
+  } catch (error) {
+    console.error('Failed to load recordings:', error);
+  }
+}
+
+function displayRecordings(recordings) {
+  const recordingsList = document.getElementById('recordingsList');
+  const emptyState = document.getElementById('recordingsEmptyState');
+
+  if (recordings.length === 0) {
+    recordingsList.style.display = 'none';
+    emptyState.style.display = 'block';
+    return;
+  }
+
+  recordingsList.style.display = 'grid';
+  emptyState.style.display = 'none';
+
+  recordingsList.innerHTML = recordings.map(recording => `
+    <div class="rule-card">
+      <div class="rule-card-header">
+        <div>
+          <div class="rule-card-title">${escapeHtml(recording.name)}</div>
+        </div>
+      </div>
+
+      <div class="rule-card-pattern">${escapeHtml(recording.url)}</div>
+
+      <div class="rule-card-meta">
+        <span class="rule-badge">${recording.method}</span>
+        <span class="rule-badge">Status: ${recording.response.statusCode}</span>
+        <span class="rule-badge">${new Date(recording.timestamp).toLocaleString()}</span>
+      </div>
+
+      <div class="rule-card-actions">
+        <button class="btn btn-primary btn-small use-recording-btn" data-recording-id="${recording.id}">Use as Rule</button>
+        <button class="btn btn-danger btn-small delete-recording-btn" data-recording-id="${recording.id}">Delete</button>
+      </div>
+    </div>
+  `).join('');
+
+  // Add event listeners
+  document.querySelectorAll('.use-recording-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const recordingId = e.target.dataset.recordingId;
+      await createRuleFromRecording(recordingId);
+    });
+  });
+
+  document.querySelectorAll('.delete-recording-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const recordingId = e.target.dataset.recordingId;
+      if (confirm('Delete this recording?')) {
+        await chrome.runtime.sendMessage({
+          action: 'deleteRecording',
+          recordingId
+        });
+        await loadRecordings();
+      }
+    });
+  });
+}
+
+async function createRuleFromRecording(recordingId) {
+  try {
+    const response = await chrome.runtime.sendMessage({ action: 'getRecordings' });
+    const recordings = response.recordings || [];
+    const recording = recordings.find(r => r.id === recordingId);
+
+    if (!recording) {
+      alert('Recording not found');
+      return;
+    }
+
+    // Populate form with recording data
+    currentEditingRuleId = null;
+    resetForm();
+
+    document.getElementById('ruleName').value = recording.name;
+    document.getElementById('urlPattern').value = recording.urlPattern || recording.url;
+    document.getElementById('matchType').value = recording.matchType || 'exact';
+    document.getElementById('modifyType').value = 'replace';
+
+    // Set method
+    document.querySelectorAll('input[name="methods"]').forEach(cb => {
+      cb.checked = cb.value === recording.method;
+    });
+
+    // Set response body
+    updateModificationOptions('replace');
+    document.getElementById('replaceValue').value = recording.response.body || '';
+
+    // Set status code
+    if (recording.response.statusCode) {
+      document.getElementById('modifyStatusCode').value = recording.response.statusCode;
+    }
+
+    // Set headers
+    if (recording.response.headers && recording.response.headers.length > 0) {
+      recording.response.headers.forEach(header => {
+        addHeaderModification(header.name, header.value, 'set');
+      });
+    }
+
+    showTab('new-rule');
+    document.getElementById('formTitle').textContent = 'Create Rule from Recording';
+  } catch (error) {
+    console.error('Failed to create rule from recording:', error);
+    alert('Failed to create rule from recording');
+  }
+}
+
+async function clearAllRecordings() {
+  if (!confirm('Are you sure you want to delete all recordings?')) {
+    return;
+  }
+
+  try {
+    await chrome.runtime.sendMessage({ action: 'clearRecordings' });
+    await loadRecordings();
+  } catch (error) {
+    console.error('Failed to clear recordings:', error);
+    alert('Failed to clear recordings');
+  }
+}
+
+// History
+async function loadRecentHistory() {
+  try {
+    const response = await chrome.runtime.sendMessage({ action: 'getHistory', limit: 10 });
+    const history = response.history || [];
+    displayRecentHistory(history);
+  } catch (error) {
+    console.error('Failed to load history:', error);
+  }
+}
+
+function displayRecentHistory(history) {
+  const list = document.getElementById('recentHistoryList');
+
+  if (history.length === 0) {
+    list.innerHTML = '<p style="color: #666;">No history yet</p>';
+    return;
+  }
+
+  list.innerHTML = `
+    <div style="max-height: 400px; overflow-y: auto;">
+      ${history.map(entry => `
+        <div style="padding: 10px; border-bottom: 1px solid #eee;">
+          <div style="display: flex; gap: 10px; align-items: center;">
+            <span style="font-weight: bold; color: #2563eb;">${entry.method}</span>
+            <span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(entry.url)}</span>
+            ${entry.modifiedResponse ? '<span style="color: #10b981;">✓ Modified</span>' : ''}
+          </div>
+          <div style="font-size: 12px; color: #666; margin-top: 4px;">
+            ${new Date(entry.timestamp).toLocaleString()}
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+function openHistoryPage() {
+  chrome.tabs.create({ url: chrome.runtime.getURL('history/history.html') });
+}
+
 function escapeHtml(text) {
+  if (typeof text !== 'string') return '';
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;

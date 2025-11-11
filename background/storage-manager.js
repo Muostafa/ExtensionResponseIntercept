@@ -4,9 +4,13 @@ export class StorageManager {
     this.rules = [];
     this.settings = {
       globalEnabled: true,
-      logging: true
+      logging: true,
+      maxHistoryItems: 100
     };
+    this.history = [];
+    this.recordings = [];
     this.listeners = [];
+    this.historyListeners = [];
   }
 
   async loadRules() {
@@ -178,5 +182,120 @@ export class StorageManager {
   async clearAllRules() {
     this.rules = [];
     await this.saveRules();
+  }
+
+  // History Management
+  async addHistoryEntry(entry) {
+    const historyEntry = {
+      id: this.generateId(),
+      timestamp: Date.now(),
+      ...entry
+    };
+
+    this.history.unshift(historyEntry); // Add to beginning
+
+    // Limit history size
+    if (this.history.length > this.settings.maxHistoryItems) {
+      this.history = this.history.slice(0, this.settings.maxHistoryItems);
+    }
+
+    await this.saveHistory();
+    this.notifyHistoryListeners();
+    return historyEntry;
+  }
+
+  async loadHistory() {
+    try {
+      const data = await chrome.storage.local.get(['history']);
+      if (data.history) {
+        this.history = data.history;
+      }
+    } catch (error) {
+      console.error('Failed to load history:', error);
+    }
+  }
+
+  async saveHistory() {
+    try {
+      await chrome.storage.local.set({ history: this.history });
+    } catch (error) {
+      console.error('Failed to save history:', error);
+    }
+  }
+
+  getHistory(limit = null) {
+    if (limit) {
+      return this.history.slice(0, limit);
+    }
+    return this.history;
+  }
+
+  async clearHistory() {
+    this.history = [];
+    await this.saveHistory();
+    this.notifyHistoryListeners();
+  }
+
+  onHistoryChanged(callback) {
+    this.historyListeners.push(callback);
+  }
+
+  notifyHistoryListeners() {
+    this.historyListeners.forEach(callback => callback(this.history));
+  }
+
+  // Recording Management
+  async addRecording(recording) {
+    const newRecording = {
+      id: this.generateId(),
+      timestamp: Date.now(),
+      ...recording
+    };
+
+    this.recordings.push(newRecording);
+    await this.saveRecordings();
+    return newRecording;
+  }
+
+  async loadRecordings() {
+    try {
+      const data = await chrome.storage.local.get(['recordings']);
+      if (data.recordings) {
+        this.recordings = data.recordings;
+      }
+    } catch (error) {
+      console.error('Failed to load recordings:', error);
+    }
+  }
+
+  async saveRecordings() {
+    try {
+      await chrome.storage.local.set({ recordings: this.recordings });
+    } catch (error) {
+      console.error('Failed to save recordings:', error);
+    }
+  }
+
+  getRecordings() {
+    return this.recordings;
+  }
+
+  getRecordingById(id) {
+    return this.recordings.find(r => r.id === id);
+  }
+
+  async deleteRecording(recordingId) {
+    const index = this.recordings.findIndex(r => r.id === recordingId);
+    if (index !== -1) {
+      this.recordings.splice(index, 1);
+      await this.saveRecordings();
+      return true;
+    }
+    return false;
+  }
+
+  async clearAllRecordings() {
+    this.recordings = [];
+    await this.saveRecordings();
   }
 }

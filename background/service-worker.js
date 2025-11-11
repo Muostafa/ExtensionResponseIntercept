@@ -7,7 +7,7 @@ class ServiceWorker {
   constructor() {
     this.storageManager = new StorageManager();
     this.ruleEngine = new RuleEngine();
-    this.interceptor = new ResponseInterceptor(this.ruleEngine);
+    this.interceptor = new ResponseInterceptor(this.ruleEngine, this.storageManager);
     this.activeTabs = new Set();
     this.init();
   }
@@ -15,8 +15,10 @@ class ServiceWorker {
   async init() {
     console.log('API Response Interceptor - Service Worker initialized');
 
-    // Load rules from storage
+    // Load rules, history, and recordings from storage
     await this.storageManager.loadRules();
+    await this.storageManager.loadHistory();
+    await this.storageManager.loadRecordings();
     this.ruleEngine.setRules(this.storageManager.getRules());
 
     // Listen for settings changes
@@ -100,6 +102,34 @@ class ServiceWorker {
 
       case 'detachDebugger':
         await this.detachDebuggerFromTab(request.tabId);
+        sendResponse({ success: true });
+        break;
+
+      case 'getHistory':
+        sendResponse({ history: this.storageManager.getHistory(request.limit) });
+        break;
+
+      case 'clearHistory':
+        await this.storageManager.clearHistory();
+        sendResponse({ success: true });
+        break;
+
+      case 'getRecordings':
+        sendResponse({ recordings: this.storageManager.getRecordings() });
+        break;
+
+      case 'addRecording':
+        const recording = await this.storageManager.addRecording(request.recording);
+        sendResponse({ success: true, recording });
+        break;
+
+      case 'deleteRecording':
+        await this.storageManager.deleteRecording(request.recordingId);
+        sendResponse({ success: true });
+        break;
+
+      case 'clearRecordings':
+        await this.storageManager.clearAllRecordings();
         sendResponse({ success: true });
         break;
 

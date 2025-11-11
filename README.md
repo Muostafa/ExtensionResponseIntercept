@@ -4,6 +4,7 @@ A Chrome extension that enables you to intercept and modify API response bodies 
 
 ## Features
 
+### Core Interception
 - **Real-time Response Interception**: Intercept HTTP responses before they reach your application
 - **Multiple Modification Types**:
   - Replace entire response body
@@ -12,8 +13,27 @@ A Chrome extension that enables you to intercept and modify API response bodies 
   - Custom JavaScript functions
 - **Flexible URL Matching**: Support for wildcards, regex, exact matches, and contains patterns
 - **HTTP Method Filtering**: Target specific methods (GET, POST, PUT, DELETE, PATCH)
+
+### Advanced Modifications
+- **Response Header Modification**: Add, modify, or remove response headers (e.g., CORS headers)
+- **Status Code Modification**: Change HTTP status codes (e.g., turn 404s into 200s)
+- **Multi-layer Modifications**: Combine body, header, and status code changes in a single rule
+
+### Request/Response Management
+- **Request/Response History**: Track all intercepted requests with detailed logs
+- **Visual Diff Viewer**: Side-by-side comparison of original vs modified responses
+- **Advanced Filtering**: Search and filter history by URL, method, or rule
+- **HAR Export**: Export history in standard HAR format for analysis
+
+### Response Recording & Replay
+- **Record Real Responses**: Save actual API responses as reusable mocks
+- **Convert to Rules**: Instantly create rules from recorded responses
+- **Response Library**: Build a collection of mock responses for testing
+
+### User Experience
 - **User-Friendly Interface**: Intuitive popup and options page for managing rules
 - **Import/Export**: Save and share your rule configurations
+- **Real-time Statistics**: View processing times and modification counts
 
 ## Installation
 
@@ -42,6 +62,26 @@ A Chrome extension that enables you to intercept and modify API response bodies 
    - Define your modification
    - Enable the rule
 5. Refresh your page to see the modifications
+
+### Viewing History
+
+1. Click the extension icon and select "View History"
+2. Or navigate to the History tab in the Options page
+3. Features:
+   - Filter by URL, method, or modification status
+   - Search through intercepted requests
+   - View detailed request/response information
+   - Compare original vs modified responses side-by-side
+   - Export to HAR format for further analysis
+   - Save responses as recordings for reuse
+
+### Recording Responses
+
+1. Open the History viewer
+2. Click on any intercepted request to view details
+3. Click "Save as Recording" to store the response
+4. Navigate to the Recordings tab in Options
+5. Convert recordings to rules with one click
 
 ### Creating Rules
 
@@ -79,6 +119,31 @@ data.modified = true;
 return JSON.stringify(data);
 ```
 
+### Advanced Rule Configuration
+
+#### Modifying Response Headers
+
+Add header modifications to your rules:
+- **Set/Add**: Create or update a header value
+- **Remove**: Delete a specific header
+
+Common use cases:
+```
+Action: Set
+Header: Access-Control-Allow-Origin
+Value: *
+
+Action: Remove
+Header: X-Frame-Options
+```
+
+#### Changing Status Codes
+
+Override the response status code:
+- Change 404 to 200 for testing
+- Simulate error conditions (500, 503)
+- Mock successful responses
+
 ### Example Rules
 
 **Example 1: Mock API Response**
@@ -110,6 +175,27 @@ const data = JSON.parse(body);
 data.intercepted = true;
 data.timestamp = Date.now();
 return JSON.stringify(data, null, 2);
+```
+
+**Example 4: CORS Bypass with Headers**
+- URL Pattern: `*://external-api.com/*`
+- Match Type: Wildcard
+- Status Code: Keep original
+- Headers:
+  - Set `Access-Control-Allow-Origin` = `*`
+  - Set `Access-Control-Allow-Methods` = `GET, POST, PUT, DELETE`
+  - Set `Access-Control-Allow-Headers` = `*`
+
+**Example 5: Convert Error to Success**
+- URL Pattern: `*/api/flaky-endpoint`
+- Match Type: Contains
+- Status Code: 200
+- Modification: Replace Body
+```json
+{
+  "success": true,
+  "message": "Request succeeded"
+}
 ```
 
 ## Technical Details
@@ -162,6 +248,10 @@ extension-response-intercept/
 │   ├── options.html             # Options page UI
 │   ├── options.js               # Options page logic
 │   └── options.css              # Options page styles
+├── history/
+│   ├── history.html             # History viewer UI
+│   ├── history.js               # History viewer logic
+│   └── history.css              # History viewer styles
 ├── icons/                        # Extension icons
 └── README.md                     # This file
 ```
@@ -232,6 +322,19 @@ MIT License - feel free to use and modify as needed.
 Contributions are welcome! Please feel free to submit issues or pull requests.
 
 ## Changelog
+
+### Version 2.0.0 (Current)
+- **NEW**: Response header modification (add, set, remove headers)
+- **NEW**: HTTP status code modification
+- **NEW**: Request/Response history tracking with visual diff viewer
+- **NEW**: Advanced filtering and search in history
+- **NEW**: HAR export for history data
+- **NEW**: Response recording and replay functionality
+- **NEW**: Convert recorded responses to rules with one click
+- **NEW**: Real-time statistics (processing times, modification counts)
+- **IMPROVED**: Rule engine now supports multi-layer modifications
+- **IMPROVED**: Better error handling and logging
+- **IMPROVED**: Enhanced UI with new History and Recordings tabs
 
 ### Version 1.0.0
 - Initial release

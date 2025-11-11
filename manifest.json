@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "API Response Interceptor",
-  "version": "1.0.0",
-  "description": "Intercept and modify API response bodies in real-time",
+  "version": "2.0.0",
+  "description": "Intercept and modify API responses, headers, and status codes in real-time with recording and history features",
   "permissions": [
     "debugger",
     "storage",
