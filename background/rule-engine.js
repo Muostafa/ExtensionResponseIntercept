@@ -117,11 +117,6 @@ export class RuleEngine {
         }
       }
 
-      // Apply JSON prettification if specified
-      if (rule.prettifyJson) {
-        result.body = this.prettifyJsonBody(result.body, contentType);
-      }
-
       // Apply header modifications if specified
       if (rule.modifyHeaders && Array.isArray(rule.modifyHeaders)) {
         result.headers = this.applyHeaderModifications(originalHeaders, rule.modifyHeaders);
@@ -258,25 +253,6 @@ export class RuleEngine {
     } catch (error) {
       console.error('Failed to execute custom function:', error);
       return null;
-    }
-  }
-
-  prettifyJsonBody(body, contentType) {
-    // Prettify JSON body with proper indentation
-    try {
-      // Only prettify if content type indicates JSON
-      if (contentType && !contentType.includes('application/json')) {
-        console.log('Content-Type is not JSON, skipping prettification');
-        return body;
-      }
-
-      // Try to parse and prettify the JSON
-      const jsonData = JSON.parse(body);
-      return JSON.stringify(jsonData, null, 2);
-    } catch (error) {
-      console.warn('Failed to prettify JSON (body may not be valid JSON):', error);
-      // Return original body if parsing fails
-      return body;
     }
   }
 }

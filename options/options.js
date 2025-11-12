@@ -122,7 +122,6 @@ function displayRules(rules) {
           <span class="rule-badge">${rule.matchType}</span>
           <span class="rule-badge method">${methods}</span>
           <span class="rule-badge">${getModifyTypeLabel(rule.modifyType)}</span>
-          ${rule.prettifyJson ? '<span class="rule-badge" style="background: #10b981; color: white;">Prettify JSON</span>' : ''}
         </div>
 
         <div class="rule-card-actions">
@@ -199,6 +198,9 @@ function setupEventListeners() {
   document.getElementById('modifyType').addEventListener('change', (e) => {
     updateModificationOptions(e.target.value);
   });
+
+  // Prettify JSON button
+  document.getElementById('prettifyJsonBtn').addEventListener('click', prettifyJsonInTextarea);
 
   // Import/Export buttons
   document.getElementById('exportBtn').addEventListener('click', exportRules);
@@ -352,9 +354,6 @@ function collectFormData() {
   const groupValue = document.getElementById('ruleGroup').value;
   const groupId = groupValue ? groupValue : null;
 
-  // Get prettify JSON option
-  const prettifyJson = document.getElementById('prettifyJson').checked;
-
   const ruleData = {
     name,
     description,
@@ -363,7 +362,6 @@ function collectFormData() {
     methods,
     modifyType,
     modification,
-    prettifyJson,
     modifyStatusCode,
     modifyHeaders: modifyHeaders.length > 0 ? modifyHeaders : undefined,
     enabled
@@ -440,9 +438,6 @@ function populateForm(rule) {
   if (rule.modifyStatusCode) {
     document.getElementById('modifyStatusCode').value = rule.modifyStatusCode;
   }
-
-  // Populate prettify JSON checkbox
-  document.getElementById('prettifyJson').checked = rule.prettifyJson || false;
 
   // Populate header modifications
   clearHeaderModifications();
@@ -1092,6 +1087,25 @@ function displayRecentHistory(history) {
 
 function openHistoryPage() {
   chrome.tabs.create({ url: chrome.runtime.getURL('history/history.html') });
+}
+
+function prettifyJsonInTextarea() {
+  const textarea = document.getElementById('replaceValue');
+  const content = textarea.value.trim();
+
+  if (!content) {
+    alert('Please enter some JSON content first');
+    return;
+  }
+
+  try {
+    // Parse and prettify the JSON
+    const jsonData = JSON.parse(content);
+    const prettified = JSON.stringify(jsonData, null, 2);
+    textarea.value = prettified;
+  } catch (error) {
+    alert('Invalid JSON: ' + error.message + '\n\nPlease check your JSON syntax.');
+  }
 }
 
 function escapeHtml(text) {
