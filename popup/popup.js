@@ -127,6 +127,7 @@ function displayRules(rules) {
     const hasJsonBody = rule.modifyType === 'replace' &&
                         rule.modification &&
                         rule.modification.type === 'json';
+    const canEdit = hasJsonBody || rule.modifyStatusCode !== undefined;
 
     return `
     <div class="rule-item ${rule.enabled ? '' : 'disabled'}" data-rule-id="${rule.id}">
@@ -136,20 +137,34 @@ function displayRules(rules) {
           <div class="rule-pattern">${escapeHtml(rule.urlPattern)}</div>
         </div>
         <div class="rule-actions">
-          ${hasJsonBody ? `<button class="btn btn-edit" data-rule-id="${rule.id}" title="Edit JSON Body">✏️</button>` : ''}
+          ${canEdit ? `<button class="btn btn-edit" data-rule-id="${rule.id}" title="Edit Rule">✏️</button>` : ''}
           <div class="toggle-switch rule-toggle">
             <input type="checkbox" id="rule-${rule.id}" class="toggle-input rule-toggle-input" data-rule-id="${rule.id}" ${rule.enabled ? 'checked' : ''}>
             <label for="rule-${rule.id}" class="toggle-label"></label>
           </div>
         </div>
       </div>
-      ${hasJsonBody ? `
+      ${canEdit ? `
       <div class="rule-edit-container" id="edit-${rule.id}" style="display: none;">
-        <div class="edit-header">
-          <label>JSON Response Body:</label>
-          <button class="btn btn-prettify" data-rule-id="${rule.id}" title="Prettify JSON">🎨</button>
+        <div class="edit-section">
+          <div class="edit-header">
+            <label>Status Code:</label>
+          </div>
+          <input type="number" class="status-code-input" id="status-${rule.id}"
+                 value="${rule.modifyStatusCode || ''}"
+                 placeholder="200, 404, 500, etc."
+                 min="100" max="599">
+          <div class="edit-hint">Leave empty to keep original status code</div>
         </div>
-        <textarea class="json-editor" id="json-${rule.id}" rows="8">${escapeHtml(rule.modification.value)}</textarea>
+        ${hasJsonBody ? `
+        <div class="edit-section">
+          <div class="edit-header">
+            <label>JSON Response Body:</label>
+            <button class="btn btn-prettify" data-rule-id="${rule.id}" title="Prettify JSON">🎨</button>
+          </div>
+          <textarea class="json-editor" id="json-${rule.id}" rows="8">${escapeHtml(rule.modification.value)}</textarea>
+        </div>
+        ` : ''}
         <div class="edit-error" id="error-${rule.id}" style="display: none;"></div>
         <div class="edit-actions">
           <button class="btn btn-save" data-rule-id="${rule.id}">💾 Save</button>
@@ -328,17 +343,28 @@ function prettifyJson(ruleId) {
 
 async function saveJsonEdit(ruleId) {
   const textarea = document.getElementById(`json-${ruleId}`);
+  const statusInput = document.getElementById(`status-${ruleId}`);
   const errorDiv = document.getElementById(`error-${ruleId}`);
 
-  if (!textarea) return;
+  // Validate JSON if textarea exists
+  if (textarea) {
+    try {
+      JSON.parse(textarea.value);
+    } catch (error) {
+      errorDiv.textContent = `Invalid JSON: ${error.message}`;
+      errorDiv.style.display = 'block';
+      return;
+    }
+  }
 
-  // Validate JSON
-  try {
-    JSON.parse(textarea.value);
-  } catch (error) {
-    errorDiv.textContent = `Invalid JSON: ${error.message}`;
-    errorDiv.style.display = 'block';
-    return;
+  // Validate status code if input exists
+  if (statusInput && statusInput.value) {
+    const statusCode = parseInt(statusInput.value);
+    if (isNaN(statusCode) || statusCode < 100 || statusCode > 599) {
+      errorDiv.textContent = 'Status code must be between 100 and 599';
+      errorDiv.style.display = 'block';
+      return;
+    }
   }
 
   // Get the current rule
@@ -348,8 +374,20 @@ async function saveJsonEdit(ruleId) {
     const rule = rules.find(r => r.id === ruleId);
 
     if (rule) {
-      // Update the modification value
-      rule.modification.value = textarea.value;
+      // Update the modification value if textarea exists
+      if (textarea) {
+        rule.modification.value = textarea.value;
+      }
+
+      // Update the status code
+      if (statusInput) {
+        if (statusInput.value === '') {
+          // Remove status code modification if empty
+          delete rule.modifyStatusCode;
+        } else {
+          rule.modifyStatusCode = parseInt(statusInput.value);
+        }
+      }
 
       // Save the updated rule
       await chrome.runtime.sendMessage({
@@ -362,7 +400,7 @@ async function saveJsonEdit(ruleId) {
       toggleEditMode(ruleId, false);
     }
   } catch (error) {
-    console.error('Failed to save JSON edit:', error);
+    console.error('Failed to save rule edit:', error);
     errorDiv.textContent = `Failed to save: ${error.message}`;
     errorDiv.style.display = 'block';
   }

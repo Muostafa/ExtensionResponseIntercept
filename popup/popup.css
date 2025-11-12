@@ -248,6 +248,14 @@ header h1 {
   border-top: 1px solid #e0e0e0;
 }
 
+.edit-section {
+  margin-bottom: 12px;
+}
+
+.edit-section:last-of-type {
+  margin-bottom: 0;
+}
+
 .edit-header {
   display: flex;
   justify-content: space-between;
@@ -259,6 +267,30 @@ header h1 {
   font-size: 12px;
   font-weight: 600;
   color: #555;
+}
+
+.status-code-input {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: monospace;
+  background: #fafafa;
+  color: #333;
+}
+
+.status-code-input:focus {
+  outline: none;
+  border-color: #667eea;
+  background: white;
+}
+
+.edit-hint {
+  font-size: 10px;
+  color: #999;
+  margin-top: 4px;
+  font-style: italic;
 }
 
 .btn-prettify {
