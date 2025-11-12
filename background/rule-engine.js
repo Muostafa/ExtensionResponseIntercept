@@ -134,6 +134,55 @@ export class RuleEngine {
     }
   }
 
+  async modifyRequest(url, method, originalBody, contentType, originalHeaders) {
+    const matchingRules = this.findMatchingRules(url, method);
+
+    if (matchingRules.length === 0) {
+      return null; // No modification needed
+    }
+
+    // Apply rules in order (first matching rule wins for now)
+    const rule = matchingRules[0];
+
+    // Only process if request modification is enabled
+    if (!rule.modifyRequestBody || !rule.requestModifyType) {
+      return null;
+    }
+
+    console.log(`Applying request modification from rule "${rule.name}" to ${url}`);
+
+    try {
+      const result = {
+        body: originalBody,
+        headers: originalHeaders,
+        ruleApplied: rule.name,
+        ruleId: rule.id
+      };
+
+      // Apply request body modification
+      const modifiedBody = await this.applyModification(
+        originalBody,
+        rule.requestModification,
+        rule.requestModifyType,
+        contentType
+      );
+
+      if (modifiedBody !== null) {
+        result.body = modifiedBody;
+      }
+
+      // Apply request header modifications if specified
+      if (rule.modifyRequestHeaders && Array.isArray(rule.modifyRequestHeaders)) {
+        result.headers = this.applyHeaderModifications(originalHeaders, rule.modifyRequestHeaders);
+      }
+
+      return result;
+    } catch (error) {
+      console.error(`Failed to apply request modification from rule "${rule.name}":`, error);
+      return null;
+    }
+  }
+
   applyHeaderModifications(originalHeaders, modifications) {
     const headersMap = new Map();
 

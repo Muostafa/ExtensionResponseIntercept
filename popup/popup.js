@@ -124,11 +124,14 @@ function displayRules(rules) {
   }
 
   rulesList.innerHTML = rules.map(rule => {
+    const hasRequestMod = rule.modifyRequestBody && rule.requestModifyType;
+    const requestBadge = hasRequestMod ? '<span class="rule-badge request-badge" title="Modifies request body">📤 Request</span>' : '';
+
     return `
     <div class="rule-item ${rule.enabled ? '' : 'disabled'}" data-rule-id="${rule.id}">
       <div class="rule-header">
         <div class="rule-info">
-          <div class="rule-name" title="${escapeHtml(rule.name)}">${escapeHtml(rule.name)}</div>
+          <div class="rule-name" title="${escapeHtml(rule.name)}">${escapeHtml(rule.name)} ${requestBadge}</div>
           <div class="rule-pattern" title="${escapeHtml(rule.urlPattern)}">${escapeHtml(rule.urlPattern)}</div>
         </div>
         <div class="rule-actions">

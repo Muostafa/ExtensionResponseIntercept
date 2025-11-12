@@ -122,6 +122,7 @@ function displayRules(rules) {
           <span class="rule-badge">${rule.matchType}</span>
           <span class="rule-badge method">${methods}</span>
           <span class="rule-badge">${getModifyTypeLabel(rule.modifyType)}</span>
+          ${rule.modifyRequestBody && rule.requestModifyType ? '<span class="rule-badge request">📤 Modifies Request</span>' : ''}
         </div>
 
         <div class="rule-card-actions">
@@ -202,6 +203,20 @@ function setupEventListeners() {
   // Prettify JSON button
   document.getElementById('prettifyJsonBtn').addEventListener('click', prettifyJsonInTextarea);
 
+  // Request modification toggle
+  document.getElementById('modifyRequestBodyEnabled').addEventListener('change', (e) => {
+    const section = document.getElementById('requestModificationSection');
+    section.style.display = e.target.checked ? 'block' : 'none';
+  });
+
+  // Request modify type change
+  document.getElementById('requestModifyType').addEventListener('change', (e) => {
+    updateRequestModificationOptions(e.target.value);
+  });
+
+  // Prettify request JSON button
+  document.getElementById('prettifyRequestJsonBtn').addEventListener('click', prettifyRequestJsonInTextarea);
+
   // Import/Export buttons
   document.getElementById('exportBtn').addEventListener('click', exportRules);
   document.getElementById('importBtn').addEventListener('click', () => {
@@ -254,6 +269,36 @@ function updateModificationOptions(type) {
     'json-path': 'jsonPathOptions',
     'regex': 'regexOptions',
     'function': 'functionOptions'
+  };
+
+  const selectedOption = document.getElementById(optionMap[type]);
+  if (selectedOption) {
+    selectedOption.style.display = 'block';
+  }
+}
+
+function updateRequestModificationOptions(type) {
+  // Hide all request modification options
+  const requestOptions = [
+    'requestReplaceOptions',
+    'requestJsonPathOptions',
+    'requestRegexOptions',
+    'requestFunctionOptions'
+  ];
+
+  requestOptions.forEach(id => {
+    const element = document.getElementById(id);
+    if (element) {
+      element.style.display = 'none';
+    }
+  });
+
+  // Show selected option
+  const optionMap = {
+    'replace': 'requestReplaceOptions',
+    'json-path': 'requestJsonPathOptions',
+    'regex': 'requestRegexOptions',
+    'function': 'requestFunctionOptions'
   };
 
   const selectedOption = document.getElementById(optionMap[type]);
@@ -354,6 +399,45 @@ function collectFormData() {
   const groupValue = document.getElementById('ruleGroup').value;
   const groupId = groupValue ? groupValue : null;
 
+  // Get request modification data
+  const modifyRequestBodyEnabled = document.getElementById('modifyRequestBodyEnabled').checked;
+  let requestModifyType = null;
+  let requestModification = null;
+
+  if (modifyRequestBodyEnabled) {
+    requestModifyType = document.getElementById('requestModifyType').value;
+
+    switch (requestModifyType) {
+      case 'replace':
+        requestModification = {
+          type: 'text',
+          value: document.getElementById('requestReplaceValue').value
+        };
+        break;
+
+      case 'json-path':
+        requestModification = {
+          path: document.getElementById('requestJsonPath').value,
+          value: document.getElementById('requestJsonValue').value
+        };
+        break;
+
+      case 'regex':
+        requestModification = {
+          pattern: document.getElementById('requestRegexPattern').value,
+          replacement: document.getElementById('requestRegexReplacement').value,
+          flags: document.getElementById('requestRegexFlags').value
+        };
+        break;
+
+      case 'function':
+        requestModification = {
+          code: document.getElementById('requestFunctionCode').value
+        };
+        break;
+    }
+  }
+
   const ruleData = {
     name,
     description,
@@ -366,6 +450,13 @@ function collectFormData() {
     modifyHeaders: modifyHeaders.length > 0 ? modifyHeaders : undefined,
     enabled
   };
+
+  // Add request modification fields if enabled
+  if (modifyRequestBodyEnabled && requestModifyType && requestModification) {
+    ruleData.modifyRequestBody = true;
+    ruleData.requestModifyType = requestModifyType;
+    ruleData.requestModification = requestModification;
+  }
 
   // Only add groupId if it's not null
   if (groupId !== null) {
@@ -453,6 +544,43 @@ function populateForm(rule) {
   } else {
     document.getElementById('ruleGroup').value = '';
   }
+
+  // Populate request modification fields
+  const modifyRequestBodyEnabled = document.getElementById('modifyRequestBodyEnabled');
+  const requestModificationSection = document.getElementById('requestModificationSection');
+
+  if (rule.modifyRequestBody && rule.requestModifyType) {
+    modifyRequestBodyEnabled.checked = true;
+    requestModificationSection.style.display = 'block';
+
+    document.getElementById('requestModifyType').value = rule.requestModifyType;
+    updateRequestModificationOptions(rule.requestModifyType);
+
+    // Populate request modification fields
+    switch (rule.requestModifyType) {
+      case 'replace':
+        document.getElementById('requestReplaceValue').value = rule.requestModification.value || '';
+        break;
+
+      case 'json-path':
+        document.getElementById('requestJsonPath').value = rule.requestModification.path || '';
+        document.getElementById('requestJsonValue').value = rule.requestModification.value || '';
+        break;
+
+      case 'regex':
+        document.getElementById('requestRegexPattern').value = rule.requestModification.pattern || '';
+        document.getElementById('requestRegexReplacement').value = rule.requestModification.replacement || '';
+        document.getElementById('requestRegexFlags').value = rule.requestModification.flags || 'g';
+        break;
+
+      case 'function':
+        document.getElementById('requestFunctionCode').value = rule.requestModification.code || '';
+        break;
+    }
+  } else {
+    modifyRequestBodyEnabled.checked = false;
+    requestModificationSection.style.display = 'none';
+  }
 }
 
 function resetForm() {
@@ -464,6 +592,20 @@ function resetForm() {
   updateModificationOptions('replace');
   document.getElementById('modifyStatusCode').value = '';
   clearHeaderModifications();
+
+  // Reset request modification section
+  document.getElementById('modifyRequestBodyEnabled').checked = false;
+  document.getElementById('requestModificationSection').style.display = 'none';
+  document.getElementById('requestModifyType').value = 'replace';
+  updateRequestModificationOptions('replace');
+  document.getElementById('requestReplaceValue').value = '';
+  document.getElementById('requestJsonPath').value = '';
+  document.getElementById('requestJsonValue').value = '';
+  document.getElementById('requestRegexPattern').value = '';
+  document.getElementById('requestRegexReplacement').value = '';
+  document.getElementById('requestRegexFlags').value = 'g';
+  document.getElementById('requestFunctionCode').value = '';
+
   currentEditingRuleId = null;
 }
 
@@ -1091,6 +1233,25 @@ function openHistoryPage() {
 
 function prettifyJsonInTextarea() {
   const textarea = document.getElementById('replaceValue');
+  const content = textarea.value.trim();
+
+  if (!content) {
+    alert('Please enter some JSON content first');
+    return;
+  }
+
+  try {
+    // Parse and prettify the JSON
+    const jsonData = JSON.parse(content);
+    const prettified = JSON.stringify(jsonData, null, 2);
+    textarea.value = prettified;
+  } catch (error) {
+    alert('Invalid JSON: ' + error.message + '\n\nPlease check your JSON syntax.');
+  }
+}
+
+function prettifyRequestJsonInTextarea() {
+  const textarea = document.getElementById('requestReplaceValue');
   const content = textarea.value.trim();
 
   if (!content) {

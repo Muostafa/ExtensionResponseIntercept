@@ -217,6 +217,11 @@ body {
   color: #7b1fa2;
 }
 
+.rule-badge.request {
+  background: #d1fae5;
+  color: #065f46;
+}
+
 .rule-card-actions {
   display: flex;
   gap: 10px;

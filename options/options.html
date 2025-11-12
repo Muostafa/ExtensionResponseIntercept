@@ -253,6 +253,74 @@
             </div>
           </div>
 
+          <!-- Request Body Modification Section -->
+          <div class="form-group" style="border-top: 2px solid #e2e8f0; padding-top: 20px; margin-top: 20px;">
+            <label class="checkbox-label" style="font-size: 16px; font-weight: 600;">
+              <input type="checkbox" id="modifyRequestBodyEnabled"> Modify Request Body
+            </label>
+            <small class="form-hint">Enable this to modify the request body before it's sent to the server (instead of blocking the request)</small>
+          </div>
+
+          <div id="requestModificationSection" style="display: none; margin-left: 20px; padding-left: 20px; border-left: 3px solid #3b82f6;">
+            <div class="form-group">
+              <label for="requestModifyType">Request Modification Type</label>
+              <select id="requestModifyType" class="form-control">
+                <option value="replace">Replace Entire Body</option>
+                <option value="json-path">Modify JSON Path</option>
+                <option value="regex">Regex Find & Replace</option>
+                <option value="function">Custom Function</option>
+              </select>
+            </div>
+
+            <!-- Request Replace Body -->
+            <div id="requestReplaceOptions" class="modification-options">
+              <div class="form-group">
+                <label for="requestReplaceValue">New Request Body</label>
+                <textarea id="requestReplaceValue" class="form-control code-editor" rows="8" placeholder='{"modified": "request"}'></textarea>
+                <button type="button" id="prettifyRequestJsonBtn" class="btn btn-secondary btn-small" style="margin-top: 8px;">✨ Prettify JSON</button>
+              </div>
+            </div>
+
+            <!-- Request JSON Path -->
+            <div id="requestJsonPathOptions" class="modification-options" style="display: none;">
+              <div class="form-group">
+                <label for="requestJsonPath">JSON Path</label>
+                <input type="text" id="requestJsonPath" class="form-control" placeholder="data.userId">
+                <small class="form-hint">Use dot notation: data.user.name</small>
+              </div>
+              <div class="form-group">
+                <label for="requestJsonValue">New Value</label>
+                <input type="text" id="requestJsonValue" class="form-control" placeholder='"12345"'>
+                <small class="form-hint">Enter JSON value (strings need quotes)</small>
+              </div>
+            </div>
+
+            <!-- Request Regex Replace -->
+            <div id="requestRegexOptions" class="modification-options" style="display: none;">
+              <div class="form-group">
+                <label for="requestRegexPattern">Regex Pattern</label>
+                <input type="text" id="requestRegexPattern" class="form-control" placeholder="oldValue">
+              </div>
+              <div class="form-group">
+                <label for="requestRegexReplacement">Replacement</label>
+                <input type="text" id="requestRegexReplacement" class="form-control" placeholder="newValue">
+              </div>
+              <div class="form-group">
+                <label for="requestRegexFlags">Flags (optional)</label>
+                <input type="text" id="requestRegexFlags" class="form-control" placeholder="gi" value="g">
+              </div>
+            </div>
+
+            <!-- Request Function -->
+            <div id="requestFunctionOptions" class="modification-options" style="display: none;">
+              <div class="form-group">
+                <label for="requestFunctionCode">JavaScript Function</label>
+                <textarea id="requestFunctionCode" class="form-control code-editor" rows="8" placeholder="// body parameter contains the original request body&#10;return body.replace('old', 'new');"></textarea>
+                <small class="form-hint warning">⚠️ Function receives 'body' parameter and must return modified body</small>
+              </div>
+            </div>
+          </div>
+
           <!-- Status Code Modification -->
           <div class="form-group">
             <label for="modifyStatusCode">Modify Status Code (optional)</label>

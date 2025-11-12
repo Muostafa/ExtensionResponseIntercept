@@ -74,8 +74,62 @@ export class ResponseInterceptor {
         const matchingRules = this.ruleEngine.findMatchingRules(url, method);
 
         if (matchingRules.length > 0) {
-          // Block the request and return mock response immediately
           const rule = matchingRules[0];
+
+          // Check if this rule modifies the request body
+          if (rule.modifyRequestBody && rule.requestModifyType) {
+            console.log(`✓ Modifying request body for ${url} using rule "${rule.name}"`);
+
+            // Get original request body
+            const originalBody = request.postData || '';
+            const contentType = this.getContentType(request.headers);
+
+            // Apply request modifications
+            const modifiedRequest = await this.ruleEngine.modifyRequest(
+              url,
+              method,
+              originalBody,
+              contentType,
+              request.headers
+            );
+
+            if (modifiedRequest) {
+              // Log to history
+              if (this.storageManager && this.storageManager.settings.logging) {
+                await this.storageManager.addHistoryEntry({
+                  url,
+                  method,
+                  tabId,
+                  request: {
+                    headers: request.headers,
+                    postData: originalBody
+                  },
+                  modifiedRequest: {
+                    headers: modifiedRequest.headers,
+                    body: this.truncateForStorage(modifiedRequest.body)
+                  },
+                  originalResponse: null, // Will be provided by actual server
+                  ruleApplied: rule.name,
+                  ruleId: rule.id,
+                  processingTime: Date.now() - startTime,
+                  requestModified: true
+                });
+              }
+
+              // Continue request with modified body
+              await chrome.debugger.sendCommand(
+                { tabId },
+                'Fetch.continueRequest',
+                {
+                  requestId,
+                  postData: this.base64Encode(modifiedRequest.body)
+                }
+              );
+              return;
+            }
+          }
+
+          // No request modification, block and return mock response (original behavior)
           console.log(`✓ Blocking request and returning mock response for ${url} using rule "${rule.name}"`);
 
           // Generate mock response based on rule
