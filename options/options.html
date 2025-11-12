@@ -204,7 +204,10 @@
             <div class="form-group">
               <label for="replaceValue">New Response Body</label>
               <textarea id="replaceValue" class="form-control code-editor" rows="10" placeholder='{"message": "Modified response"}'></textarea>
-              <small class="form-hint">Enter the complete response body to return</small>
+              <div style="display: flex; gap: 10px; margin-top: 8px;">
+                <button type="button" id="prettifyJsonBtn" class="btn btn-secondary btn-small">✨ Prettify JSON</button>
+                <small class="form-hint" style="margin: 0; align-self: center;">Format the JSON with proper indentation</small>
+              </div>
             </div>
           </div>
 

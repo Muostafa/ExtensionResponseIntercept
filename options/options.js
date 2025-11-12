@@ -199,6 +199,9 @@ function setupEventListeners() {
     updateModificationOptions(e.target.value);
   });
 
+  // Prettify JSON button
+  document.getElementById('prettifyJsonBtn').addEventListener('click', prettifyJsonInTextarea);
+
   // Import/Export buttons
   document.getElementById('exportBtn').addEventListener('click', exportRules);
   document.getElementById('importBtn').addEventListener('click', () => {
@@ -1084,6 +1087,25 @@ function displayRecentHistory(history) {
 
 function openHistoryPage() {
   chrome.tabs.create({ url: chrome.runtime.getURL('history/history.html') });
+}
+
+function prettifyJsonInTextarea() {
+  const textarea = document.getElementById('replaceValue');
+  const content = textarea.value.trim();
+
+  if (!content) {
+    alert('Please enter some JSON content first');
+    return;
+  }
+
+  try {
+    // Parse and prettify the JSON
+    const jsonData = JSON.parse(content);
+    const prettified = JSON.stringify(jsonData, null, 2);
+    textarea.value = prettified;
+  } catch (error) {
+    alert('Invalid JSON: ' + error.message + '\n\nPlease check your JSON syntax.');
+  }
 }
 
 function escapeHtml(text) {
