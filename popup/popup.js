@@ -127,7 +127,7 @@ function displayRules(rules) {
     const hasJsonBody = rule.modifyType === 'replace' &&
                         rule.modification &&
                         rule.modification.type === 'json';
-    const canEdit = hasJsonBody || rule.modifyStatusCode !== undefined;
+    const jsonValue = hasJsonBody ? rule.modification.value : '';
 
     return `
     <div class="rule-item ${rule.enabled ? '' : 'disabled'}" data-rule-id="${rule.id}">
@@ -137,14 +137,13 @@ function displayRules(rules) {
           <div class="rule-pattern">${escapeHtml(rule.urlPattern)}</div>
         </div>
         <div class="rule-actions">
-          ${canEdit ? `<button class="btn btn-edit" data-rule-id="${rule.id}" title="Edit Rule">✏️</button>` : ''}
+          <button class="btn btn-edit" data-rule-id="${rule.id}" title="Edit Rule">✏️</button>
           <div class="toggle-switch rule-toggle">
             <input type="checkbox" id="rule-${rule.id}" class="toggle-input rule-toggle-input" data-rule-id="${rule.id}" ${rule.enabled ? 'checked' : ''}>
             <label for="rule-${rule.id}" class="toggle-label"></label>
           </div>
         </div>
       </div>
-      ${canEdit ? `
       <div class="rule-edit-container" id="edit-${rule.id}" style="display: none;">
         <div class="edit-section">
           <div class="edit-header">
@@ -156,22 +155,20 @@ function displayRules(rules) {
                  min="100" max="599">
           <div class="edit-hint">Leave empty to keep original status code</div>
         </div>
-        ${hasJsonBody ? `
         <div class="edit-section">
           <div class="edit-header">
             <label>JSON Response Body:</label>
             <button class="btn btn-prettify" data-rule-id="${rule.id}" title="Prettify JSON">🎨</button>
           </div>
-          <textarea class="json-editor" id="json-${rule.id}" rows="8">${escapeHtml(rule.modification.value)}</textarea>
+          <textarea class="json-editor" id="json-${rule.id}" rows="8" placeholder='{"message": "response"}'>${escapeHtml(jsonValue)}</textarea>
+          <div class="edit-hint">Leave empty to keep original response body</div>
         </div>
-        ` : ''}
         <div class="edit-error" id="error-${rule.id}" style="display: none;"></div>
         <div class="edit-actions">
           <button class="btn btn-save" data-rule-id="${rule.id}">💾 Save</button>
           <button class="btn btn-cancel" data-rule-id="${rule.id}">❌ Cancel</button>
         </div>
       </div>
-      ` : ''}
     </div>
   `}).join('');
 
@@ -330,6 +327,12 @@ function prettifyJson(ruleId) {
   const errorDiv = document.getElementById(`error-${ruleId}`);
 
   if (textarea) {
+    if (!textarea.value.trim()) {
+      errorDiv.textContent = 'No JSON to prettify. Enter JSON first.';
+      errorDiv.style.display = 'block';
+      return;
+    }
+
     try {
       const parsed = JSON.parse(textarea.value);
       textarea.value = JSON.stringify(parsed, null, 2);
@@ -346,8 +349,8 @@ async function saveJsonEdit(ruleId) {
   const statusInput = document.getElementById(`status-${ruleId}`);
   const errorDiv = document.getElementById(`error-${ruleId}`);
 
-  // Validate JSON if textarea exists
-  if (textarea) {
+  // Validate JSON if textarea has content
+  if (textarea && textarea.value.trim()) {
     try {
       JSON.parse(textarea.value);
     } catch (error) {
@@ -374,9 +377,14 @@ async function saveJsonEdit(ruleId) {
     const rule = rules.find(r => r.id === ruleId);
 
     if (rule) {
-      // Update the modification value if textarea exists
-      if (textarea) {
-        rule.modification.value = textarea.value;
+      // Update the JSON body if textarea has content
+      if (textarea && textarea.value.trim()) {
+        // Set modify type to replace and create/update modification
+        rule.modifyType = 'replace';
+        rule.modification = {
+          type: 'json',
+          value: textarea.value
+        };
       }
 
       // Update the status code
