@@ -123,26 +123,86 @@ function displayRules(rules) {
     return;
   }
 
-  rulesList.innerHTML = rules.map(rule => `
-    <div class="rule-item ${rule.enabled ? '' : 'disabled'}">
-      <div class="rule-info">
-        <div class="rule-name">${escapeHtml(rule.name)}</div>
-        <div class="rule-pattern">${escapeHtml(rule.urlPattern)}</div>
+  rulesList.innerHTML = rules.map(rule => {
+    return `
+    <div class="rule-item ${rule.enabled ? '' : 'disabled'}" data-rule-id="${rule.id}">
+      <div class="rule-header">
+        <div class="rule-info">
+          <div class="rule-name" title="${escapeHtml(rule.name)}">${escapeHtml(rule.name)}</div>
+          <div class="rule-pattern" title="${escapeHtml(rule.urlPattern)}">${escapeHtml(rule.urlPattern)}</div>
+        </div>
+        <div class="rule-actions">
+          <button class="btn btn-edit" data-rule-id="${rule.id}" title="Edit Rule">✏️</button>
+          <div class="toggle-switch rule-toggle">
+            <input type="checkbox" id="rule-${rule.id}" class="toggle-input rule-toggle-input" data-rule-id="${rule.id}" ${rule.enabled ? 'checked' : ''}>
+            <label for="rule-${rule.id}" class="toggle-label"></label>
+          </div>
+        </div>
       </div>
-      <div class="rule-actions">
-        <div class="toggle-switch rule-toggle">
-          <input type="checkbox" id="rule-${rule.id}" class="toggle-input rule-toggle-input" data-rule-id="${rule.id}" ${rule.enabled ? 'checked' : ''}>
-          <label for="rule-${rule.id}" class="toggle-label"></label>
+      <div class="rule-edit-container" id="edit-${rule.id}" style="display: none;">
+        <div class="edit-section">
+          <div class="edit-header">
+            <label>Status Code:</label>
+          </div>
+          <input type="number" class="status-code-input" id="status-${rule.id}"
+                 placeholder="200, 404, 500, etc."
+                 min="100" max="599">
+          <div class="edit-hint">Leave empty to keep original status code</div>
+        </div>
+        <div class="edit-section">
+          <div class="edit-header">
+            <label>JSON Response Body:</label>
+            <button class="btn btn-prettify" data-rule-id="${rule.id}" title="Prettify JSON">🎨</button>
+          </div>
+          <textarea class="json-editor" id="json-${rule.id}" rows="8" placeholder='{"message": "response"}'></textarea>
+          <div class="edit-hint">Leave empty to keep original response body</div>
+        </div>
+        <div class="edit-error" id="error-${rule.id}" style="display: none;"></div>
+        <div class="edit-actions">
+          <button class="btn btn-save" data-rule-id="${rule.id}">💾 Save</button>
+          <button class="btn btn-cancel" data-rule-id="${rule.id}">❌ Cancel</button>
         </div>
       </div>
     </div>
-  `).join('');
+  `}).join('');
 
   // Add event listeners for rule toggles
   document.querySelectorAll('.rule-toggle-input').forEach(toggle => {
     toggle.addEventListener('change', async (e) => {
       const ruleId = e.target.dataset.ruleId;
       await toggleRule(ruleId);
+    });
+  });
+
+  // Add event listeners for edit buttons
+  document.querySelectorAll('.btn-edit').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const ruleId = e.target.dataset.ruleId;
+      await toggleEditMode(ruleId, true);
+    });
+  });
+
+  // Add event listeners for prettify buttons
+  document.querySelectorAll('.btn-prettify').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const ruleId = e.target.dataset.ruleId;
+      prettifyJson(ruleId);
+    });
+  });
+
+  // Add event listeners for save buttons
+  document.querySelectorAll('.btn-save').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const ruleId = e.target.dataset.ruleId;
+      await saveJsonEdit(ruleId);
+    });
+  });
+
+  // Add event listeners for cancel buttons
+  document.querySelectorAll('.btn-cancel').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const ruleId = e.target.dataset.ruleId;
+      toggleEditMode(ruleId, false);
     });
   });
 }
@@ -231,6 +291,147 @@ async function toggleRule(ruleId) {
     }
   } catch (error) {
     console.error('Failed to toggle rule:', error);
+  }
+}
+
+async function toggleEditMode(ruleId, show) {
+  const editContainer = document.getElementById(`edit-${ruleId}`);
+  const ruleItem = document.querySelector(`.rule-item[data-rule-id="${ruleId}"]`);
+
+  if (editContainer) {
+    if (show) {
+      // Fetch the current rule data
+      try {
+        const response = await chrome.runtime.sendMessage({ action: 'getRules' });
+        const rules = response.rules || [];
+        const rule = rules.find(r => r.id === ruleId);
+
+        if (rule) {
+          // Populate status code
+          const statusInput = document.getElementById(`status-${ruleId}`);
+          if (statusInput) {
+            statusInput.value = rule.modifyStatusCode || '';
+          }
+
+          // Populate JSON body
+          const textarea = document.getElementById(`json-${ruleId}`);
+          if (textarea) {
+            const hasJsonBody = rule.modifyType === 'replace' &&
+                                rule.modification &&
+                                rule.modification.type === 'json';
+            textarea.value = (hasJsonBody && rule.modification.value) ? rule.modification.value : '';
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load rule data:', error);
+      }
+
+      editContainer.style.display = 'block';
+      ruleItem.classList.add('editing');
+
+      // Clear any previous errors
+      const errorDiv = document.getElementById(`error-${ruleId}`);
+      if (errorDiv) {
+        errorDiv.style.display = 'none';
+      }
+    } else {
+      editContainer.style.display = 'none';
+      ruleItem.classList.remove('editing');
+      // Reload rules to reset the textarea content
+      loadRules();
+    }
+  }
+}
+
+function prettifyJson(ruleId) {
+  const textarea = document.getElementById(`json-${ruleId}`);
+  const errorDiv = document.getElementById(`error-${ruleId}`);
+
+  if (textarea) {
+    if (!textarea.value.trim()) {
+      errorDiv.textContent = 'No JSON to prettify. Enter JSON first.';
+      errorDiv.style.display = 'block';
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(textarea.value);
+      textarea.value = JSON.stringify(parsed, null, 2);
+      errorDiv.style.display = 'none';
+    } catch (error) {
+      errorDiv.textContent = `Invalid JSON: ${error.message}`;
+      errorDiv.style.display = 'block';
+    }
+  }
+}
+
+async function saveJsonEdit(ruleId) {
+  const textarea = document.getElementById(`json-${ruleId}`);
+  const statusInput = document.getElementById(`status-${ruleId}`);
+  const errorDiv = document.getElementById(`error-${ruleId}`);
+
+  // Validate JSON if textarea has content
+  if (textarea && textarea.value.trim()) {
+    try {
+      JSON.parse(textarea.value);
+    } catch (error) {
+      errorDiv.textContent = `Invalid JSON: ${error.message}`;
+      errorDiv.style.display = 'block';
+      return;
+    }
+  }
+
+  // Validate status code if input exists
+  if (statusInput && statusInput.value) {
+    const statusCode = parseInt(statusInput.value);
+    if (isNaN(statusCode) || statusCode < 100 || statusCode > 599) {
+      errorDiv.textContent = 'Status code must be between 100 and 599';
+      errorDiv.style.display = 'block';
+      return;
+    }
+  }
+
+  // Get the current rule
+  try {
+    const response = await chrome.runtime.sendMessage({ action: 'getRules' });
+    const rules = response.rules || [];
+    const rule = rules.find(r => r.id === ruleId);
+
+    if (rule) {
+      // Update the JSON body if textarea has content
+      if (textarea && textarea.value.trim()) {
+        // Set modify type to replace and create/update modification
+        rule.modifyType = 'replace';
+        rule.modification = {
+          type: 'json',
+          value: textarea.value
+        };
+      }
+
+      // Update the status code
+      if (statusInput) {
+        if (statusInput.value === '') {
+          // Remove status code modification if empty
+          delete rule.modifyStatusCode;
+        } else {
+          rule.modifyStatusCode = parseInt(statusInput.value);
+        }
+      }
+
+      // Save the updated rule
+      await chrome.runtime.sendMessage({
+        action: 'updateRule',
+        ruleId: ruleId,
+        rule: rule
+      });
+
+      // Hide edit mode and reload rules
+      toggleEditMode(ruleId, false);
+    }
+  } catch (error) {
+    console.error('Failed to save rule edit:', error);
+    errorDiv.textContent = `Failed to save: ${error.message}`;
+    errorDiv.style.display = 'block';
   }
 }
 
