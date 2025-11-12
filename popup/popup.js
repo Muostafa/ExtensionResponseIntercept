@@ -133,8 +133,8 @@ function displayRules(rules) {
     <div class="rule-item ${rule.enabled ? '' : 'disabled'}" data-rule-id="${rule.id}">
       <div class="rule-header">
         <div class="rule-info">
-          <div class="rule-name">${escapeHtml(rule.name)}</div>
-          <div class="rule-pattern">${escapeHtml(rule.urlPattern)}</div>
+          <div class="rule-name" title="${escapeHtml(rule.name)}">${escapeHtml(rule.name)}</div>
+          <div class="rule-pattern" title="${escapeHtml(rule.urlPattern)}">${escapeHtml(rule.urlPattern)}</div>
         </div>
         <div class="rule-actions">
           <button class="btn btn-edit" data-rule-id="${rule.id}" title="Edit Rule">✏️</button>
