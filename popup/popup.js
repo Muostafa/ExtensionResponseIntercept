@@ -124,14 +124,6 @@ function displayRules(rules) {
   }
 
   rulesList.innerHTML = rules.map(rule => {
-    const hasJsonBody = rule.modifyType === 'replace' &&
-                        rule.modification &&
-                        rule.modification.type === 'json';
-    let jsonValue = '';
-    if (hasJsonBody && rule.modification.value) {
-      jsonValue = rule.modification.value;
-    }
-
     return `
     <div class="rule-item ${rule.enabled ? '' : 'disabled'}" data-rule-id="${rule.id}">
       <div class="rule-header">
@@ -147,13 +139,12 @@ function displayRules(rules) {
           </div>
         </div>
       </div>
-      <div class="rule-edit-container" id="edit-${rule.id}" style="display: none;" data-json-value="${escapeHtml(jsonValue)}">
+      <div class="rule-edit-container" id="edit-${rule.id}" style="display: none;">
         <div class="edit-section">
           <div class="edit-header">
             <label>Status Code:</label>
           </div>
           <input type="number" class="status-code-input" id="status-${rule.id}"
-                 value="${rule.modifyStatusCode || ''}"
                  placeholder="200, 404, 500, etc."
                  min="100" max="599">
           <div class="edit-hint">Leave empty to keep original status code</div>
@@ -185,9 +176,9 @@ function displayRules(rules) {
 
   // Add event listeners for edit buttons
   document.querySelectorAll('.btn-edit').forEach(btn => {
-    btn.addEventListener('click', (e) => {
+    btn.addEventListener('click', async (e) => {
       const ruleId = e.target.dataset.ruleId;
-      toggleEditMode(ruleId, true);
+      await toggleEditMode(ruleId, true);
     });
   });
 
@@ -303,20 +294,40 @@ async function toggleRule(ruleId) {
   }
 }
 
-function toggleEditMode(ruleId, show) {
+async function toggleEditMode(ruleId, show) {
   const editContainer = document.getElementById(`edit-${ruleId}`);
   const ruleItem = document.querySelector(`.rule-item[data-rule-id="${ruleId}"]`);
-  const textarea = document.getElementById(`json-${ruleId}`);
 
   if (editContainer) {
     if (show) {
+      // Fetch the current rule data
+      try {
+        const response = await chrome.runtime.sendMessage({ action: 'getRules' });
+        const rules = response.rules || [];
+        const rule = rules.find(r => r.id === ruleId);
+
+        if (rule) {
+          // Populate status code
+          const statusInput = document.getElementById(`status-${ruleId}`);
+          if (statusInput) {
+            statusInput.value = rule.modifyStatusCode || '';
+          }
+
+          // Populate JSON body
+          const textarea = document.getElementById(`json-${ruleId}`);
+          if (textarea) {
+            const hasJsonBody = rule.modifyType === 'replace' &&
+                                rule.modification &&
+                                rule.modification.type === 'json';
+            textarea.value = (hasJsonBody && rule.modification.value) ? rule.modification.value : '';
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load rule data:', error);
+      }
+
       editContainer.style.display = 'block';
       ruleItem.classList.add('editing');
-
-      // Initialize textarea with the stored JSON value
-      if (textarea && editContainer.dataset.jsonValue) {
-        textarea.value = editContainer.dataset.jsonValue;
-      }
 
       // Clear any previous errors
       const errorDiv = document.getElementById(`error-${ruleId}`);
