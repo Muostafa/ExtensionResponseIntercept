@@ -60,124 +60,182 @@ export class ResponseInterceptor {
 
   async handleRequestPaused(tabId, params) {
     const { requestId, request, responseStatusCode, responseHeaders } = params;
-
-    // Only process responses (when responseStatusCode exists)
-    if (!responseStatusCode) {
-      // This is a request, just continue it
-      await chrome.debugger.sendCommand(
-        { tabId },
-        'Fetch.continueRequest',
-        { requestId }
-      );
-      return;
-    }
-
     const url = request.url;
     const method = request.method;
 
-    console.log(`Intercepted response: ${method} ${url} [${responseStatusCode}]`);
+    // This is now a request (intercepting at Request stage)
+    if (!responseStatusCode) {
+      console.log(`Intercepted request: ${method} ${url}`);
 
-    const startTime = Date.now();
+      const startTime = Date.now();
 
-    try {
-      // Get the original response body
-      const responseBody = await chrome.debugger.sendCommand(
-        { tabId },
-        'Fetch.getResponseBody',
-        { requestId }
-      );
+      try {
+        // Check if any rules match this request
+        const matchingRules = this.ruleEngine.findMatchingRules(url, method);
 
-      let originalBody = responseBody.body;
+        if (matchingRules.length > 0) {
+          // Block the request and return mock response immediately
+          const rule = matchingRules[0];
+          console.log(`✓ Blocking request and returning mock response for ${url} using rule "${rule.name}"`);
 
-      // Decode base64 if necessary
-      if (responseBody.base64Encoded) {
-        originalBody = this.base64Decode(originalBody);
-      }
+          // Generate mock response based on rule
+          const mockBody = await this.generateMockResponse(rule, url, method);
+          const mockStatusCode = rule.modifyStatusCode || 200;
+          const mockHeaders = rule.modifyHeaders ? this.applyHeaderModifications([], rule.modifyHeaders) : [
+            { name: 'Content-Type', value: 'application/json' }
+          ];
 
-      // Find content type from response headers
-      const contentType = this.getContentType(responseHeaders);
-
-      // Check if we need to modify this response
-      const modificationResult = await this.ruleEngine.modifyResponse(
-        url,
-        method,
-        originalBody,
-        contentType,
-        responseHeaders,
-        responseStatusCode
-      );
-
-      const modified = modificationResult !== null;
-      const finalBody = modified ? modificationResult.body : originalBody;
-      const finalHeaders = modified ? modificationResult.headers : responseHeaders;
-      const finalStatusCode = modified ? modificationResult.statusCode : responseStatusCode;
-
-      // Log to history
-      if (this.storageManager && this.storageManager.settings.logging) {
-        await this.storageManager.addHistoryEntry({
-          url,
-          method,
-          tabId,
-          request: {
-            headers: request.headers,
-            postData: request.postData
-          },
-          originalResponse: {
-            statusCode: responseStatusCode,
-            headers: responseHeaders,
-            body: this.truncateForStorage(originalBody),
-            contentType
-          },
-          modifiedResponse: modified ? {
-            statusCode: finalStatusCode,
-            headers: finalHeaders,
-            body: this.truncateForStorage(finalBody),
-            contentType
-          } : null,
-          ruleApplied: modified ? modificationResult.ruleApplied : null,
-          ruleId: modified ? modificationResult.ruleId : null,
-          processingTime: Date.now() - startTime
-        });
-      }
-
-      if (modified) {
-        console.log(`✓ Modified response for ${url}`);
-
-        // Encode the modified body
-        const base64Body = this.base64Encode(finalBody);
-
-        // Continue with modified response
-        await chrome.debugger.sendCommand(
-          { tabId },
-          'Fetch.fulfillRequest',
-          {
-            requestId,
-            responseCode: finalStatusCode,
-            responseHeaders: this.convertHeaders(finalHeaders),
-            body: base64Body
+          // Log to history
+          if (this.storageManager && this.storageManager.settings.logging) {
+            await this.storageManager.addHistoryEntry({
+              url,
+              method,
+              tabId,
+              request: {
+                headers: request.headers,
+                postData: request.postData
+              },
+              originalResponse: null, // Request was blocked
+              modifiedResponse: {
+                statusCode: mockStatusCode,
+                headers: mockHeaders,
+                body: this.truncateForStorage(mockBody),
+                contentType: this.getContentType(mockHeaders)
+              },
+              ruleApplied: rule.name,
+              ruleId: rule.id,
+              processingTime: Date.now() - startTime,
+              blocked: true // Indicate this request was blocked
+            });
           }
-        );
-      } else {
-        // No modification needed, continue with original response
-        await chrome.debugger.sendCommand(
-          { tabId },
-          'Fetch.continueRequest',
-          { requestId }
-        );
+
+          // Encode the mock body
+          const base64Body = this.base64Encode(mockBody);
+
+          // Fulfill with mock response immediately (no server request made)
+          await chrome.debugger.sendCommand(
+            { tabId },
+            'Fetch.fulfillRequest',
+            {
+              requestId,
+              responseCode: mockStatusCode,
+              responseHeaders: this.convertHeaders(mockHeaders),
+              body: base64Body
+            }
+          );
+        } else {
+          // No rules match, continue with normal request
+          await chrome.debugger.sendCommand(
+            { tabId },
+            'Fetch.continueRequest',
+            { requestId }
+          );
+        }
+      } catch (error) {
+        console.error(`Error processing request for ${url}:`, error);
+
+        // Continue with normal request on error
+        try {
+          await chrome.debugger.sendCommand(
+            { tabId },
+            'Fetch.continueRequest',
+            { requestId }
+          );
+        } catch (continueError) {
+          console.error('Failed to continue request:', continueError);
+        }
+      }
+      return;
+    }
+
+    // This should not happen anymore since we're intercepting at Request stage
+    // But keeping this as fallback in case of mixed-stage interception
+    console.warn(`Received response-stage event (unexpected): ${method} ${url} [${responseStatusCode}]`);
+    await chrome.debugger.sendCommand(
+      { tabId },
+      'Fetch.continueRequest',
+      { requestId }
+    );
+  }
+
+  async generateMockResponse(rule, url, method) {
+    // Generate mock response based on rule modification settings
+    try {
+      if (!rule.modifyType || !rule.modification) {
+        // No modification specified, return empty JSON object
+        return '{}';
+      }
+
+      switch (rule.modifyType) {
+        case 'replace':
+          // Return the replacement value directly
+          return rule.modification.value || '{}';
+
+        case 'json-path':
+          // Create a JSON object with the specified path and value
+          const jsonData = {};
+          const { path, value } = rule.modification;
+          this.ruleEngine.setNestedProperty(jsonData, path, this.parseValue(value));
+          return JSON.stringify(jsonData);
+
+        case 'function':
+          // Execute the function with empty body
+          try {
+            const func = new Function('body', rule.modification.code);
+            return func('{}');
+          } catch (error) {
+            console.error('Failed to execute custom function:', error);
+            return '{}';
+          }
+
+        case 'regex':
+          // Can't apply regex without original body, return empty object
+          console.warn('Regex modification not applicable for blocked requests');
+          return '{}';
+
+        default:
+          return '{}';
       }
     } catch (error) {
-      console.error(`Error processing response for ${url}:`, error);
+      console.error('Failed to generate mock response:', error);
+      return '{}';
+    }
+  }
 
-      // Continue with original response on error
-      try {
-        await chrome.debugger.sendCommand(
-          { tabId },
-          'Fetch.continueRequest',
-          { requestId }
-        );
-      } catch (continueError) {
-        console.error('Failed to continue request:', continueError);
+  applyHeaderModifications(originalHeaders, modifications) {
+    const headersMap = new Map();
+
+    // Convert original headers to map
+    if (originalHeaders) {
+      originalHeaders.forEach(header => {
+        headersMap.set(header.name.toLowerCase(), header.value);
+      });
+    }
+
+    // Apply modifications
+    modifications.forEach(mod => {
+      const headerName = mod.name.toLowerCase();
+
+      if (mod.action === 'add' || mod.action === 'set') {
+        headersMap.set(headerName, mod.value);
+      } else if (mod.action === 'remove') {
+        headersMap.delete(headerName);
       }
+    });
+
+    // Convert back to array format
+    return Array.from(headersMap.entries()).map(([name, value]) => ({
+      name,
+      value
+    }));
+  }
+
+  parseValue(value) {
+    // Try to parse as JSON, otherwise return as string
+    try {
+      return JSON.parse(value);
+    } catch {
+      return value;
     }
   }
 

@@ -161,19 +161,22 @@ body {
 .rule-card-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   margin-bottom: 15px;
+  gap: 15px;
 }
 
 .rule-card-title {
   font-size: 16px;
   font-weight: 600;
   color: #333;
-  margin-bottom: 5px;
+  margin-bottom: 0;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
+  flex: 1;
+  min-width: 0;
 }
 
 .rule-card-description {
@@ -229,6 +232,7 @@ body {
   display: inline-block;
   width: 44px;
   height: 24px;
+  flex-shrink: 0;
 }
 
 .toggle-switch-small input {
@@ -247,6 +251,14 @@ body {
   background-color: #ccc;
   transition: 0.3s;
   border-radius: 24px;
+}
+
+.toggle-switch-small label:hover {
+  background-color: #b3b3b3;
+}
+
+.toggle-switch-small input:checked + label:hover {
+  background-color: #5568d3;
 }
 
 .toggle-switch-small label:before {
