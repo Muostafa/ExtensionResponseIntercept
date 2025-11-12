@@ -127,7 +127,10 @@ function displayRules(rules) {
     const hasJsonBody = rule.modifyType === 'replace' &&
                         rule.modification &&
                         rule.modification.type === 'json';
-    const jsonValue = hasJsonBody ? rule.modification.value : '';
+    let jsonValue = '';
+    if (hasJsonBody && rule.modification.value) {
+      jsonValue = rule.modification.value;
+    }
 
     return `
     <div class="rule-item ${rule.enabled ? '' : 'disabled'}" data-rule-id="${rule.id}">
@@ -144,7 +147,7 @@ function displayRules(rules) {
           </div>
         </div>
       </div>
-      <div class="rule-edit-container" id="edit-${rule.id}" style="display: none;">
+      <div class="rule-edit-container" id="edit-${rule.id}" style="display: none;" data-json-value="${escapeHtml(jsonValue)}">
         <div class="edit-section">
           <div class="edit-header">
             <label>Status Code:</label>
@@ -160,7 +163,7 @@ function displayRules(rules) {
             <label>JSON Response Body:</label>
             <button class="btn btn-prettify" data-rule-id="${rule.id}" title="Prettify JSON">🎨</button>
           </div>
-          <textarea class="json-editor" id="json-${rule.id}" rows="8" placeholder='{"message": "response"}'>${escapeHtml(jsonValue)}</textarea>
+          <textarea class="json-editor" id="json-${rule.id}" rows="8" placeholder='{"message": "response"}'></textarea>
           <div class="edit-hint">Leave empty to keep original response body</div>
         </div>
         <div class="edit-error" id="error-${rule.id}" style="display: none;"></div>
@@ -303,11 +306,18 @@ async function toggleRule(ruleId) {
 function toggleEditMode(ruleId, show) {
   const editContainer = document.getElementById(`edit-${ruleId}`);
   const ruleItem = document.querySelector(`.rule-item[data-rule-id="${ruleId}"]`);
+  const textarea = document.getElementById(`json-${ruleId}`);
 
   if (editContainer) {
     if (show) {
       editContainer.style.display = 'block';
       ruleItem.classList.add('editing');
+
+      // Initialize textarea with the stored JSON value
+      if (textarea && editContainer.dataset.jsonValue) {
+        textarea.value = editContainer.dataset.jsonValue;
+      }
+
       // Clear any previous errors
       const errorDiv = document.getElementById(`error-${ruleId}`);
       if (errorDiv) {
