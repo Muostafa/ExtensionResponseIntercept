@@ -186,13 +186,21 @@ header h1 {
   border-radius: 8px;
   padding: 12px;
   margin-bottom: 10px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
 }
 
 .rule-item.disabled {
   opacity: 0.5;
+}
+
+.rule-item.editing {
+  border-color: #667eea;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+}
+
+.rule-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .rule-info {
@@ -215,6 +223,124 @@ header h1 {
 .rule-actions {
   display: flex;
   gap: 8px;
+  align-items: center;
+}
+
+.btn-edit {
+  background: transparent;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-edit:hover {
+  background: #667eea;
+  border-color: #667eea;
+  transform: scale(1.1);
+}
+
+.rule-edit-container {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #e0e0e0;
+}
+
+.edit-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.edit-header label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #555;
+}
+
+.btn-prettify {
+  background: transparent;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-prettify:hover {
+  background: #f0f0f0;
+  border-color: #ccc;
+}
+
+.json-editor {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  resize: vertical;
+  background: #fafafa;
+  color: #333;
+  line-height: 1.4;
+}
+
+.json-editor:focus {
+  outline: none;
+  border-color: #667eea;
+  background: white;
+}
+
+.edit-error {
+  background: #fee;
+  border: 1px solid #fcc;
+  border-radius: 4px;
+  padding: 8px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: #c00;
+}
+
+.edit-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.btn-save {
+  flex: 1;
+  background: #667eea;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-save:hover {
+  background: #5568d3;
+}
+
+.btn-cancel {
+  flex: 1;
+  background: #f44336;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-cancel:hover {
+  background: #d32f2f;
 }
 
 .rule-toggle {
