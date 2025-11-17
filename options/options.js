@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadRecentHistory();
   setupEventListeners();
   setupNavigation();
+  await checkPendingRuleData();
 });
 
 // Setup navigation
@@ -1113,6 +1114,67 @@ function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
+}
+
+// Check for pending rule data from history viewer
+async function checkPendingRuleData() {
+  try {
+    const result = await chrome.storage.local.get('pendingRuleData');
+    if (!result.pendingRuleData) {
+      return;
+    }
+
+    const ruleData = result.pendingRuleData;
+
+    // Clear the pending data
+    await chrome.storage.local.remove('pendingRuleData');
+
+    // Switch to rules tab
+    showTab('rules');
+
+    // Reset form and clear editing state
+    currentEditingRuleId = null;
+    resetForm();
+
+    // Use setTimeout to ensure form is ready after reset
+    setTimeout(() => {
+      // Set basic rule information
+      document.getElementById('ruleName').value = ruleData.name || `Rule - ${ruleData.method}`;
+      document.getElementById('urlPattern').value = ruleData.urlPattern || '';
+      document.getElementById('matchType').value = ruleData.matchType || 'exact';
+      document.getElementById('modifyType').value = 'replace';
+
+      // Set method checkboxes
+      document.querySelectorAll('input[name="methods"]').forEach(cb => {
+        cb.checked = cb.value === ruleData.method;
+      });
+
+      // Set response body
+      updateModificationOptions('replace');
+      const bodyValue = ruleData.response?.body || '';
+      document.getElementById('replaceValue').value = bodyValue;
+
+      // Set status code
+      if (ruleData.response?.statusCode) {
+        document.getElementById('modifyStatusCode').value = ruleData.response.statusCode;
+      }
+
+      // Set headers
+      if (ruleData.response?.headers && Array.isArray(ruleData.response.headers) && ruleData.response.headers.length > 0) {
+        ruleData.response.headers.forEach(header => {
+          if (header.name) {
+            addHeaderModification(header.name, header.value, 'set');
+          }
+        });
+      }
+
+      document.getElementById('formTitle').textContent = 'Create Rule from History';
+
+      console.log('Form populated with history data');
+    }, 100);
+  } catch (error) {
+    console.error('Failed to load pending rule data:', error);
+  }
 }
 
 // Make showTab available globally for help section

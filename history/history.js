@@ -30,6 +30,7 @@ function setupEventListeners() {
 
   document.getElementById('closeModal').addEventListener('click', closeModal);
   document.getElementById('closeModalBtn').addEventListener('click', closeModal);
+  document.getElementById('createRuleBtn').addEventListener('click', createRule);
   document.getElementById('recordResponseBtn').addEventListener('click', recordResponse);
 
   // Close modal when clicking outside
@@ -298,6 +299,42 @@ function createResponseView(response) {
 function closeModal() {
   document.getElementById('detailModal').classList.remove('active');
   currentDetailEntry = null;
+}
+
+async function createRule() {
+  if (!currentDetailEntry) return;
+
+  const entry = currentDetailEntry;
+  const response = entry.modifiedResponse || entry.originalResponse;
+
+  // Prepare rule data to be used in options page
+  const ruleData = {
+    name: `Rule - ${entry.method} ${new URL(entry.url).pathname}`,
+    urlPattern: entry.url,
+    matchType: 'exact',
+    method: entry.method,
+    response: {
+      statusCode: response.statusCode,
+      headers: response.headers,
+      body: response.body,
+      contentType: response.contentType
+    },
+    fromHistory: true
+  };
+
+  try {
+    // Store the rule data temporarily for the options page to pick up
+    await chrome.storage.local.set({ pendingRuleData: ruleData });
+
+    // Open options page
+    chrome.runtime.openOptionsPage();
+
+    // Close the modal
+    closeModal();
+  } catch (error) {
+    console.error('Failed to prepare rule:', error);
+    alert('Failed to create rule');
+  }
 }
 
 async function recordResponse() {
