@@ -14,6 +14,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Setup event listeners
   setupEventListeners();
+  setupStorageListener();
 });
 
 async function loadStatus() {
@@ -256,6 +257,31 @@ function setupEventListeners() {
   // Open history button
   document.getElementById('openHistory').addEventListener('click', () => {
     chrome.tabs.create({ url: chrome.runtime.getURL('history/history.html') });
+  });
+}
+
+function setupStorageListener() {
+  // Listen for storage changes to sync popup with options page
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName === 'local') {
+      // Reload rules if they changed
+      if (changes.rules) {
+        console.log('Rules changed, reloading...');
+        loadRules();
+      }
+
+      // Reload groups if they changed
+      if (changes.groups) {
+        console.log('Groups changed, reloading...');
+        loadGroups();
+      }
+
+      // Reload settings if they changed
+      if (changes.settings) {
+        console.log('Settings changed, reloading status...');
+        loadStatus();
+      }
+    }
   });
 }
 
