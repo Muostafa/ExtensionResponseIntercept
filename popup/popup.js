@@ -8,9 +8,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
   currentTab = tabs[0];
 
-  // Load status, groups, and rules
+  // Load status and rules
   await loadStatus();
-  await loadGroups();
   await loadRules();
 
   // Setup event listeners
@@ -30,72 +29,6 @@ async function loadStatus() {
     updateAttachButton(response.activeTabs.includes(currentTab?.id));
   } catch (error) {
     console.error('Failed to load status:', error);
-  }
-}
-
-async function loadGroups() {
-  try {
-    const response = await chrome.runtime.sendMessage({ action: 'getGroups' });
-    const groups = response.groups || [];
-
-    displayGroups(groups);
-  } catch (error) {
-    console.error('Failed to load groups:', error);
-  }
-}
-
-function displayGroups(groups) {
-  const groupsList = document.getElementById('groupsList');
-  const groupsCount = document.getElementById('groupsCount');
-
-  groupsCount.textContent = groups.length;
-
-  if (groups.length === 0) {
-    groupsList.innerHTML = `
-      <div class="empty-state">
-        <p>No groups configured</p>
-      </div>
-    `;
-    return;
-  }
-
-  groupsList.innerHTML = groups.map(group => `
-    <div class="group-item ${group.enabled ? '' : 'disabled'}">
-      <div class="group-color-indicator" style="background-color: ${group.color}"></div>
-      <div class="group-info">
-        <div class="group-name">${escapeHtml(group.name)}</div>
-        ${group.description ? `<div class="group-description">${escapeHtml(group.description)}</div>` : ''}
-      </div>
-      <div class="group-actions">
-        <div class="toggle-switch group-toggle">
-          <input type="checkbox" id="group-${group.id}" class="toggle-input group-toggle-input" data-group-id="${group.id}" ${group.enabled ? 'checked' : ''}>
-          <label for="group-${group.id}" class="toggle-label"></label>
-        </div>
-      </div>
-    </div>
-  `).join('');
-
-  // Add event listeners for group toggles
-  document.querySelectorAll('.group-toggle-input').forEach(toggle => {
-    toggle.addEventListener('change', async (e) => {
-      const groupId = e.target.dataset.groupId;
-      await toggleGroup(groupId);
-    });
-  });
-}
-
-async function toggleGroup(groupId) {
-  try {
-    await chrome.runtime.sendMessage({
-      action: 'toggleGroup',
-      groupId: groupId
-    });
-
-    // Reload both groups and rules to reflect the changes
-    await loadGroups();
-    await loadRules();
-  } catch (error) {
-    console.error('Failed to toggle group:', error);
   }
 }
 
@@ -448,13 +381,15 @@ async function toggleEditMode(ruleId, show) {
             statusInput.value = rule.modifyStatusCode || '';
           }
 
-          // Populate JSON body
+          // Populate JSON body - only for replace-type modifications
           const textarea = document.getElementById(`json-${ruleId}`);
           if (textarea) {
-            const hasJsonBody = rule.modifyType === 'replace' &&
-                                rule.modification &&
-                                rule.modification.type === 'json';
-            textarea.value = (hasJsonBody && rule.modification.value) ? rule.modification.value : '';
+            // Only populate for replace-type modifications
+            if (rule.modifyType === 'replace' && rule.modification && rule.modification.value) {
+              textarea.value = rule.modification.value;
+            } else {
+              textarea.value = '';
+            }
           }
         }
       } catch (error) {
@@ -534,14 +469,22 @@ async function saveJsonEdit(ruleId) {
     const rule = rules.find(r => r.id === ruleId);
 
     if (rule) {
-      // Update the JSON body if textarea has content
-      if (textarea && textarea.value.trim()) {
-        // Set modify type to replace and create/update modification
-        rule.modifyType = 'replace';
-        rule.modification = {
-          type: 'json',
-          value: textarea.value
-        };
+      // Update the JSON body
+      if (textarea) {
+        if (textarea.value.trim()) {
+          // If user entered a body, set to replace modification
+          rule.modifyType = 'replace';
+          rule.modification = {
+            type: 'json',
+            value: textarea.value
+          };
+        } else if (rule.modifyType === 'replace') {
+          // If body is empty and it was a replace type, clear the modification
+          // This handles the case where user clears a previously set body
+          rule.modification = { type: 'json', value: '' };
+        }
+        // For other modification types (json-path, regex, function),
+        // don't change them if body is empty - they're not editable in popup
       }
 
       // Update the status code
