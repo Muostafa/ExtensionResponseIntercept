@@ -1,5 +1,6 @@
 // Popup script
 let currentTab = null;
+let activeEditRuleIds = new Set(); // Track which rules are in edit mode
 
 // Initialize popup
 document.addEventListener('DOMContentLoaded', async () => {
@@ -14,6 +15,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Setup event listeners
   setupEventListeners();
+  setupStorageListener();
 });
 
 async function loadStatus() {
@@ -102,13 +104,13 @@ async function loadRules() {
     const response = await chrome.runtime.sendMessage({ action: 'getRules' });
     const rules = response.rules || [];
 
-    displayRules(rules);
+    await displayRules(rules);
   } catch (error) {
     console.error('Failed to load rules:', error);
   }
 }
 
-function displayRules(rules) {
+async function displayRules(rules) {
   const rulesList = document.getElementById('rulesList');
   const rulesCount = document.getElementById('rulesCount');
 
@@ -205,6 +207,17 @@ function displayRules(rules) {
       toggleEditMode(ruleId, false);
     });
   });
+
+  // Restore edit mode for rules that were previously in edit mode
+  for (const ruleId of activeEditRuleIds) {
+    // Check if this rule still exists
+    if (rules.find(r => r.id === ruleId)) {
+      await toggleEditMode(ruleId, true);
+    } else {
+      // Rule was deleted, remove from active set
+      activeEditRuleIds.delete(ruleId);
+    }
+  }
 }
 
 function setupEventListeners() {
@@ -259,6 +272,31 @@ function setupEventListeners() {
   });
 }
 
+function setupStorageListener() {
+  // Listen for storage changes to sync popup with options page
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName === 'local') {
+      // Reload rules if they changed
+      if (changes.rules) {
+        console.log('Rules changed, reloading...');
+        loadRules();
+      }
+
+      // Reload groups if they changed
+      if (changes.groups) {
+        console.log('Groups changed, reloading...');
+        loadGroups();
+      }
+
+      // Reload settings if they changed
+      if (changes.settings) {
+        console.log('Settings changed, reloading status...');
+        loadStatus();
+      }
+    }
+  });
+}
+
 function updateAttachButton(isAttached) {
   const button = document.getElementById('attachTab');
   if (isAttached) {
@@ -300,6 +338,9 @@ async function toggleEditMode(ruleId, show) {
 
   if (editContainer) {
     if (show) {
+      // Add to active edit set
+      activeEditRuleIds.add(ruleId);
+
       // Fetch the current rule data
       try {
         const response = await chrome.runtime.sendMessage({ action: 'getRules' });
@@ -335,10 +376,11 @@ async function toggleEditMode(ruleId, show) {
         errorDiv.style.display = 'none';
       }
     } else {
+      // Remove from active edit set
+      activeEditRuleIds.delete(ruleId);
+
       editContainer.style.display = 'none';
       ruleItem.classList.remove('editing');
-      // Reload rules to reset the textarea content
-      loadRules();
     }
   }
 }
@@ -425,8 +467,18 @@ async function saveJsonEdit(ruleId) {
         rule: rule
       });
 
-      // Hide edit mode and reload rules
-      toggleEditMode(ruleId, false);
+      // Remove from active edit set and hide edit mode
+      activeEditRuleIds.delete(ruleId);
+
+      // Hide edit mode
+      const editContainer = document.getElementById(`edit-${ruleId}`);
+      const ruleItem = document.querySelector(`.rule-item[data-rule-id="${ruleId}"]`);
+      if (editContainer) {
+        editContainer.style.display = 'none';
+      }
+      if (ruleItem) {
+        ruleItem.classList.remove('editing');
+      }
     }
   } catch (error) {
     console.error('Failed to save rule edit:', error);
