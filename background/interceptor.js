@@ -112,6 +112,17 @@ export class ResponseInterceptor {
           // Encode the mock body
           const base64Body = this.base64Encode(mockBody);
 
+          // Verify encoding succeeded
+          if (base64Body === null || base64Body === undefined) {
+            console.error('Failed to encode response body, continuing with normal request');
+            await chrome.debugger.sendCommand(
+              { tabId },
+              'Fetch.continueRequest',
+              { requestId }
+            );
+            return;
+          }
+
           // Fulfill with mock response immediately (no server request made)
           await chrome.debugger.sendCommand(
             { tabId },
@@ -273,8 +284,15 @@ export class ResponseInterceptor {
     try {
       return btoa(unescape(encodeURIComponent(str)));
     } catch (error) {
-      console.error('Failed to encode base64:', error);
-      return btoa(str);
+      console.error('Failed to encode base64 with UTF-8:', error);
+      // Try fallback without UTF-8 encoding
+      try {
+        return btoa(str);
+      } catch (fallbackError) {
+        console.error('Failed to encode base64 (fallback also failed):', fallbackError);
+        // Return empty string as last resort to prevent undefined/null
+        return '';
+      }
     }
   }
 

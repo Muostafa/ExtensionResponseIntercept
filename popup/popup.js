@@ -246,11 +246,15 @@ async function toggleEditMode(ruleId, show) {
             statusInput.value = rule.modifyStatusCode || '';
           }
 
-          // Populate JSON body
+          // Populate JSON body - only for replace-type modifications
           const textarea = document.getElementById(`json-${ruleId}`);
           if (textarea) {
-            // Load the body value if it exists, regardless of modification type
-            textarea.value = (rule.modification && rule.modification.value) ? rule.modification.value : '';
+            // Only populate for replace-type modifications
+            if (rule.modifyType === 'replace' && rule.modification && rule.modification.value) {
+              textarea.value = rule.modification.value;
+            } else {
+              textarea.value = '';
+            }
           }
         }
       } catch (error) {
@@ -329,14 +333,22 @@ async function saveJsonEdit(ruleId) {
     const rule = rules.find(r => r.id === ruleId);
 
     if (rule) {
-      // Update the JSON body if textarea has content
-      if (textarea && textarea.value.trim()) {
-        // Set modify type to replace and create/update modification
-        rule.modifyType = 'replace';
-        rule.modification = {
-          type: 'json',
-          value: textarea.value
-        };
+      // Update the JSON body
+      if (textarea) {
+        if (textarea.value.trim()) {
+          // If user entered a body, set to replace modification
+          rule.modifyType = 'replace';
+          rule.modification = {
+            type: 'json',
+            value: textarea.value
+          };
+        } else if (rule.modifyType === 'replace') {
+          // If body is empty and it was a replace type, clear the modification
+          // This handles the case where user clears a previously set body
+          rule.modification = { type: 'json', value: '' };
+        }
+        // For other modification types (json-path, regex, function),
+        // don't change them if body is empty - they're not editable in popup
       }
 
       // Update the status code
