@@ -117,6 +117,7 @@ function sortAndFilterRules(rules, groups) {
   const sortBy = document.getElementById('popupSortBy')?.value || 'modified';
   const sortOrder = document.getElementById('popupSortOrder')?.value || 'desc';
   const hideDisabledGroupRules = document.getElementById('popupHideDisabledGroupRules')?.checked ?? true;
+  const enabledRulesFirst = document.getElementById('popupEnabledRulesFirst')?.checked ?? true;
 
   // Filter rules from disabled groups
   let filteredRules = rules;
@@ -134,6 +135,13 @@ function sortAndFilterRules(rules, groups) {
 
   // Sort rules
   const sortedRules = [...filteredRules].sort((a, b) => {
+    // First, sort by enabled status if that option is checked
+    if (enabledRulesFirst) {
+      const enabledDiff = (b.enabled ? 1 : 0) - (a.enabled ? 1 : 0);
+      if (enabledDiff !== 0) return enabledDiff;
+    }
+
+    // Then sort by the selected criteria
     let comparison = 0;
 
     if (sortBy === 'modified') {
@@ -273,6 +281,7 @@ function setupEventListeners() {
   const popupSortBy = document.getElementById('popupSortBy');
   const popupSortOrder = document.getElementById('popupSortOrder');
   const popupHideDisabledGroupRules = document.getElementById('popupHideDisabledGroupRules');
+  const popupEnabledRulesFirst = document.getElementById('popupEnabledRulesFirst');
 
   if (popupSortBy) {
     popupSortBy.addEventListener('change', () => {
@@ -292,6 +301,14 @@ function setupEventListeners() {
 
   if (popupHideDisabledGroupRules) {
     popupHideDisabledGroupRules.addEventListener('change', () => {
+      if (window.currentRules) {
+        displayRules(window.currentRules);
+      }
+    });
+  }
+
+  if (popupEnabledRulesFirst) {
+    popupEnabledRulesFirst.addEventListener('change', () => {
       if (window.currentRules) {
         displayRules(window.currentRules);
       }
