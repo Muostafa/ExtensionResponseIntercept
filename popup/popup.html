@@ -44,6 +44,27 @@
         <span id="rulesCount" class="badge">0</span>
       </div>
 
+      <div style="margin-bottom: 12px; padding: 8px; background: #f5f5f5; border-radius: 4px;">
+        <div style="display: flex; flex-direction: column; gap: 8px; font-size: 12px;">
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <label for="popupSortBy" style="font-weight: 500; white-space: nowrap;">Sort:</label>
+            <select id="popupSortBy" class="form-control" style="flex: 1; font-size: 12px; padding: 4px;">
+              <option value="modified">Last Modified</option>
+              <option value="created">Date Created</option>
+              <option value="name">Name</option>
+            </select>
+            <select id="popupSortOrder" class="form-control" style="width: 90px; font-size: 12px; padding: 4px;">
+              <option value="desc">Newest</option>
+              <option value="asc">Oldest</option>
+            </select>
+          </div>
+          <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+            <input type="checkbox" id="popupHideDisabledGroupRules" checked>
+            <span>Hide rules from disabled groups</span>
+          </label>
+        </div>
+      </div>
+
       <div id="rulesList" class="rules-list">
         <!-- Rules will be populated here -->
       </div>

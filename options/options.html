@@ -45,6 +45,31 @@
           <button id="addNewRuleBtn" class="btn btn-primary">+ Add New Rule</button>
         </div>
 
+        <div class="card" style="margin-bottom: 20px;">
+          <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+            <div>
+              <label for="ruleSortBy" style="font-weight: 500; margin-right: 8px;">Sort by:</label>
+              <select id="ruleSortBy" class="form-control" style="display: inline-block; width: auto;">
+                <option value="modified">Last Modified</option>
+                <option value="created">Date Created</option>
+                <option value="name">Name</option>
+              </select>
+            </div>
+            <div>
+              <label for="ruleSortOrder" style="font-weight: 500; margin-right: 8px;">Order:</label>
+              <select id="ruleSortOrder" class="form-control" style="display: inline-block; width: auto;">
+                <option value="desc">Newest First</option>
+                <option value="asc">Oldest First</option>
+              </select>
+            </div>
+            <div style="margin-left: auto;">
+              <label class="checkbox-label">
+                <input type="checkbox" id="hideDisabledGroupRules" checked> Hide rules from disabled groups
+              </label>
+            </div>
+          </div>
+        </div>
+
         <div id="rulesList" class="rules-grid">
           <!-- Rules will be populated here -->
         </div>
