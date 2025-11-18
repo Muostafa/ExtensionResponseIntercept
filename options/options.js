@@ -150,14 +150,17 @@ function displayRules(rules) {
     }
 
     return `
-      <div class="rule-card ${rule.enabled ? '' : 'disabled'}">
+      <div class="rule-card ${rule.enabled ? '' : 'disabled'}" draggable="true" data-rule-id="${rule.id}" data-priority="${rule.priority !== undefined ? rule.priority : 0}">
         <div class="rule-card-header">
-          <div>
-            <div class="rule-card-title">
-              <span>${escapeHtml(rule.name)}</span>
-              ${groupIndicator}
+          <div style="display: flex; align-items: center; gap: 10px; flex: 1;">
+            <span class="drag-handle" style="cursor: grab; font-size: 18px; color: #9ca3af;" title="Drag to reorder">⋮⋮</span>
+            <div style="flex: 1;">
+              <div class="rule-card-title">
+                <span>${escapeHtml(rule.name)}</span>
+                ${groupIndicator}
+              </div>
+              ${rule.description ? `<div class="rule-card-description">${escapeHtml(rule.description)}</div>` : ''}
             </div>
-            ${rule.description ? `<div class="rule-card-description">${escapeHtml(rule.description)}</div>` : ''}
           </div>
           <div class="toggle-switch-small">
             <input type="checkbox" id="toggle-${rule.id}" ${rule.enabled ? 'checked' : ''} data-rule-id="${rule.id}">
@@ -168,6 +171,7 @@ function displayRules(rules) {
         <div class="rule-card-pattern">${escapeHtml(rule.urlPattern)}</div>
 
         <div class="rule-card-meta">
+          <span class="rule-badge priority" style="background: #4f46e5; color: white;" title="Lower priority number = higher precedence">Priority: ${rule.priority !== undefined ? rule.priority : 0}</span>
           <span class="rule-badge">${rule.matchType}</span>
           <span class="rule-badge method">${methods}</span>
           <span class="rule-badge">${getModifyTypeLabel(rule.modifyType)}</span>
@@ -184,6 +188,7 @@ function displayRules(rules) {
 
   // Add event listeners
   attachRuleEventListeners();
+  setupDragAndDrop();
 }
 
 function attachRuleEventListeners() {
@@ -481,6 +486,9 @@ function collectFormData() {
   const groupValue = document.getElementById('ruleGroup').value;
   const groupId = groupValue ? groupValue : null;
 
+  // Get priority
+  const priority = parseInt(document.getElementById('rulePriority').value, 10) || 0;
+
   const ruleData = {
     name,
     description,
@@ -491,7 +499,8 @@ function collectFormData() {
     modification,
     modifyStatusCode,
     modifyHeaders: modifyHeaders.length > 0 ? modifyHeaders : undefined,
-    enabled
+    enabled,
+    priority
   };
 
   // Only add groupId if it's not null
@@ -580,6 +589,9 @@ function populateForm(rule) {
   } else {
     document.getElementById('ruleGroup').value = '';
   }
+
+  // Populate priority
+  document.getElementById('rulePriority').value = rule.priority !== undefined ? rule.priority : 0;
 }
 
 function resetForm() {
@@ -590,6 +602,7 @@ function resetForm() {
   document.querySelectorAll('input[name="methods"]')[0].checked = true; // Check GET by default
   updateModificationOptions('replace');
   document.getElementById('modifyStatusCode').value = '';
+  document.getElementById('rulePriority').value = '0';
   clearHeaderModifications();
   currentEditingRuleId = null;
 }
@@ -1671,6 +1684,119 @@ async function duplicateRule(ruleId) {
   } catch (error) {
     console.error('Failed to duplicate rule:', error);
     alert('Failed to duplicate rule: ' + error.message);
+  }
+}
+
+// Drag and Drop functionality
+let draggedElement = null;
+
+function setupDragAndDrop() {
+  const ruleCards = document.querySelectorAll('.rule-card[draggable="true"]');
+
+  ruleCards.forEach(card => {
+    card.addEventListener('dragstart', handleDragStart);
+    card.addEventListener('dragover', handleDragOver);
+    card.addEventListener('drop', handleDrop);
+    card.addEventListener('dragend', handleDragEnd);
+    card.addEventListener('dragenter', handleDragEnter);
+    card.addEventListener('dragleave', handleDragLeave);
+  });
+}
+
+function handleDragStart(e) {
+  draggedElement = this;
+  this.style.opacity = '0.4';
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/html', this.innerHTML);
+}
+
+function handleDragOver(e) {
+  if (e.preventDefault) {
+    e.preventDefault();
+  }
+  e.dataTransfer.dropEffect = 'move';
+  return false;
+}
+
+function handleDragEnter(e) {
+  if (this !== draggedElement) {
+    this.style.borderTop = '3px solid #4f46e5';
+  }
+}
+
+function handleDragLeave(e) {
+  this.style.borderTop = '';
+}
+
+function handleDrop(e) {
+  if (e.stopPropagation) {
+    e.stopPropagation();
+  }
+
+  if (draggedElement !== this) {
+    // Get all rule cards
+    const rulesList = document.getElementById('rulesList');
+    const allCards = Array.from(rulesList.querySelectorAll('.rule-card[draggable="true"]'));
+
+    // Find indices
+    const draggedIndex = allCards.indexOf(draggedElement);
+    const targetIndex = allCards.indexOf(this);
+
+    // Reorder DOM
+    if (draggedIndex < targetIndex) {
+      this.parentNode.insertBefore(draggedElement, this.nextSibling);
+    } else {
+      this.parentNode.insertBefore(draggedElement, this);
+    }
+
+    // Update priorities based on new order
+    updatePrioritiesAfterReorder();
+  }
+
+  this.style.borderTop = '';
+  return false;
+}
+
+function handleDragEnd(e) {
+  this.style.opacity = '1';
+
+  // Remove all border highlights
+  document.querySelectorAll('.rule-card').forEach(card => {
+    card.style.borderTop = '';
+  });
+}
+
+async function updatePrioritiesAfterReorder() {
+  try {
+    const ruleCards = Array.from(document.querySelectorAll('.rule-card[draggable="true"]'));
+
+    // Update priority for each rule based on its position
+    const updates = ruleCards.map(async (card, index) => {
+      const ruleId = card.dataset.ruleId;
+      const newPriority = index * 10; // Use increments of 10 to allow manual insertion
+
+      // Get the current rule data
+      const response = await chrome.runtime.sendMessage({ action: 'getRules' });
+      const rules = response.rules || [];
+      const rule = rules.find(r => r.id === ruleId);
+
+      if (rule && rule.priority !== newPriority) {
+        // Update the rule with new priority
+        await chrome.runtime.sendMessage({
+          action: 'updateRule',
+          ruleId: ruleId,
+          rule: { ...rule, priority: newPriority }
+        });
+      }
+    });
+
+    await Promise.all(updates);
+
+    // Reload rules to reflect new priorities
+    await loadRules();
+  } catch (error) {
+    console.error('Failed to update priorities:', error);
+    alert('Failed to update rule order');
   }
 }
 

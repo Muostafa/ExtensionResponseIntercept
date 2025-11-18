@@ -90,7 +90,15 @@ export class RuleEngine {
       return null; // No modification needed
     }
 
-    // Apply rules in order (first matching rule wins for now)
+    // Sort rules by priority (lower number = higher priority)
+    // Rules with same priority maintain their relative order
+    matchingRules.sort((a, b) => {
+      const priorityA = a.priority !== undefined ? a.priority : 0;
+      const priorityB = b.priority !== undefined ? b.priority : 0;
+      return priorityA - priorityB;
+    });
+
+    // Apply first rule after priority sorting
     const rule = matchingRules[0];
 
     console.log(`Applying rule "${rule.name}" to ${url}`);

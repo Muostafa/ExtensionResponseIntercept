@@ -171,13 +171,21 @@
             <textarea id="ruleDescription" class="form-control" rows="2" placeholder="What does this rule do?"></textarea>
           </div>
 
-          <div class="form-group">
-            <label for="ruleGroup">Group (optional)</label>
-            <select id="ruleGroup" class="form-control">
-              <option value="">No Group</option>
-              <!-- Groups will be populated here -->
-            </select>
-            <small class="form-hint">Assign this rule to a group for easier management</small>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="ruleGroup">Group (optional)</label>
+              <select id="ruleGroup" class="form-control">
+                <option value="">No Group</option>
+                <!-- Groups will be populated here -->
+              </select>
+              <small class="form-hint">Assign this rule to a group for easier management</small>
+            </div>
+
+            <div class="form-group">
+              <label for="rulePriority">Priority</label>
+              <input type="number" id="rulePriority" class="form-control" placeholder="0" value="0" min="0" max="9999">
+              <small class="form-hint">Lower numbers = higher priority (0 = highest)</small>
+            </div>
           </div>
 
           <!-- Curl Import Section -->
