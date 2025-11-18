@@ -21,8 +21,21 @@ export class StorageManager {
 
       if (data.rules) {
         this.rules = data.rules;
+        // Migrate old rules without timestamps
+        let needsUpdate = false;
+        this.rules.forEach(rule => {
+          if (!rule.createdAt) {
+            rule.createdAt = Date.now();
+            rule.modifiedAt = Date.now();
+            needsUpdate = true;
+          }
+        });
+        if (needsUpdate) {
+          await this.saveRules();
+        }
       } else {
         // Initialize with a sample rule
+        const now = Date.now();
         this.rules = [
           {
             id: this.generateId(),
@@ -36,7 +49,9 @@ export class StorageManager {
               type: 'json',
               value: JSON.stringify({ message: 'Modified by API Interceptor', success: true }, null, 2)
             },
-            description: 'Example rule showing how to replace API responses'
+            description: 'Example rule showing how to replace API responses',
+            createdAt: now,
+            modifiedAt: now
           }
         ];
         await this.saveRules();
@@ -93,10 +108,13 @@ export class StorageManager {
   }
 
   async addRule(rule) {
+    const now = Date.now();
     const newRule = {
       ...rule,
       id: this.generateId(),
-      enabled: rule.enabled !== undefined ? rule.enabled : true
+      enabled: rule.enabled !== undefined ? rule.enabled : true,
+      createdAt: now,
+      modifiedAt: now
     };
     this.rules.push(newRule);
     await this.saveRules();
@@ -106,7 +124,7 @@ export class StorageManager {
   async updateRule(ruleId, updates) {
     const index = this.rules.findIndex(r => r.id === ruleId);
     if (index !== -1) {
-      this.rules[index] = { ...this.rules[index], ...updates };
+      this.rules[index] = { ...this.rules[index], ...updates, modifiedAt: Date.now() };
 
       // If the original rule had a groupId but updates doesn't include it, remove it
       // This allows removing a rule from a group by not including groupId in updates
@@ -134,6 +152,7 @@ export class StorageManager {
     const index = this.rules.findIndex(r => r.id === ruleId);
     if (index !== -1) {
       this.rules[index].enabled = !this.rules[index].enabled;
+      this.rules[index].modifiedAt = Date.now();
       await this.saveRules();
       return this.rules[index].enabled;
     }
@@ -208,10 +227,13 @@ export class StorageManager {
 
       // Import rules and update group references
       if (data.rules && Array.isArray(data.rules)) {
+        const now = Date.now();
         const importedRules = data.rules.map(rule => {
           const newRule = {
             ...rule,
-            id: this.generateId()
+            id: this.generateId(),
+            createdAt: rule.createdAt || now,
+            modifiedAt: rule.modifiedAt || now
           };
           // Update groupId if rule was in a group
           if (newRule.groupId && groupIdMap[newRule.groupId]) {
@@ -225,10 +247,13 @@ export class StorageManager {
       }
     } else if (data.rules && Array.isArray(data.rules)) {
       // Legacy import (v1.0) - only rules, no groups
+      const now = Date.now();
       const importedRules = data.rules.map(rule => ({
         ...rule,
         id: this.generateId(),
-        groupId: undefined // Clear any group references from old import
+        groupId: undefined, // Clear any group references from old import
+        createdAt: rule.createdAt || now,
+        modifiedAt: rule.modifiedAt || now
       }));
       this.rules = [...this.rules, ...importedRules];
       await this.saveRules();
@@ -353,6 +378,7 @@ export class StorageManager {
       } else {
         rule.groupId = groupId;
       }
+      rule.modifiedAt = Date.now();
       await this.saveRules();
       return true;
     }

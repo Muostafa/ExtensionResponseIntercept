@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadRecentHistory();
   setupEventListeners();
   setupNavigation();
+  await checkPendingRuleData();
 });
 
 // Setup navigation
@@ -73,11 +74,59 @@ async function loadRules() {
   }
 }
 
+function sortAndFilterRules(rules) {
+  const sortBy = document.getElementById('ruleSortBy')?.value || 'modified';
+  const sortOrder = document.getElementById('ruleSortOrder')?.value || 'desc';
+  const hideDisabledGroupRules = document.getElementById('hideDisabledGroupRules')?.checked ?? true;
+  const enabledRulesFirst = document.getElementById('enabledRulesFirst')?.checked ?? true;
+
+  // Filter rules from disabled groups
+  let filteredRules = rules;
+  if (hideDisabledGroupRules) {
+    filteredRules = rules.filter(rule => {
+      // If rule has no group, always show it
+      if (!rule.groupId) return true;
+
+      // If rule belongs to a group, check if group is enabled
+      const group = currentGroups.find(g => g.id === rule.groupId);
+      // Show if group doesn't exist or group is enabled
+      return !group || group.enabled;
+    });
+  }
+
+  // Sort rules
+  const sortedRules = [...filteredRules].sort((a, b) => {
+    // First, sort by enabled status if that option is checked
+    if (enabledRulesFirst) {
+      const enabledDiff = (b.enabled ? 1 : 0) - (a.enabled ? 1 : 0);
+      if (enabledDiff !== 0) return enabledDiff;
+    }
+
+    // Then sort by the selected criteria
+    let comparison = 0;
+
+    if (sortBy === 'modified') {
+      comparison = (a.modifiedAt || a.createdAt || 0) - (b.modifiedAt || b.createdAt || 0);
+    } else if (sortBy === 'created') {
+      comparison = (a.createdAt || 0) - (b.createdAt || 0);
+    } else if (sortBy === 'name') {
+      comparison = (a.name || '').localeCompare(b.name || '');
+    }
+
+    return sortOrder === 'desc' ? -comparison : comparison;
+  });
+
+  return sortedRules;
+}
+
 function displayRules(rules) {
   const rulesList = document.getElementById('rulesList');
   const emptyState = document.getElementById('emptyState');
 
-  if (rules.length === 0) {
+  // Apply sorting and filtering
+  const processedRules = sortAndFilterRules(rules);
+
+  if (processedRules.length === 0) {
     rulesList.style.display = 'none';
     emptyState.style.display = 'block';
     return;
@@ -86,7 +135,7 @@ function displayRules(rules) {
   rulesList.style.display = 'grid';
   emptyState.style.display = 'none';
 
-  rulesList.innerHTML = rules.map(rule => {
+  rulesList.innerHTML = processedRules.map(rule => {
     const methods = rule.methods && rule.methods.length > 0
       ? rule.methods.join(', ')
       : 'All Methods';
@@ -174,6 +223,44 @@ function getModifyTypeLabel(type) {
 
 // Setup event listeners
 function setupEventListeners() {
+  // Rule sorting and filtering controls
+  const ruleSortBy = document.getElementById('ruleSortBy');
+  const ruleSortOrder = document.getElementById('ruleSortOrder');
+  const hideDisabledGroupRules = document.getElementById('hideDisabledGroupRules');
+  const enabledRulesFirst = document.getElementById('enabledRulesFirst');
+
+  if (ruleSortBy) {
+    ruleSortBy.addEventListener('change', () => {
+      if (window.currentRules) {
+        displayRules(window.currentRules);
+      }
+    });
+  }
+
+  if (ruleSortOrder) {
+    ruleSortOrder.addEventListener('change', () => {
+      if (window.currentRules) {
+        displayRules(window.currentRules);
+      }
+    });
+  }
+
+  if (hideDisabledGroupRules) {
+    hideDisabledGroupRules.addEventListener('change', () => {
+      if (window.currentRules) {
+        displayRules(window.currentRules);
+      }
+    });
+  }
+
+  if (enabledRulesFirst) {
+    enabledRulesFirst.addEventListener('change', () => {
+      if (window.currentRules) {
+        displayRules(window.currentRules);
+      }
+    });
+  }
+
   // Add new rule button
   document.getElementById('addNewRuleBtn').addEventListener('click', () => {
     currentEditingRuleId = null;
@@ -1113,6 +1200,67 @@ function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
+}
+
+// Check for pending rule data from history viewer
+async function checkPendingRuleData() {
+  try {
+    const result = await chrome.storage.local.get('pendingRuleData');
+    if (!result.pendingRuleData) {
+      return;
+    }
+
+    const ruleData = result.pendingRuleData;
+
+    // Clear the pending data
+    await chrome.storage.local.remove('pendingRuleData');
+
+    // Switch to rules tab
+    showTab('rules');
+
+    // Reset form and clear editing state
+    currentEditingRuleId = null;
+    resetForm();
+
+    // Use setTimeout to ensure form is ready after reset
+    setTimeout(() => {
+      // Set basic rule information
+      document.getElementById('ruleName').value = ruleData.name || `Rule - ${ruleData.method}`;
+      document.getElementById('urlPattern').value = ruleData.urlPattern || '';
+      document.getElementById('matchType').value = ruleData.matchType || 'exact';
+      document.getElementById('modifyType').value = 'replace';
+
+      // Set method checkboxes
+      document.querySelectorAll('input[name="methods"]').forEach(cb => {
+        cb.checked = cb.value === ruleData.method;
+      });
+
+      // Set response body
+      updateModificationOptions('replace');
+      const bodyValue = ruleData.response?.body || '';
+      document.getElementById('replaceValue').value = bodyValue;
+
+      // Set status code
+      if (ruleData.response?.statusCode) {
+        document.getElementById('modifyStatusCode').value = ruleData.response.statusCode;
+      }
+
+      // Set headers
+      if (ruleData.response?.headers && Array.isArray(ruleData.response.headers) && ruleData.response.headers.length > 0) {
+        ruleData.response.headers.forEach(header => {
+          if (header.name) {
+            addHeaderModification(header.name, header.value, 'set');
+          }
+        });
+      }
+
+      document.getElementById('formTitle').textContent = 'Create Rule from History';
+
+      console.log('Form populated with history data');
+    }, 100);
+  } catch (error) {
+    console.error('Failed to load pending rule data:', error);
+  }
 }
 
 // Make showTab available globally for help section

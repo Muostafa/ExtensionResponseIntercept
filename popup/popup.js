@@ -1,5 +1,6 @@
 // Popup script
 let currentTab = null;
+let activeEditRuleIds = new Set(); // Track which rules are in edit mode
 
 // Initialize popup
 document.addEventListener('DOMContentLoaded', async () => {
@@ -13,6 +14,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Setup event listeners
   setupEventListeners();
+  setupStorageListener();
 });
 
 async function loadStatus() {
@@ -35,19 +37,75 @@ async function loadRules() {
     const response = await chrome.runtime.sendMessage({ action: 'getRules' });
     const rules = response.rules || [];
 
-    displayRules(rules);
+    // Store rules globally for sorting
+    window.currentRules = rules;
+
+    await displayRules(rules);
   } catch (error) {
     console.error('Failed to load rules:', error);
   }
 }
 
-function displayRules(rules) {
+function sortAndFilterRules(rules, groups) {
+  const sortBy = document.getElementById('popupSortBy')?.value || 'modified';
+  const sortOrder = document.getElementById('popupSortOrder')?.value || 'desc';
+  const hideDisabledGroupRules = document.getElementById('popupHideDisabledGroupRules')?.checked ?? true;
+  const enabledRulesFirst = document.getElementById('popupEnabledRulesFirst')?.checked ?? true;
+
+  // Filter rules from disabled groups
+  let filteredRules = rules;
+  if (hideDisabledGroupRules) {
+    filteredRules = rules.filter(rule => {
+      // If rule has no group, always show it
+      if (!rule.groupId) return true;
+
+      // If rule belongs to a group, check if group is enabled
+      const group = groups.find(g => g.id === rule.groupId);
+      // Show if group doesn't exist or group is enabled
+      return !group || group.enabled;
+    });
+  }
+
+  // Sort rules
+  const sortedRules = [...filteredRules].sort((a, b) => {
+    // First, sort by enabled status if that option is checked
+    if (enabledRulesFirst) {
+      const enabledDiff = (b.enabled ? 1 : 0) - (a.enabled ? 1 : 0);
+      if (enabledDiff !== 0) return enabledDiff;
+    }
+
+    // Then sort by the selected criteria
+    let comparison = 0;
+
+    if (sortBy === 'modified') {
+      comparison = (a.modifiedAt || a.createdAt || 0) - (b.modifiedAt || b.createdAt || 0);
+    } else if (sortBy === 'created') {
+      comparison = (a.createdAt || 0) - (b.createdAt || 0);
+    } else if (sortBy === 'name') {
+      comparison = (a.name || '').localeCompare(b.name || '');
+    }
+
+    return sortOrder === 'desc' ? -comparison : comparison;
+  });
+
+  return sortedRules;
+}
+
+async function displayRules(rules) {
   const rulesList = document.getElementById('rulesList');
   const rulesCount = document.getElementById('rulesCount');
 
-  rulesCount.textContent = rules.length;
+  // Get groups for filtering
+  const response = await chrome.runtime.sendMessage({ action: 'getGroups' });
+  const groups = response.groups || [];
+  window.currentGroups = groups;
 
-  if (rules.length === 0) {
+  // Apply sorting and filtering
+  const processedRules = sortAndFilterRules(rules, groups);
+
+  rulesCount.textContent = processedRules.length;
+
+  if (processedRules.length === 0) {
     rulesList.innerHTML = `
       <div class="empty-state">
         <p>No rules configured</p>
@@ -56,7 +114,7 @@ function displayRules(rules) {
     return;
   }
 
-  rulesList.innerHTML = rules.map(rule => {
+  rulesList.innerHTML = processedRules.map(rule => {
     return `
     <div class="rule-item ${rule.enabled ? '' : 'disabled'}" data-rule-id="${rule.id}">
       <div class="rule-header">
@@ -138,9 +196,58 @@ function displayRules(rules) {
       toggleEditMode(ruleId, false);
     });
   });
+
+  // Restore edit mode for rules that were previously in edit mode
+  for (const ruleId of activeEditRuleIds) {
+    // Check if this rule still exists
+    if (rules.find(r => r.id === ruleId)) {
+      await toggleEditMode(ruleId, true);
+    } else {
+      // Rule was deleted, remove from active set
+      activeEditRuleIds.delete(ruleId);
+    }
+  }
 }
 
 function setupEventListeners() {
+  // Rule sorting and filtering controls
+  const popupSortBy = document.getElementById('popupSortBy');
+  const popupSortOrder = document.getElementById('popupSortOrder');
+  const popupHideDisabledGroupRules = document.getElementById('popupHideDisabledGroupRules');
+  const popupEnabledRulesFirst = document.getElementById('popupEnabledRulesFirst');
+
+  if (popupSortBy) {
+    popupSortBy.addEventListener('change', () => {
+      if (window.currentRules) {
+        displayRules(window.currentRules);
+      }
+    });
+  }
+
+  if (popupSortOrder) {
+    popupSortOrder.addEventListener('change', () => {
+      if (window.currentRules) {
+        displayRules(window.currentRules);
+      }
+    });
+  }
+
+  if (popupHideDisabledGroupRules) {
+    popupHideDisabledGroupRules.addEventListener('change', () => {
+      if (window.currentRules) {
+        displayRules(window.currentRules);
+      }
+    });
+  }
+
+  if (popupEnabledRulesFirst) {
+    popupEnabledRulesFirst.addEventListener('change', () => {
+      if (window.currentRules) {
+        displayRules(window.currentRules);
+      }
+    });
+  }
+
   // Global toggle
   document.getElementById('globalToggle').addEventListener('change', async (e) => {
     try {
@@ -192,6 +299,31 @@ function setupEventListeners() {
   });
 }
 
+function setupStorageListener() {
+  // Listen for storage changes to sync popup with options page
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName === 'local') {
+      // Reload rules if they changed
+      if (changes.rules) {
+        console.log('Rules changed, reloading...');
+        loadRules();
+      }
+
+      // Reload groups if they changed
+      if (changes.groups) {
+        console.log('Groups changed, reloading...');
+        loadGroups();
+      }
+
+      // Reload settings if they changed
+      if (changes.settings) {
+        console.log('Settings changed, reloading status...');
+        loadStatus();
+      }
+    }
+  });
+}
+
 function updateAttachButton(isAttached) {
   const button = document.getElementById('attachTab');
   if (isAttached) {
@@ -233,6 +365,9 @@ async function toggleEditMode(ruleId, show) {
 
   if (editContainer) {
     if (show) {
+      // Add to active edit set
+      activeEditRuleIds.add(ruleId);
+
       // Fetch the current rule data
       try {
         const response = await chrome.runtime.sendMessage({ action: 'getRules' });
@@ -270,10 +405,11 @@ async function toggleEditMode(ruleId, show) {
         errorDiv.style.display = 'none';
       }
     } else {
+      // Remove from active edit set
+      activeEditRuleIds.delete(ruleId);
+
       editContainer.style.display = 'none';
       ruleItem.classList.remove('editing');
-      // Reload rules to reset the textarea content
-      loadRules();
     }
   }
 }
@@ -368,8 +504,18 @@ async function saveJsonEdit(ruleId) {
         rule: rule
       });
 
-      // Hide edit mode and reload rules
-      toggleEditMode(ruleId, false);
+      // Remove from active edit set and hide edit mode
+      activeEditRuleIds.delete(ruleId);
+
+      // Hide edit mode
+      const editContainer = document.getElementById(`edit-${ruleId}`);
+      const ruleItem = document.querySelector(`.rule-item[data-rule-id="${ruleId}"]`);
+      if (editContainer) {
+        editContainer.style.display = 'none';
+      }
+      if (ruleItem) {
+        ruleItem.classList.remove('editing');
+      }
     }
   } catch (error) {
     console.error('Failed to save rule edit:', error);
