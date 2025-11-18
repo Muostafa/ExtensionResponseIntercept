@@ -180,6 +180,17 @@
             <small class="form-hint">Assign this rule to a group for easier management</small>
           </div>
 
+          <!-- Curl Import Section -->
+          <div class="card" style="margin-bottom: 20px; background: #f8f9fa;">
+            <h3 style="margin-top: 0; font-size: 16px; color: #333;">📋 Import from cURL</h3>
+            <div class="form-group" style="margin-bottom: 10px;">
+              <label for="curlInput">Paste cURL command</label>
+              <textarea id="curlInput" class="form-control code-editor" rows="4" placeholder="curl 'https://api.example.com/users' -H 'Authorization: Bearer token' -d '{\"name\":\"John\"}'"></textarea>
+              <small class="form-hint">Paste a cURL command to automatically populate URL, method, and headers</small>
+            </div>
+            <button type="button" id="parseCurlBtn" class="btn btn-secondary">Parse cURL</button>
+          </div>
+
           <div class="form-row">
             <div class="form-group">
               <label for="urlPattern">URL Pattern</label>

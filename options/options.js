@@ -307,6 +307,9 @@ function setupEventListeners() {
     }
   });
 
+  // Curl parser button
+  document.getElementById('parseCurlBtn').addEventListener('click', parseCurlCommand);
+
   // History buttons
   document.getElementById('openHistoryPageBtn').addEventListener('click', openHistoryPage);
   document.getElementById('openHistoryPageBtn2').addEventListener('click', openHistoryPage);
@@ -1193,6 +1196,172 @@ function prettifyJsonInTextarea() {
   } catch (error) {
     alert('Invalid JSON: ' + error.message + '\n\nPlease check your JSON syntax.');
   }
+}
+
+// Parse cURL command and populate form
+function parseCurlCommand() {
+  const curlInput = document.getElementById('curlInput').value.trim();
+
+  if (!curlInput) {
+    alert('Please enter a cURL command');
+    return;
+  }
+
+  try {
+    const parsed = parseCurl(curlInput);
+
+    // Populate URL pattern
+    if (parsed.url) {
+      document.getElementById('urlPattern').value = parsed.url;
+    }
+
+    // Populate method
+    if (parsed.method) {
+      document.querySelectorAll('input[name="methods"]').forEach(cb => {
+        cb.checked = cb.value === parsed.method;
+      });
+    }
+
+    // Populate headers
+    if (parsed.headers && parsed.headers.length > 0) {
+      clearHeaderModifications();
+      parsed.headers.forEach(header => {
+        addHeaderModification(header.name, header.value, 'set');
+      });
+    }
+
+    // Populate request body if present
+    if (parsed.body) {
+      // Set modification type to replace
+      document.getElementById('modifyType').value = 'replace';
+      updateModificationOptions('replace');
+
+      // Try to prettify if it's JSON
+      try {
+        const jsonBody = JSON.parse(parsed.body);
+        document.getElementById('replaceValue').value = JSON.stringify(jsonBody, null, 2);
+      } catch {
+        document.getElementById('replaceValue').value = parsed.body;
+      }
+    }
+
+    // Clear the curl input after successful parsing
+    document.getElementById('curlInput').value = '';
+
+    alert('cURL command parsed successfully! Please review and adjust the rule as needed.');
+  } catch (error) {
+    console.error('Failed to parse cURL:', error);
+    alert('Failed to parse cURL command: ' + error.message);
+  }
+}
+
+// Parse cURL command string
+function parseCurl(curlCommand) {
+  // Remove curl command at the start if present
+  let command = curlCommand.trim();
+  command = command.replace(/^curl\s+/, '');
+
+  const result = {
+    url: '',
+    method: 'GET',
+    headers: [],
+    body: null
+  };
+
+  // Extract URL (first quoted string or first unquoted argument)
+  const urlMatch = command.match(/^["']([^"']+)["']/) || command.match(/^(\S+)/);
+  if (urlMatch) {
+    result.url = urlMatch[1];
+    command = command.slice(urlMatch[0].length).trim();
+  }
+
+  // Parse remaining arguments
+  let pos = 0;
+  while (pos < command.length) {
+    // Skip whitespace
+    while (pos < command.length && /\s/.test(command[pos])) {
+      pos++;
+    }
+
+    if (pos >= command.length) break;
+
+    // Check for flags
+    if (command[pos] === '-') {
+      // Find the flag
+      const flagMatch = command.slice(pos).match(/^(-[A-Za-z]|--[a-z-]+)/);
+      if (!flagMatch) {
+        pos++;
+        continue;
+      }
+
+      const flag = flagMatch[1];
+      pos += flag.length;
+
+      // Skip whitespace after flag
+      while (pos < command.length && /\s/.test(command[pos])) {
+        pos++;
+      }
+
+      // Get the value for this flag
+      let value = '';
+      if (pos < command.length) {
+        if (command[pos] === '"' || command[pos] === "'") {
+          // Quoted value
+          const quote = command[pos];
+          pos++;
+          let escaped = false;
+          while (pos < command.length) {
+            if (escaped) {
+              value += command[pos];
+              escaped = false;
+            } else if (command[pos] === '\\') {
+              escaped = true;
+            } else if (command[pos] === quote) {
+              pos++;
+              break;
+            } else {
+              value += command[pos];
+            }
+            pos++;
+          }
+        } else {
+          // Unquoted value
+          while (pos < command.length && !/\s/.test(command[pos])) {
+            value += command[pos];
+            pos++;
+          }
+        }
+      }
+
+      // Process the flag
+      if (flag === '-X' || flag === '--request') {
+        result.method = value.toUpperCase();
+      } else if (flag === '-H' || flag === '--header') {
+        const headerMatch = value.match(/^([^:]+):\s*(.*)$/);
+        if (headerMatch) {
+          result.headers.push({
+            name: headerMatch[1].trim(),
+            value: headerMatch[2].trim()
+          });
+        }
+      } else if (flag === '-d' || flag === '--data' || flag === '--data-raw' || flag === '--data-binary') {
+        result.body = value;
+        // If data is provided and method is still GET, change to POST
+        if (result.method === 'GET') {
+          result.method = 'POST';
+        }
+      }
+    } else {
+      // Skip unknown content
+      pos++;
+    }
+  }
+
+  if (!result.url) {
+    throw new Error('Could not extract URL from cURL command');
+  }
+
+  return result;
 }
 
 function escapeHtml(text) {
