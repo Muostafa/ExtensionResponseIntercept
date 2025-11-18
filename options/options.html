@@ -228,6 +228,7 @@
                 <input type="checkbox" name="methods" value="PATCH"> PATCH
               </label>
             </div>
+            <small class="form-error" id="methodsError" style="display: none; color: #dc2626; margin-top: 5px;">Please select at least one HTTP method</small>
           </div>
 
           <div class="form-group">
@@ -258,6 +259,7 @@
               <label for="jsonPath">JSON Path</label>
               <input type="text" id="jsonPath" class="form-control" placeholder="data.status">
               <small class="form-hint">Use dot notation: data.user.name</small>
+              <small class="form-error" id="jsonPathError" style="display: none; color: #dc2626; margin-top: 5px;"></small>
             </div>
             <div class="form-group">
               <label for="jsonValue">New Value</label>
@@ -272,6 +274,8 @@
               <label for="regexPattern">Regex Pattern</label>
               <input type="text" id="regexPattern" class="form-control" placeholder="error">
               <small class="form-hint">Pattern to search for</small>
+              <small class="form-error" id="regexPatternError" style="display: none; color: #dc2626; margin-top: 5px;"></small>
+              <div id="regexValidStatus" style="display: none; margin-top: 5px; padding: 8px; border-radius: 4px;"></div>
             </div>
             <div class="form-group">
               <label for="regexReplacement">Replacement</label>
@@ -282,6 +286,7 @@
               <label for="regexFlags">Flags (optional)</label>
               <input type="text" id="regexFlags" class="form-control" placeholder="gi" value="g">
               <small class="form-hint">g=global, i=case-insensitive, m=multiline</small>
+              <small class="form-error" id="regexFlagsError" style="display: none; color: #dc2626; margin-top: 5px;"></small>
             </div>
           </div>
 
@@ -291,6 +296,8 @@
               <label for="functionCode">JavaScript Function</label>
               <textarea id="functionCode" class="form-control code-editor" rows="10" placeholder="// body parameter contains the original response&#10;return body.replace('error', 'success');"></textarea>
               <small class="form-hint warning">⚠️ Function receives 'body' parameter and must return modified body</small>
+              <small class="form-error" id="functionCodeError" style="display: none; color: #dc2626; margin-top: 5px;"></small>
+              <div id="functionValidStatus" style="display: none; margin-top: 5px; padding: 8px; border-radius: 4px;"></div>
             </div>
           </div>
 
@@ -299,6 +306,7 @@
             <label for="modifyStatusCode">Modify Status Code (optional)</label>
             <input type="number" id="modifyStatusCode" class="form-control" placeholder="e.g., 200, 404, 500" min="100" max="599">
             <small class="form-hint">Leave empty to keep original status code</small>
+            <small class="form-error" id="statusCodeError" style="display: none; color: #dc2626; margin-top: 5px;"></small>
           </div>
 
           <!-- Header Modifications -->
@@ -444,6 +452,38 @@
         </div>
       </div>
     </main>
+  </div>
+
+  <!-- cURL Preview Modal -->
+  <div id="curlPreviewModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>cURL Command Preview</h3>
+        <button class="modal-close" id="closeCurlPreviewModal">&times;</button>
+      </div>
+      <div style="padding: 20px;">
+        <div class="form-group">
+          <label style="font-weight: 600;">Extracted URL:</label>
+          <div id="previewUrl" style="padding: 8px; background: #f5f5f5; border-radius: 4px; margin-top: 5px; word-break: break-all;"></div>
+        </div>
+        <div class="form-group">
+          <label style="font-weight: 600;">HTTP Method:</label>
+          <div id="previewMethod" style="padding: 8px; background: #f5f5f5; border-radius: 4px; margin-top: 5px;"></div>
+        </div>
+        <div class="form-group" id="previewHeadersGroup" style="display: none;">
+          <label style="font-weight: 600;">Headers:</label>
+          <div id="previewHeaders" style="padding: 8px; background: #f5f5f5; border-radius: 4px; margin-top: 5px;"></div>
+        </div>
+        <div class="form-group" id="previewBodyGroup" style="display: none;">
+          <label style="font-weight: 600;">Request Body:</label>
+          <pre id="previewBody" style="padding: 8px; background: #f5f5f5; border-radius: 4px; margin-top: 5px; max-height: 200px; overflow: auto; white-space: pre-wrap; word-break: break-word;"></pre>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-primary" id="applyCurlPreview">Apply to Form</button>
+        <button type="button" class="btn btn-secondary" id="cancelCurlPreview">Cancel</button>
+      </div>
+    </div>
   </div>
 
   <script src="options.js"></script>

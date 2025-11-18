@@ -175,6 +175,7 @@ function displayRules(rules) {
 
         <div class="rule-card-actions">
           <button class="btn btn-secondary btn-small edit-btn" data-rule-id="${rule.id}">Edit</button>
+          <button class="btn btn-secondary btn-small duplicate-btn" data-rule-id="${rule.id}">Duplicate</button>
           <button class="btn btn-danger btn-small delete-btn" data-rule-id="${rule.id}">Delete</button>
         </div>
       </div>
@@ -199,6 +200,14 @@ function attachRuleEventListeners() {
     btn.addEventListener('click', (e) => {
       const ruleId = e.target.dataset.ruleId;
       editRule(ruleId);
+    });
+  });
+
+  // Duplicate buttons
+  document.querySelectorAll('.duplicate-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const ruleId = e.target.dataset.ruleId;
+      duplicateRule(ruleId);
     });
   });
 
@@ -310,6 +319,28 @@ function setupEventListeners() {
   // Curl parser button
   document.getElementById('parseCurlBtn').addEventListener('click', parseCurlCommand);
 
+  // cURL preview modal
+  document.getElementById('closeCurlPreviewModal').addEventListener('click', closeCurlPreviewModal);
+  document.getElementById('cancelCurlPreview').addEventListener('click', closeCurlPreviewModal);
+  document.getElementById('applyCurlPreview').addEventListener('click', applyCurlToForm);
+  document.getElementById('curlPreviewModal').addEventListener('click', (e) => {
+    if (e.target.id === 'curlPreviewModal') {
+      closeCurlPreviewModal();
+    }
+  });
+
+  // Validation listeners
+  document.getElementById('regexPattern').addEventListener('input', validateRegexPattern);
+  document.getElementById('regexFlags').addEventListener('input', validateRegexFlags);
+  document.getElementById('jsonPath').addEventListener('input', validateJsonPath);
+  document.getElementById('functionCode').addEventListener('input', validateFunctionCode);
+  document.getElementById('modifyStatusCode').addEventListener('input', validateStatusCode);
+
+  // Method validation
+  document.querySelectorAll('input[name="methods"]').forEach(cb => {
+    cb.addEventListener('change', validateMethods);
+  });
+
   // History buttons
   document.getElementById('openHistoryPageBtn').addEventListener('click', openHistoryPage);
   document.getElementById('openHistoryPageBtn2').addEventListener('click', openHistoryPage);
@@ -353,6 +384,12 @@ function updateModificationOptions(type) {
 }
 
 async function saveRule() {
+  // Validate form first
+  if (!validateForm()) {
+    alert('Please fix the validation errors before saving');
+    return;
+  }
+
   const ruleData = collectFormData();
 
   if (!ruleData) {
@@ -1198,7 +1235,10 @@ function prettifyJsonInTextarea() {
   }
 }
 
-// Parse cURL command and populate form
+// Global variable to store parsed cURL result
+let parsedCurlData = null;
+
+// Parse cURL command and show preview
 function parseCurlCommand() {
   const curlInput = document.getElementById('curlInput').value.trim();
 
@@ -1209,50 +1249,100 @@ function parseCurlCommand() {
 
   try {
     const parsed = parseCurl(curlInput);
+    parsedCurlData = parsed;
 
-    // Populate URL pattern
-    if (parsed.url) {
-      document.getElementById('urlPattern').value = parsed.url;
-    }
-
-    // Populate method
-    if (parsed.method) {
-      document.querySelectorAll('input[name="methods"]').forEach(cb => {
-        cb.checked = cb.value === parsed.method;
-      });
-    }
-
-    // Populate headers
-    if (parsed.headers && parsed.headers.length > 0) {
-      clearHeaderModifications();
-      parsed.headers.forEach(header => {
-        addHeaderModification(header.name, header.value, 'set');
-      });
-    }
-
-    // Populate request body if present
-    if (parsed.body) {
-      // Set modification type to replace
-      document.getElementById('modifyType').value = 'replace';
-      updateModificationOptions('replace');
-
-      // Try to prettify if it's JSON
-      try {
-        const jsonBody = JSON.parse(parsed.body);
-        document.getElementById('replaceValue').value = JSON.stringify(jsonBody, null, 2);
-      } catch {
-        document.getElementById('replaceValue').value = parsed.body;
-      }
-    }
-
-    // Clear the curl input after successful parsing
-    document.getElementById('curlInput').value = '';
-
-    alert('cURL command parsed successfully! Please review and adjust the rule as needed.');
+    // Show preview modal
+    showCurlPreview(parsed);
   } catch (error) {
     console.error('Failed to parse cURL:', error);
     alert('Failed to parse cURL command: ' + error.message);
   }
+}
+
+// Show cURL preview modal
+function showCurlPreview(parsed) {
+  document.getElementById('previewUrl').textContent = parsed.url;
+  document.getElementById('previewMethod').textContent = parsed.method;
+
+  // Show headers if present
+  if (parsed.headers && parsed.headers.length > 0) {
+    const headersHtml = parsed.headers.map(h =>
+      `<div style="padding: 4px 0;"><strong>${escapeHtml(h.name)}:</strong> ${escapeHtml(h.value)}</div>`
+    ).join('');
+    document.getElementById('previewHeaders').innerHTML = headersHtml;
+    document.getElementById('previewHeadersGroup').style.display = 'block';
+  } else {
+    document.getElementById('previewHeadersGroup').style.display = 'none';
+  }
+
+  // Show body if present
+  if (parsed.body) {
+    try {
+      const jsonBody = JSON.parse(parsed.body);
+      document.getElementById('previewBody').textContent = JSON.stringify(jsonBody, null, 2);
+    } catch {
+      document.getElementById('previewBody').textContent = parsed.body;
+    }
+    document.getElementById('previewBodyGroup').style.display = 'block';
+  } else {
+    document.getElementById('previewBodyGroup').style.display = 'none';
+  }
+
+  document.getElementById('curlPreviewModal').style.display = 'flex';
+}
+
+// Close cURL preview modal
+function closeCurlPreviewModal() {
+  document.getElementById('curlPreviewModal').style.display = 'none';
+  parsedCurlData = null;
+}
+
+// Apply cURL data to form
+function applyCurlToForm() {
+  if (!parsedCurlData) return;
+
+  const parsed = parsedCurlData;
+
+  // Populate URL pattern
+  if (parsed.url) {
+    document.getElementById('urlPattern').value = parsed.url;
+  }
+
+  // Populate method
+  if (parsed.method) {
+    document.querySelectorAll('input[name="methods"]').forEach(cb => {
+      cb.checked = cb.value === parsed.method;
+    });
+  }
+
+  // Populate headers
+  if (parsed.headers && parsed.headers.length > 0) {
+    clearHeaderModifications();
+    parsed.headers.forEach(header => {
+      addHeaderModification(header.name, header.value, 'set');
+    });
+  }
+
+  // Populate request body if present
+  if (parsed.body) {
+    // Set modification type to replace
+    document.getElementById('modifyType').value = 'replace';
+    updateModificationOptions('replace');
+
+    // Try to prettify if it's JSON
+    try {
+      const jsonBody = JSON.parse(parsed.body);
+      document.getElementById('replaceValue').value = JSON.stringify(jsonBody, null, 2);
+    } catch {
+      document.getElementById('replaceValue').value = parsed.body;
+    }
+  }
+
+  // Clear the curl input after successful application
+  document.getElementById('curlInput').value = '';
+
+  // Close the modal
+  closeCurlPreviewModal();
 }
 
 // Parse cURL command string
@@ -1362,6 +1452,226 @@ function parseCurl(curlCommand) {
   }
 
   return result;
+}
+
+// Validation Functions
+
+// Validate regex pattern
+function validateRegexPattern() {
+  const pattern = document.getElementById('regexPattern').value;
+  const flags = document.getElementById('regexFlags').value;
+  const errorEl = document.getElementById('regexPatternError');
+  const statusEl = document.getElementById('regexValidStatus');
+
+  if (!pattern) {
+    errorEl.style.display = 'none';
+    statusEl.style.display = 'none';
+    return true;
+  }
+
+  try {
+    new RegExp(pattern, flags || 'g');
+    errorEl.style.display = 'none';
+    statusEl.style.display = 'block';
+    statusEl.style.background = '#d1fae5';
+    statusEl.style.color = '#065f46';
+    statusEl.textContent = '✓ Valid regex pattern';
+    return true;
+  } catch (error) {
+    errorEl.style.display = 'block';
+    errorEl.textContent = 'Invalid regex: ' + error.message;
+    statusEl.style.display = 'none';
+    return false;
+  }
+}
+
+// Validate regex flags
+function validateRegexFlags() {
+  const flags = document.getElementById('regexFlags').value;
+  const errorEl = document.getElementById('regexFlagsError');
+
+  if (!flags) {
+    errorEl.style.display = 'none';
+    return true;
+  }
+
+  // Valid flags: g, i, m, s, u, y
+  const validFlags = /^[gimsuy]*$/;
+  if (!validFlags.test(flags)) {
+    errorEl.style.display = 'block';
+    errorEl.textContent = 'Invalid flags. Valid flags are: g, i, m, s, u, y';
+    return false;
+  }
+
+  // Check for duplicate flags
+  const uniqueFlags = new Set(flags.split(''));
+  if (uniqueFlags.size !== flags.length) {
+    errorEl.style.display = 'block';
+    errorEl.textContent = 'Duplicate flags detected';
+    return false;
+  }
+
+  errorEl.style.display = 'none';
+  // Trigger pattern validation in case the flags affect it
+  validateRegexPattern();
+  return true;
+}
+
+// Validate JSON path
+function validateJsonPath() {
+  const path = document.getElementById('jsonPath').value;
+  const errorEl = document.getElementById('jsonPathError');
+
+  if (!path) {
+    errorEl.style.display = 'none';
+    return true;
+  }
+
+  // Check for valid path notation (simple validation)
+  // Valid: data.user.name, items[0].name, data.items[0]
+  const validPath = /^[a-zA-Z_$][a-zA-Z0-9_$]*(\.[a-zA-Z_$][a-zA-Z0-9_$]*|\[\d+\])*$/;
+
+  if (!validPath.test(path)) {
+    errorEl.style.display = 'block';
+    errorEl.textContent = 'Invalid path. Use dot notation (e.g., data.user.name) or array indices (e.g., items[0].name)';
+    return false;
+  }
+
+  errorEl.style.display = 'none';
+  return true;
+}
+
+// Validate function code
+function validateFunctionCode() {
+  const code = document.getElementById('functionCode').value.trim();
+  const errorEl = document.getElementById('functionCodeError');
+  const statusEl = document.getElementById('functionValidStatus');
+
+  if (!code) {
+    errorEl.style.display = 'none';
+    statusEl.style.display = 'none';
+    return true;
+  }
+
+  try {
+    // Try to create the function to check syntax
+    new Function('body', code);
+    errorEl.style.display = 'none';
+    statusEl.style.display = 'block';
+    statusEl.style.background = '#d1fae5';
+    statusEl.style.color = '#065f46';
+    statusEl.textContent = '✓ Valid JavaScript syntax';
+    return true;
+  } catch (error) {
+    errorEl.style.display = 'block';
+    errorEl.textContent = 'Syntax error: ' + error.message;
+    statusEl.style.display = 'none';
+    return false;
+  }
+}
+
+// Validate status code
+function validateStatusCode() {
+  const statusCode = document.getElementById('modifyStatusCode').value;
+  const errorEl = document.getElementById('statusCodeError');
+
+  if (!statusCode) {
+    errorEl.style.display = 'none';
+    return true;
+  }
+
+  const code = parseInt(statusCode, 10);
+  if (isNaN(code) || code < 100 || code > 599) {
+    errorEl.style.display = 'block';
+    errorEl.textContent = 'Status code must be between 100 and 599';
+    return false;
+  }
+
+  errorEl.style.display = 'none';
+  return true;
+}
+
+// Validate at least one method is selected
+function validateMethods() {
+  const checkedMethods = document.querySelectorAll('input[name="methods"]:checked');
+  const errorEl = document.getElementById('methodsError');
+
+  if (checkedMethods.length === 0) {
+    errorEl.style.display = 'block';
+    return false;
+  }
+
+  errorEl.style.display = 'none';
+  return true;
+}
+
+// Validate form before submission
+function validateForm() {
+  let isValid = true;
+
+  // Always validate methods
+  if (!validateMethods()) {
+    isValid = false;
+  }
+
+  // Validate status code if filled
+  if (!validateStatusCode()) {
+    isValid = false;
+  }
+
+  // Validate based on modification type
+  const modifyType = document.getElementById('modifyType').value;
+
+  if (modifyType === 'regex') {
+    if (!validateRegexPattern() || !validateRegexFlags()) {
+      isValid = false;
+    }
+  } else if (modifyType === 'json-path') {
+    if (!validateJsonPath()) {
+      isValid = false;
+    }
+  } else if (modifyType === 'function') {
+    if (!validateFunctionCode()) {
+      isValid = false;
+    }
+  }
+
+  return isValid;
+}
+
+// Duplicate rule function
+async function duplicateRule(ruleId) {
+  try {
+    const response = await chrome.runtime.sendMessage({ action: 'getRules' });
+    const rules = response.rules || [];
+    const rule = rules.find(r => r.id === ruleId);
+
+    if (!rule) {
+      alert('Rule not found');
+      return;
+    }
+
+    // Create a copy of the rule without the id
+    const duplicatedRule = {
+      ...rule,
+      name: rule.name + ' (Copy)',
+      enabled: false // Start duplicated rules as disabled
+    };
+    delete duplicatedRule.id;
+    delete duplicatedRule.createdAt;
+    delete duplicatedRule.modifiedAt;
+
+    // Add the duplicated rule
+    await chrome.runtime.sendMessage({
+      action: 'addRule',
+      rule: duplicatedRule
+    });
+
+    await loadRules();
+  } catch (error) {
+    console.error('Failed to duplicate rule:', error);
+    alert('Failed to duplicate rule: ' + error.message);
+  }
 }
 
 function escapeHtml(text) {
