@@ -532,3 +532,32 @@ header h1 {
 .groups-list::-webkit-scrollbar-thumb:hover {
   background: #555;
 }
+
+/* Coffee Link in Popup */
+.popup-footer {
+  padding: 12px 20px;
+  border-top: 1px solid #e0e0e0;
+  background: #fafafa;
+}
+
+.coffee-link-popup {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  color: #667eea;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.coffee-link-popup:hover {
+  color: #764ba2;
+  transform: translateY(-1px);
+}
+
+.coffee-link-popup span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
