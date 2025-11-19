@@ -20,10 +20,12 @@ body {
   width: 250px;
   background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
   color: white;
-  padding: 30px 0;
+  padding: 30px 0 0 0;
   position: fixed;
   height: 100vh;
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .logo {
@@ -716,4 +718,112 @@ body {
   font-weight: 600;
   border-left: 4px solid;
   white-space: nowrap;
+}
+
+/* Donation Section */
+.support-section {
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  padding: 30px;
+  border-radius: 12px;
+  margin-top: 30px;
+}
+
+.donation-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 25px;
+  margin: 25px 0;
+}
+
+.donation-option {
+  background: white;
+  padding: 25px;
+  border-radius: 12px;
+  text-align: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+.donation-option:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.2);
+}
+
+.donation-option h4 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.donation-description {
+  font-size: 13px;
+  color: #666;
+  margin-bottom: 20px;
+}
+
+.donation-link {
+  display: block;
+  margin-bottom: 20px;
+}
+
+.qr-code {
+  width: 200px;
+  height: 200px;
+  border-radius: 8px;
+  border: 2px solid #e0e0e0;
+  transition: all 0.3s ease;
+}
+
+.qr-code:hover {
+  border-color: #667eea;
+  transform: scale(1.05);
+}
+
+.donation-btn {
+  width: 100%;
+  max-width: 250px;
+  margin: 0 auto;
+  display: block;
+  font-size: 15px;
+  padding: 12px 20px;
+}
+
+.support-note {
+  text-align: center;
+  font-size: 14px;
+  color: #555;
+  font-style: italic;
+  margin-top: 20px;
+  margin-bottom: 0;
+}
+
+/* Sidebar Footer */
+.sidebar-footer {
+  margin-top: auto;
+  padding: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  text-align: center;
+}
+
+.sidebar-footer p {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.8);
+  margin-bottom: 10px;
+}
+
+.sidebar-footer-link {
+  display: inline-block;
+  padding: 8px 16px;
+  background: rgba(255, 255, 255, 0.15);
+  color: white;
+  text-decoration: none;
+  border-radius: 6px;
+  font-size: 12px;
+  transition: all 0.2s;
+}
+
+.sidebar-footer-link:hover {
+  background: rgba(255, 255, 255, 0.25);
+  transform: translateY(-1px);
 }
