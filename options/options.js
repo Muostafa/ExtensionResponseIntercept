@@ -6,7 +6,6 @@ let headerModificationCounter = 0;
 document.addEventListener('DOMContentLoaded', async () => {
   await loadGroups();
   await loadRules();
-  await loadRecordings();
   setupEventListeners();
   setupNavigation();
 });
@@ -304,9 +303,6 @@ function setupEventListeners() {
       }
     }
   });
-
-  // Recordings button
-  document.getElementById('clearRecordingsBtn').addEventListener('click', clearAllRecordings);
 
   // Group management buttons
   document.getElementById('addNewGroupBtn').addEventListener('click', openGroupModal);
@@ -981,151 +977,6 @@ function updateGroupSelectors() {
   // Restore selection if it still exists
   if (currentValue) {
     ruleGroupSelect.value = currentValue;
-  }
-}
-
-// Recordings
-async function loadRecordings() {
-  try {
-    const response = await chrome.runtime.sendMessage({ action: 'getRecordings' });
-    const recordings = response.recordings || [];
-    displayRecordings(recordings);
-  } catch (error) {
-    console.error('Failed to load recordings:', error);
-  }
-}
-
-function displayRecordings(recordings) {
-  const recordingsList = document.getElementById('recordingsList');
-  const emptyState = document.getElementById('recordingsEmptyState');
-
-  if (recordings.length === 0) {
-    recordingsList.style.display = 'none';
-    emptyState.style.display = 'block';
-    return;
-  }
-
-  recordingsList.style.display = 'grid';
-  emptyState.style.display = 'none';
-
-  recordingsList.innerHTML = recordings.map(recording => `
-    <div class="rule-card">
-      <div class="rule-card-header">
-        <div>
-          <div class="rule-card-title">${escapeHtml(recording.name)}</div>
-        </div>
-      </div>
-
-      <div class="rule-card-pattern">${escapeHtml(recording.url)}</div>
-
-      <div class="rule-card-meta">
-        <span class="rule-badge">${recording.method}</span>
-        <span class="rule-badge">Status: ${recording.response.statusCode}</span>
-        <span class="rule-badge">${new Date(recording.timestamp).toLocaleString()}</span>
-      </div>
-
-      <div class="rule-card-actions">
-        <button class="btn btn-primary btn-small use-recording-btn" data-recording-id="${recording.id}">Use as Rule</button>
-        <button class="btn btn-danger btn-small delete-recording-btn" data-recording-id="${recording.id}">Delete</button>
-      </div>
-    </div>
-  `).join('');
-
-  // Add event listeners
-  document.querySelectorAll('.use-recording-btn').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      const recordingId = e.target.dataset.recordingId;
-      await createRuleFromRecording(recordingId);
-    });
-  });
-
-  document.querySelectorAll('.delete-recording-btn').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      const recordingId = e.target.dataset.recordingId;
-      if (confirm('Delete this recording?')) {
-        await chrome.runtime.sendMessage({
-          action: 'deleteRecording',
-          recordingId
-        });
-        await loadRecordings();
-      }
-    });
-  });
-}
-
-async function createRuleFromRecording(recordingId) {
-  try {
-    const response = await chrome.runtime.sendMessage({ action: 'getRecordings' });
-    const recordings = response.recordings || [];
-    const recording = recordings.find(r => r.id === recordingId);
-
-    if (!recording) {
-      alert('Recording not found');
-      return;
-    }
-
-    console.log('Creating rule from recording:', recording);
-
-    // Switch to new rule tab first
-    showTab('new-rule');
-
-    // Reset form and clear editing state
-    currentEditingRuleId = null;
-    resetForm();
-
-    // Use setTimeout to ensure form is ready after reset
-    setTimeout(() => {
-      // Set basic rule information
-      document.getElementById('ruleName').value = recording.name || 'Rule from Recording';
-      document.getElementById('urlPattern').value = recording.urlPattern || recording.url || '';
-      document.getElementById('matchType').value = recording.matchType || 'exact';
-      document.getElementById('modifyType').value = 'replace';
-
-      // Set method checkboxes
-      document.querySelectorAll('input[name="methods"]').forEach(cb => {
-        cb.checked = cb.value === recording.method;
-      });
-
-      // Set response body
-      updateModificationOptions('replace');
-      const bodyValue = recording.response?.body || '';
-      document.getElementById('replaceValue').value = bodyValue;
-
-      // Set status code
-      if (recording.response?.statusCode) {
-        document.getElementById('modifyStatusCode').value = recording.response.statusCode;
-      }
-
-      // Set headers
-      if (recording.response?.headers && Array.isArray(recording.response.headers) && recording.response.headers.length > 0) {
-        recording.response.headers.forEach(header => {
-          if (header.name) {
-            addHeaderModification(header.name, header.value, 'set');
-          }
-        });
-      }
-
-      document.getElementById('formTitle').textContent = 'Create Rule from Recording';
-
-      console.log('Form populated with recording data');
-    }, 100);
-  } catch (error) {
-    console.error('Failed to create rule from recording:', error);
-    alert('Failed to create rule from recording: ' + error.message);
-  }
-}
-
-async function clearAllRecordings() {
-  if (!confirm('Are you sure you want to delete all recordings?')) {
-    return;
-  }
-
-  try {
-    await chrome.runtime.sendMessage({ action: 'clearRecordings' });
-    await loadRecordings();
-  } catch (error) {
-    console.error('Failed to clear recordings:', error);
-    alert('Failed to clear recordings');
   }
 }
 

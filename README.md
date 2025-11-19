@@ -19,15 +19,9 @@ A Chrome extension that enables you to intercept and modify API response bodies 
 - **Status Code Modification**: Change HTTP status codes (e.g., turn 404s into 200s)
 - **Multi-layer Modifications**: Combine body, header, and status code changes in a single rule
 
-### Response Recording & Replay
-- **Record Real Responses**: Save actual API responses as reusable mocks
-- **Convert to Rules**: Instantly create rules from recorded responses
-- **Response Library**: Build a collection of mock responses for testing
-
 ### User Experience
 - **User-Friendly Interface**: Intuitive popup and options page for managing rules
 - **Import/Export**: Save and share your rule configurations
-- **Real-time Statistics**: View processing times and modification counts
 
 ## Installation
 
@@ -56,12 +50,6 @@ A Chrome extension that enables you to intercept and modify API response bodies 
    - Define your modification
    - Enable the rule
 5. Refresh your page to see the modifications
-
-### Recording Responses
-
-1. Navigate to the Recordings tab in the Options page
-2. Manually create recordings to store API responses
-3. Convert recordings to rules with one click
 
 ### Creating Rules
 
@@ -302,11 +290,9 @@ Contributions are welcome! Please feel free to submit issues or pull requests.
 ### Version 2.0.0 (Current)
 - **NEW**: Response header modification (add, set, remove headers)
 - **NEW**: HTTP status code modification
-- **NEW**: Response recording and replay functionality
-- **NEW**: Convert recorded responses to rules with one click
 - **IMPROVED**: Rule engine now supports multi-layer modifications
 - **IMPROVED**: Better error handling and logging
-- **IMPROVED**: Enhanced UI with new Recordings tab
+- **IMPROVED**: Enhanced UI
 
 ### Version 1.0.0
 - Initial release

@@ -7,7 +7,6 @@ export class StorageManager {
       globalEnabled: true,
       logging: true
     };
-    this.recordings = [];
     this.listeners = [];
     this.groupListeners = [];
   }
@@ -400,60 +399,5 @@ export class StorageManager {
 
   generateGroupId() {
     return `group_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  }
-
-  // Recording Management
-  async addRecording(recording) {
-    const newRecording = {
-      id: this.generateId(),
-      timestamp: Date.now(),
-      ...recording
-    };
-
-    this.recordings.push(newRecording);
-    await this.saveRecordings();
-    return newRecording;
-  }
-
-  async loadRecordings() {
-    try {
-      const data = await chrome.storage.local.get(['recordings']);
-      if (data.recordings) {
-        this.recordings = data.recordings;
-      }
-    } catch (error) {
-      console.error('Failed to load recordings:', error);
-    }
-  }
-
-  async saveRecordings() {
-    try {
-      await chrome.storage.local.set({ recordings: this.recordings });
-    } catch (error) {
-      console.error('Failed to save recordings:', error);
-    }
-  }
-
-  getRecordings() {
-    return this.recordings;
-  }
-
-  getRecordingById(id) {
-    return this.recordings.find(r => r.id === id);
-  }
-
-  async deleteRecording(recordingId) {
-    const index = this.recordings.findIndex(r => r.id === recordingId);
-    if (index !== -1) {
-      this.recordings.splice(index, 1);
-      await this.saveRecordings();
-      return true;
-    }
-    return false;
-  }
-
-  async clearAllRecordings() {
-    this.recordings = [];
-    await this.saveRecordings();
   }
 }
