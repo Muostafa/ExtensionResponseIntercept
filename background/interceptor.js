@@ -85,30 +85,6 @@ export class ResponseInterceptor {
             { name: 'Content-Type', value: 'application/json' }
           ];
 
-          // Log to history
-          if (this.storageManager && this.storageManager.settings.logging) {
-            await this.storageManager.addHistoryEntry({
-              url,
-              method,
-              tabId,
-              request: {
-                headers: request.headers,
-                postData: request.postData
-              },
-              originalResponse: null, // Request was blocked
-              modifiedResponse: {
-                statusCode: mockStatusCode,
-                headers: mockHeaders,
-                body: this.truncateForStorage(mockBody),
-                contentType: this.getContentType(mockHeaders)
-              },
-              ruleApplied: rule.name,
-              ruleId: rule.id,
-              processingTime: Date.now() - startTime,
-              blocked: true // Indicate this request was blocked
-            });
-          }
-
           // Encode the mock body
           const base64Body = this.base64Encode(mockBody);
 

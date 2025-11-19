@@ -5,14 +5,11 @@ export class StorageManager {
     this.groups = [];
     this.settings = {
       globalEnabled: true,
-      logging: true,
-      maxHistoryItems: 100
+      logging: true
     };
-    this.history = [];
     this.recordings = [];
     this.listeners = [];
     this.groupListeners = [];
-    this.historyListeners = [];
   }
 
   async loadRules() {
@@ -403,66 +400,6 @@ export class StorageManager {
 
   generateGroupId() {
     return `group_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  }
-
-  // History Management
-  async addHistoryEntry(entry) {
-    const historyEntry = {
-      id: this.generateId(),
-      timestamp: Date.now(),
-      ...entry
-    };
-
-    this.history.unshift(historyEntry); // Add to beginning
-
-    // Limit history size
-    if (this.history.length > this.settings.maxHistoryItems) {
-      this.history = this.history.slice(0, this.settings.maxHistoryItems);
-    }
-
-    await this.saveHistory();
-    this.notifyHistoryListeners();
-    return historyEntry;
-  }
-
-  async loadHistory() {
-    try {
-      const data = await chrome.storage.local.get(['history']);
-      if (data.history) {
-        this.history = data.history;
-      }
-    } catch (error) {
-      console.error('Failed to load history:', error);
-    }
-  }
-
-  async saveHistory() {
-    try {
-      await chrome.storage.local.set({ history: this.history });
-    } catch (error) {
-      console.error('Failed to save history:', error);
-    }
-  }
-
-  getHistory(limit = null) {
-    if (limit) {
-      return this.history.slice(0, limit);
-    }
-    return this.history;
-  }
-
-  async clearHistory() {
-    this.history = [];
-    await this.saveHistory();
-    this.notifyHistoryListeners();
-  }
-
-  onHistoryChanged(callback) {
-    this.historyListeners.push(callback);
-  }
-
-  notifyHistoryListeners() {
-    this.historyListeners.forEach(callback => callback(this.history));
   }
 
   // Recording Management

@@ -7,10 +7,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadGroups();
   await loadRules();
   await loadRecordings();
-  await loadRecentHistory();
   setupEventListeners();
   setupNavigation();
-  await checkPendingRuleData();
 });
 
 // Setup navigation
@@ -306,10 +304,6 @@ function setupEventListeners() {
       }
     }
   });
-
-  // History buttons
-  document.getElementById('openHistoryPageBtn').addEventListener('click', openHistoryPage);
-  document.getElementById('openHistoryPageBtn2').addEventListener('click', openHistoryPage);
 
   // Recordings button
   document.getElementById('clearRecordingsBtn').addEventListener('click', clearAllRecordings);
@@ -1135,47 +1129,6 @@ async function clearAllRecordings() {
   }
 }
 
-// History
-async function loadRecentHistory() {
-  try {
-    const response = await chrome.runtime.sendMessage({ action: 'getHistory', limit: 10 });
-    const history = response.history || [];
-    displayRecentHistory(history);
-  } catch (error) {
-    console.error('Failed to load history:', error);
-  }
-}
-
-function displayRecentHistory(history) {
-  const list = document.getElementById('recentHistoryList');
-
-  if (history.length === 0) {
-    list.innerHTML = '<p style="color: #666;">No history yet</p>';
-    return;
-  }
-
-  list.innerHTML = `
-    <div style="max-height: 400px; overflow-y: auto;">
-      ${history.map(entry => `
-        <div style="padding: 10px; border-bottom: 1px solid #eee;">
-          <div style="display: flex; gap: 10px; align-items: center;">
-            <span style="font-weight: bold; color: #2563eb;">${entry.method}</span>
-            <span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(entry.url)}</span>
-            ${entry.modifiedResponse ? '<span style="color: #10b981;">✓ Modified</span>' : ''}
-          </div>
-          <div style="font-size: 12px; color: #666; margin-top: 4px;">
-            ${new Date(entry.timestamp).toLocaleString()}
-          </div>
-        </div>
-      `).join('')}
-    </div>
-  `;
-}
-
-function openHistoryPage() {
-  chrome.tabs.create({ url: chrome.runtime.getURL('history/history.html') });
-}
-
 function prettifyJsonInTextarea() {
   const textarea = document.getElementById('replaceValue');
   const content = textarea.value.trim();
@@ -1200,67 +1153,6 @@ function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
-}
-
-// Check for pending rule data from history viewer
-async function checkPendingRuleData() {
-  try {
-    const result = await chrome.storage.local.get('pendingRuleData');
-    if (!result.pendingRuleData) {
-      return;
-    }
-
-    const ruleData = result.pendingRuleData;
-
-    // Clear the pending data
-    await chrome.storage.local.remove('pendingRuleData');
-
-    // Switch to rules tab
-    showTab('rules');
-
-    // Reset form and clear editing state
-    currentEditingRuleId = null;
-    resetForm();
-
-    // Use setTimeout to ensure form is ready after reset
-    setTimeout(() => {
-      // Set basic rule information
-      document.getElementById('ruleName').value = ruleData.name || `Rule - ${ruleData.method}`;
-      document.getElementById('urlPattern').value = ruleData.urlPattern || '';
-      document.getElementById('matchType').value = ruleData.matchType || 'exact';
-      document.getElementById('modifyType').value = 'replace';
-
-      // Set method checkboxes
-      document.querySelectorAll('input[name="methods"]').forEach(cb => {
-        cb.checked = cb.value === ruleData.method;
-      });
-
-      // Set response body
-      updateModificationOptions('replace');
-      const bodyValue = ruleData.response?.body || '';
-      document.getElementById('replaceValue').value = bodyValue;
-
-      // Set status code
-      if (ruleData.response?.statusCode) {
-        document.getElementById('modifyStatusCode').value = ruleData.response.statusCode;
-      }
-
-      // Set headers
-      if (ruleData.response?.headers && Array.isArray(ruleData.response.headers) && ruleData.response.headers.length > 0) {
-        ruleData.response.headers.forEach(header => {
-          if (header.name) {
-            addHeaderModification(header.name, header.value, 'set');
-          }
-        });
-      }
-
-      document.getElementById('formTitle').textContent = 'Create Rule from History';
-
-      console.log('Form populated with history data');
-    }, 100);
-  } catch (error) {
-    console.error('Failed to load pending rule data:', error);
-  }
 }
 
 // Make showTab available globally for help section

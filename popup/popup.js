@@ -292,11 +292,6 @@ function setupEventListeners() {
   document.getElementById('openOptions').addEventListener('click', () => {
     chrome.runtime.openOptionsPage();
   });
-
-  // Open history button
-  document.getElementById('openHistory').addEventListener('click', () => {
-    chrome.tabs.create({ url: chrome.runtime.getURL('history/history.html') });
-  });
 }
 
 function setupStorageListener() {

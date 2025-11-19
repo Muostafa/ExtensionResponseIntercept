@@ -15,10 +15,9 @@ class ServiceWorker {
   async init() {
     console.log('API Response Interceptor - Service Worker initialized');
 
-    // Load rules, groups, history, and recordings from storage
+    // Load rules, groups, and recordings from storage
     await this.storageManager.loadRules();
     await this.storageManager.loadGroups();
-    await this.storageManager.loadHistory();
     await this.storageManager.loadRecordings();
     this.ruleEngine.setRules(this.storageManager.getRules());
 
@@ -103,15 +102,6 @@ class ServiceWorker {
 
       case 'detachDebugger':
         await this.detachDebuggerFromTab(request.tabId);
-        sendResponse({ success: true });
-        break;
-
-      case 'getHistory':
-        sendResponse({ history: this.storageManager.getHistory(request.limit) });
-        break;
-
-      case 'clearHistory':
-        await this.storageManager.clearHistory();
         sendResponse({ success: true });
         break;
 

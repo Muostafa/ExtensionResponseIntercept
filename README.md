@@ -19,12 +19,6 @@ A Chrome extension that enables you to intercept and modify API response bodies 
 - **Status Code Modification**: Change HTTP status codes (e.g., turn 404s into 200s)
 - **Multi-layer Modifications**: Combine body, header, and status code changes in a single rule
 
-### Request/Response Management
-- **Request/Response History**: Track all intercepted requests with detailed logs
-- **Visual Diff Viewer**: Side-by-side comparison of original vs modified responses
-- **Advanced Filtering**: Search and filter history by URL, method, or rule
-- **HAR Export**: Export history in standard HAR format for analysis
-
 ### Response Recording & Replay
 - **Record Real Responses**: Save actual API responses as reusable mocks
 - **Convert to Rules**: Instantly create rules from recorded responses
@@ -63,25 +57,11 @@ A Chrome extension that enables you to intercept and modify API response bodies 
    - Enable the rule
 5. Refresh your page to see the modifications
 
-### Viewing History
-
-1. Click the extension icon and select "View History"
-2. Or navigate to the History tab in the Options page
-3. Features:
-   - Filter by URL, method, or modification status
-   - Search through intercepted requests
-   - View detailed request/response information
-   - Compare original vs modified responses side-by-side
-   - Export to HAR format for further analysis
-   - Save responses as recordings for reuse
-
 ### Recording Responses
 
-1. Open the History viewer
-2. Click on any intercepted request to view details
-3. Click "Save as Recording" to store the response
-4. Navigate to the Recordings tab in Options
-5. Convert recordings to rules with one click
+1. Navigate to the Recordings tab in the Options page
+2. Manually create recordings to store API responses
+3. Convert recordings to rules with one click
 
 ### Creating Rules
 
@@ -248,10 +228,6 @@ extension-response-intercept/
 │   ├── options.html             # Options page UI
 │   ├── options.js               # Options page logic
 │   └── options.css              # Options page styles
-├── history/
-│   ├── history.html             # History viewer UI
-│   ├── history.js               # History viewer logic
-│   └── history.css              # History viewer styles
 ├── icons/                        # Extension icons
 └── README.md                     # This file
 ```
@@ -326,15 +302,11 @@ Contributions are welcome! Please feel free to submit issues or pull requests.
 ### Version 2.0.0 (Current)
 - **NEW**: Response header modification (add, set, remove headers)
 - **NEW**: HTTP status code modification
-- **NEW**: Request/Response history tracking with visual diff viewer
-- **NEW**: Advanced filtering and search in history
-- **NEW**: HAR export for history data
 - **NEW**: Response recording and replay functionality
 - **NEW**: Convert recorded responses to rules with one click
-- **NEW**: Real-time statistics (processing times, modification counts)
 - **IMPROVED**: Rule engine now supports multi-layer modifications
 - **IMPROVED**: Better error handling and logging
-- **IMPROVED**: Enhanced UI with new History and Recordings tabs
+- **IMPROVED**: Enhanced UI with new Recordings tab
 
 ### Version 1.0.0
 - Initial release
