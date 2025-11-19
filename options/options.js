@@ -172,6 +172,7 @@ function displayRules(rules) {
 
         <div class="rule-card-actions">
           <button class="btn btn-secondary btn-small edit-btn" data-rule-id="${rule.id}">Edit</button>
+          <button class="btn btn-secondary btn-small duplicate-btn" data-rule-id="${rule.id}">Duplicate</button>
           <button class="btn btn-danger btn-small delete-btn" data-rule-id="${rule.id}">Delete</button>
         </div>
       </div>
@@ -196,6 +197,14 @@ function attachRuleEventListeners() {
     btn.addEventListener('click', (e) => {
       const ruleId = e.target.dataset.ruleId;
       editRule(ruleId);
+    });
+  });
+
+  // Duplicate buttons
+  document.querySelectorAll('.duplicate-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const ruleId = e.target.dataset.ruleId;
+      duplicateRule(ruleId);
     });
   });
 
@@ -580,6 +589,42 @@ async function deleteRule(ruleId) {
   } catch (error) {
     console.error('Failed to delete rule:', error);
     alert('Failed to delete rule');
+  }
+}
+
+async function duplicateRule(ruleId) {
+  try {
+    // Find the rule to duplicate
+    const ruleToDuplicate = window.currentRules.find(r => r.id === ruleId);
+
+    if (!ruleToDuplicate) {
+      alert('Rule not found');
+      return;
+    }
+
+    // Create a copy of the rule
+    const duplicatedRule = {
+      ...ruleToDuplicate,
+      name: `${ruleToDuplicate.name} (Copy)`,
+      enabled: false // Disable the copy by default
+    };
+
+    // Remove fields that should be generated anew
+    delete duplicatedRule.id;
+    delete duplicatedRule.createdAt;
+    delete duplicatedRule.modifiedAt;
+
+    // Add the duplicated rule
+    await chrome.runtime.sendMessage({
+      action: 'addRule',
+      rule: duplicatedRule
+    });
+
+    // Reload rules to show the new duplicate
+    await loadRules();
+  } catch (error) {
+    console.error('Failed to duplicate rule:', error);
+    alert('Failed to duplicate rule');
   }
 }
 
