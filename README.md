@@ -290,8 +290,8 @@ Your support helps:
 - Provide better documentation and support
 
 **Support via:**
-- [Buy Me a Coffee](https://buymeacoffee.com/MustafaOmran) - One-time or recurring support
-- InstaPay - QR code available in the extension's Help section
+- [Buy Me a Coffee](https://buymeacoffee.com/MustafaOmran) - One-time or recurring support (International)
+- [InstaPay](https://ipn.eg/S/mustafaomran2000/instapay/0MTHXn) - For supporters in Egypt (QR code also available in the extension's Help section)
 
 Every contribution, no matter how small, is greatly appreciated and motivates continued development!
 
