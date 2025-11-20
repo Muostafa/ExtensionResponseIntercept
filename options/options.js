@@ -274,6 +274,13 @@ function setupEventListeners() {
     showTab('new-rule');
   });
 
+  // Empty state create rule button
+  document.getElementById('emptyStateCreateRuleBtn').addEventListener('click', () => {
+    currentEditingRuleId = null;
+    resetForm();
+    showTab('new-rule');
+  });
+
   // Form submit
   document.getElementById('ruleForm').addEventListener('submit', async (e) => {
     e.preventDefault();
