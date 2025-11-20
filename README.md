@@ -277,6 +277,24 @@ No build process required - this is a pure JavaScript extension. Simply load it 
 - Be cautious when importing rule configurations
 - The extension requires powerful permissions - review the code before installing
 
+## Support This Project
+
+If you find this extension useful and it's helping you in your development workflow, consider supporting its development and maintenance!
+
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Support-yellow?style=for-the-badge&logo=buy-me-a-coffee)](https://buymeacoffee.com/MustafaOmran)
+
+Your support helps:
+- Keep the extension maintained and up-to-date
+- Add new features and improvements
+- Fix bugs and address issues
+- Provide better documentation and support
+
+**Support via:**
+- [Buy Me a Coffee](https://buymeacoffee.com/MustafaOmran) - One-time or recurring support (International)
+- [InstaPay](https://ipn.eg/S/mustafaomran2000/instapay/0MTHXn) - For supporters in Egypt (QR code also available in the extension's Help section)
+
+Every contribution, no matter how small, is greatly appreciated and motivates continued development!
+
 ## License
 
 MIT License - feel free to use and modify as needed.
