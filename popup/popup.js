@@ -355,55 +355,79 @@ async function toggleRule(ruleId) {
 }
 
 async function toggleEditMode(ruleId, show) {
+  // Validate ruleId
+  if (!ruleId) {
+    console.error('toggleEditMode: ruleId is required');
+    return;
+  }
+
   const editContainer = document.getElementById(`edit-${ruleId}`);
   const ruleItem = document.querySelector(`.rule-item[data-rule-id="${ruleId}"]`);
 
-  if (editContainer) {
-    if (show) {
-      // Add to active edit set
-      activeEditRuleIds.add(ruleId);
+  // Check if elements exist
+  if (!editContainer) {
+    console.warn(`toggleEditMode: Edit container not found for rule ${ruleId}`);
+    return;
+  }
 
-      // Fetch the current rule data
-      try {
-        const response = await chrome.runtime.sendMessage({ action: 'getRules' });
-        const rules = response.rules || [];
-        const rule = rules.find(r => r.id === ruleId);
+  if (show) {
+    // Add to active edit set
+    activeEditRuleIds.add(ruleId);
 
-        if (rule) {
-          // Populate status code
-          const statusInput = document.getElementById(`status-${ruleId}`);
-          if (statusInput) {
-            statusInput.value = rule.modifyStatusCode || '';
-          }
+    // Fetch the current rule data
+    try {
+      const response = await chrome.runtime.sendMessage({ action: 'getRules' });
 
-          // Populate JSON body - only for replace-type modifications
-          const textarea = document.getElementById(`json-${ruleId}`);
-          if (textarea) {
-            // Only populate for replace-type modifications
-            if (rule.modifyType === 'replace' && rule.modification && rule.modification.value) {
-              textarea.value = rule.modification.value;
-            } else {
-              textarea.value = '';
-            }
-          }
+      if (!response || !response.rules) {
+        console.error('Failed to get rules: Invalid response');
+        return;
+      }
+
+      const rules = response.rules;
+      const rule = rules.find(r => r && r.id === ruleId);
+
+      if (!rule) {
+        console.warn(`Rule not found: ${ruleId}`);
+        return;
+      }
+
+      // Populate status code
+      const statusInput = document.getElementById(`status-${ruleId}`);
+      if (statusInput) {
+        statusInput.value = rule.modifyStatusCode || '';
+      }
+
+      // Populate JSON body - only for replace-type modifications
+      const textarea = document.getElementById(`json-${ruleId}`);
+      if (textarea) {
+        // Only populate for replace-type modifications
+        if (rule.modifyType === 'replace' && rule.modification && rule.modification.value) {
+          textarea.value = rule.modification.value;
+        } else {
+          textarea.value = '';
         }
-      } catch (error) {
-        console.error('Failed to load rule data:', error);
       }
+    } catch (error) {
+      console.error('Failed to load rule data:', error);
+      return;
+    }
 
-      editContainer.style.display = 'block';
+    editContainer.style.display = 'block';
+    if (ruleItem) {
       ruleItem.classList.add('editing');
+    }
 
-      // Clear any previous errors
-      const errorDiv = document.getElementById(`error-${ruleId}`);
-      if (errorDiv) {
-        errorDiv.style.display = 'none';
-      }
-    } else {
-      // Remove from active edit set
-      activeEditRuleIds.delete(ruleId);
+    // Clear any previous errors
+    const errorDiv = document.getElementById(`error-${ruleId}`);
+    if (errorDiv) {
+      errorDiv.style.display = 'none';
+    }
+  } else {
+    // Remove from active edit set
+    activeEditRuleIds.delete(ruleId);
 
-      editContainer.style.display = 'none';
+    editContainer.style.display = 'none';
+    if (ruleItem) {
       ruleItem.classList.remove('editing');
     }
   }
@@ -431,6 +455,32 @@ function prettifyJson(ruleId) {
   }
 }
 
+// Valid HTTP status codes
+const VALID_STATUS_CODES = [
+  // 1xx Informational
+  100, 101, 102, 103,
+  // 2xx Success
+  200, 201, 202, 203, 204, 205, 206, 207, 208, 226,
+  // 3xx Redirection
+  300, 301, 302, 303, 304, 305, 306, 307, 308,
+  // 4xx Client Error
+  400, 401, 402, 403, 404, 405, 406, 407, 408, 409, 410, 411, 412, 413, 414, 415, 416, 417, 418,
+  421, 422, 423, 424, 425, 426, 428, 429, 431, 451,
+  // 5xx Server Error
+  500, 501, 502, 503, 504, 505, 506, 507, 508, 510, 511
+];
+
+function validateStatusCode(statusCode) {
+  const code = parseInt(statusCode);
+  if (isNaN(code) || code < 100 || code > 599) {
+    return { valid: false, message: 'Status code must be between 100 and 599' };
+  }
+  if (!VALID_STATUS_CODES.includes(code)) {
+    return { valid: true, warning: `Status code ${code} is not a standard HTTP status code` };
+  }
+  return { valid: true };
+}
+
 async function saveJsonEdit(ruleId) {
   const textarea = document.getElementById(`json-${ruleId}`);
   const statusInput = document.getElementById(`status-${ruleId}`);
@@ -449,11 +499,14 @@ async function saveJsonEdit(ruleId) {
 
   // Validate status code if input exists
   if (statusInput && statusInput.value) {
-    const statusCode = parseInt(statusInput.value);
-    if (isNaN(statusCode) || statusCode < 100 || statusCode > 599) {
-      errorDiv.textContent = 'Status code must be between 100 and 599';
+    const validation = validateStatusCode(statusInput.value);
+    if (!validation.valid) {
+      errorDiv.textContent = validation.message;
       errorDiv.style.display = 'block';
       return;
+    }
+    if (validation.warning) {
+      console.warn(validation.warning);
     }
   }
 

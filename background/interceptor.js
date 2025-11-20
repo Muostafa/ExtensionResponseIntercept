@@ -5,7 +5,9 @@ export class ResponseInterceptor {
     this.storageManager = storageManager;
     this.attachedTabs = new Map();
     this.pendingRequests = new Map();
+    this.MAX_TABS = 100; // Limit to prevent memory issues
     this.setupDebuggerListener();
+    this.startPeriodicCleanup();
   }
 
   setupDebuggerListener() {
@@ -86,11 +88,12 @@ export class ResponseInterceptor {
           ];
 
           // Encode the mock body
-          const base64Body = this.base64Encode(mockBody);
-
-          // Verify encoding succeeded
-          if (base64Body === null || base64Body === undefined) {
-            console.error('Failed to encode response body, continuing with normal request');
+          let base64Body;
+          try {
+            base64Body = this.base64Encode(mockBody);
+          } catch (encodeError) {
+            console.error('Failed to encode response body:', encodeError);
+            // Continue with normal request on encoding failure
             await chrome.debugger.sendCommand(
               { tabId },
               'Fetch.continueRequest',
@@ -256,29 +259,109 @@ export class ResponseInterceptor {
   }
 
   base64Encode(str) {
-    // Convert string to base64
+    // Convert string to base64 using modern TextEncoder API
     try {
-      return btoa(unescape(encodeURIComponent(str)));
+      // Use TextEncoder for proper UTF-8 handling
+      const bytes = new TextEncoder().encode(str);
+      // Convert Uint8Array to binary string
+      let binaryString = '';
+      for (let i = 0; i < bytes.length; i++) {
+        binaryString += String.fromCharCode(bytes[i]);
+      }
+      return btoa(binaryString);
     } catch (error) {
-      console.error('Failed to encode base64 with UTF-8:', error);
-      // Try fallback without UTF-8 encoding
+      console.error('Failed to encode base64:', error);
+      // Try fallback for ASCII-only strings
       try {
         return btoa(str);
       } catch (fallbackError) {
         console.error('Failed to encode base64 (fallback also failed):', fallbackError);
-        // Return empty string as last resort to prevent undefined/null
-        return '';
+        // Throw error instead of silently returning empty string
+        throw new Error(`Base64 encoding failed: ${fallbackError.message}`);
       }
     }
   }
 
   base64Decode(str) {
-    // Convert base64 to string
+    // Convert base64 to string using modern TextDecoder API
     try {
-      return decodeURIComponent(escape(atob(str)));
+      const binaryString = atob(str);
+      // Convert binary string to Uint8Array
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      // Use TextDecoder for proper UTF-8 handling
+      return new TextDecoder().decode(bytes);
     } catch (error) {
       console.error('Failed to decode base64:', error);
-      return atob(str);
+      // Fallback to simple atob for ASCII strings
+      try {
+        return atob(str);
+      } catch (fallbackError) {
+        console.error('Failed to decode base64 (fallback also failed):', fallbackError);
+        throw new Error(`Base64 decoding failed: ${fallbackError.message}`);
+      }
+    }
+  }
+
+  /**
+   * Start periodic cleanup to prevent memory leaks
+   */
+  startPeriodicCleanup() {
+    // Run cleanup every 5 minutes
+    this.cleanupInterval = setInterval(() => {
+      this.cleanupStaleTabs();
+    }, 5 * 60 * 1000);
+  }
+
+  /**
+   * Clean up stale tabs that no longer exist
+   */
+  async cleanupStaleTabs() {
+    try {
+      console.log('Running periodic tab cleanup...');
+      const tabIds = Array.from(this.attachedTabs.keys());
+
+      for (const tabId of tabIds) {
+        try {
+          // Check if tab still exists
+          await chrome.tabs.get(tabId);
+        } catch (error) {
+          // Tab doesn't exist, clean it up
+          console.log(`Cleaning up stale tab ${tabId}`);
+          this.attachedTabs.delete(tabId);
+          this.pendingRequests.delete(tabId);
+        }
+      }
+
+      // Enforce maximum tab limit using LRU eviction
+      if (this.attachedTabs.size > this.MAX_TABS) {
+        console.warn(`Tab count (${this.attachedTabs.size}) exceeds limit (${this.MAX_TABS}), removing oldest entries`);
+        const excess = this.attachedTabs.size - this.MAX_TABS;
+        const iterator = this.attachedTabs.keys();
+
+        for (let i = 0; i < excess; i++) {
+          const oldestTabId = iterator.next().value;
+          console.log(`Removing oldest tab ${oldestTabId} due to limit`);
+          this.attachedTabs.delete(oldestTabId);
+          this.pendingRequests.delete(oldestTabId);
+        }
+      }
+
+      console.log(`Cleanup complete. Active tabs: ${this.attachedTabs.size}`);
+    } catch (error) {
+      console.error('Error during tab cleanup:', error);
+    }
+  }
+
+  /**
+   * Stop periodic cleanup
+   */
+  stopPeriodicCleanup() {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
     }
   }
 }

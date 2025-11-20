@@ -209,18 +209,41 @@ export class RuleEngine {
   }
 
   setNestedProperty(obj, path, value) {
+    // Validate inputs
+    if (!obj || typeof obj !== 'object') {
+      console.error('setNestedProperty: obj must be a valid object');
+      return;
+    }
+
+    if (!path || typeof path !== 'string') {
+      console.error('setNestedProperty: path must be a valid string');
+      return;
+    }
+
     const keys = path.split('.');
     let current = obj;
 
     for (let i = 0; i < keys.length - 1; i++) {
       const key = keys[i];
-      if (!(key in current)) {
+
+      // Check if key exists and is not null/undefined
+      if (!(key in current) || current[key] === null || current[key] === undefined) {
         current[key] = {};
       }
+
+      // Ensure current[key] is an object before proceeding
+      if (typeof current[key] !== 'object') {
+        console.warn(`setNestedProperty: Overwriting non-object value at key "${key}"`);
+        current[key] = {};
+      }
+
       current = current[key];
     }
 
-    current[keys[keys.length - 1]] = value;
+    const lastKey = keys[keys.length - 1];
+    if (lastKey) {
+      current[lastKey] = value;
+    }
   }
 
   parseValue(value) {

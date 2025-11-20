@@ -49,7 +49,12 @@ class ServiceWorker {
 
     // Handle messages from popup/options
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-      this.handleMessage(request, sender, sendResponse);
+      // Properly handle async message handler to prevent race conditions
+      this.handleMessage(request, sender, sendResponse)
+        .catch(error => {
+          console.error('Error handling message:', error);
+          sendResponse({ error: error.message || 'Unknown error occurred' });
+        });
       return true; // Keep channel open for async response
     });
 

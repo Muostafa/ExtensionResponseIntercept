@@ -387,6 +387,32 @@ async function saveRule() {
   }
 }
 
+// Valid HTTP status codes
+const VALID_STATUS_CODES = [
+  // 1xx Informational
+  100, 101, 102, 103,
+  // 2xx Success
+  200, 201, 202, 203, 204, 205, 206, 207, 208, 226,
+  // 3xx Redirection
+  300, 301, 302, 303, 304, 305, 306, 307, 308,
+  // 4xx Client Error
+  400, 401, 402, 403, 404, 405, 406, 407, 408, 409, 410, 411, 412, 413, 414, 415, 416, 417, 418,
+  421, 422, 423, 424, 425, 426, 428, 429, 431, 451,
+  // 5xx Server Error
+  500, 501, 502, 503, 504, 505, 506, 507, 508, 510, 511
+];
+
+function validateStatusCode(statusCode) {
+  const code = parseInt(statusCode);
+  if (isNaN(code) || code < 100 || code > 599) {
+    return { valid: false, message: 'Status code must be between 100 and 599' };
+  }
+  if (!VALID_STATUS_CODES.includes(code)) {
+    return { valid: true, warning: `Status code ${code} is not a standard HTTP status code. Continue anyway?` };
+  }
+  return { valid: true };
+}
+
 function collectFormData() {
   const name = document.getElementById('ruleName').value.trim();
   const description = document.getElementById('ruleDescription').value.trim();
@@ -438,7 +464,21 @@ function collectFormData() {
 
   // Get status code modification
   const statusCode = document.getElementById('modifyStatusCode').value.trim();
-  const modifyStatusCode = statusCode ? parseInt(statusCode, 10) : null;
+  let modifyStatusCode = null;
+
+  if (statusCode) {
+    const validation = validateStatusCode(statusCode);
+    if (!validation.valid) {
+      alert(validation.message);
+      return null;
+    }
+    if (validation.warning) {
+      if (!confirm(validation.warning)) {
+        return null;
+      }
+    }
+    modifyStatusCode = parseInt(statusCode, 10);
+  }
 
   // Get header modifications
   const modifyHeaders = getHeaderModifications();
@@ -469,10 +509,24 @@ function collectFormData() {
 }
 
 async function editRule(ruleId) {
+  // Validate ruleId
+  if (!ruleId) {
+    console.error('editRule: ruleId is required');
+    alert('Invalid rule ID');
+    return;
+  }
+
   try {
     const response = await chrome.runtime.sendMessage({ action: 'getRules' });
-    const rules = response.rules || [];
-    const rule = rules.find(r => r.id === ruleId);
+
+    if (!response || !response.rules) {
+      console.error('Failed to get rules: Invalid response');
+      alert('Failed to load rules');
+      return;
+    }
+
+    const rules = response.rules;
+    const rule = rules.find(r => r && r.id === ruleId);
 
     if (!rule) {
       alert('Rule not found');
@@ -482,70 +536,96 @@ async function editRule(ruleId) {
     currentEditingRuleId = ruleId;
     populateForm(rule);
     showTab('new-rule');
-    document.getElementById('formTitle').textContent = 'Edit Rule';
+
+    const formTitle = document.getElementById('formTitle');
+    if (formTitle) {
+      formTitle.textContent = 'Edit Rule';
+    }
   } catch (error) {
     console.error('Failed to edit rule:', error);
+    alert('Failed to load rule: ' + (error.message || 'Unknown error'));
   }
 }
 
 function populateForm(rule) {
-  document.getElementById('ruleId').value = rule.id;
-  document.getElementById('ruleName').value = rule.name;
-  document.getElementById('ruleDescription').value = rule.description || '';
-  document.getElementById('urlPattern').value = rule.urlPattern;
-  document.getElementById('matchType').value = rule.matchType;
-  document.getElementById('modifyType').value = rule.modifyType;
-  document.getElementById('ruleEnabled').checked = rule.enabled;
+  // Validate rule object
+  if (!rule || typeof rule !== 'object') {
+    console.error('populateForm: Invalid rule object');
+    return;
+  }
+
+  // Safely populate form fields with null checks
+  const setElementValue = (id, value) => {
+    const element = document.getElementById(id);
+    if (element) {
+      element.value = value !== null && value !== undefined ? value : '';
+    }
+  };
+
+  const setElementChecked = (id, checked) => {
+    const element = document.getElementById(id);
+    if (element) {
+      element.checked = !!checked;
+    }
+  };
+
+  setElementValue('ruleId', rule.id);
+  setElementValue('ruleName', rule.name);
+  setElementValue('ruleDescription', rule.description);
+  setElementValue('urlPattern', rule.urlPattern);
+  setElementValue('matchType', rule.matchType);
+  setElementValue('modifyType', rule.modifyType);
+  setElementChecked('ruleEnabled', rule.enabled);
 
   // Set methods
   document.querySelectorAll('input[name="methods"]').forEach(cb => {
-    cb.checked = rule.methods && rule.methods.includes(cb.value);
+    cb.checked = rule.methods && Array.isArray(rule.methods) && rule.methods.includes(cb.value);
   });
 
   // Update modification options
-  updateModificationOptions(rule.modifyType);
+  if (rule.modifyType) {
+    updateModificationOptions(rule.modifyType);
+  }
 
   // Populate modification fields
-  switch (rule.modifyType) {
-    case 'replace':
-      document.getElementById('replaceValue').value = rule.modification.value || '';
-      break;
+  if (rule.modification) {
+    switch (rule.modifyType) {
+      case 'replace':
+        setElementValue('replaceValue', rule.modification.value);
+        break;
 
-    case 'json-path':
-      document.getElementById('jsonPath').value = rule.modification.path || '';
-      document.getElementById('jsonValue').value = rule.modification.value || '';
-      break;
+      case 'json-path':
+        setElementValue('jsonPath', rule.modification.path);
+        setElementValue('jsonValue', rule.modification.value);
+        break;
 
-    case 'regex':
-      document.getElementById('regexPattern').value = rule.modification.pattern || '';
-      document.getElementById('regexReplacement').value = rule.modification.replacement || '';
-      document.getElementById('regexFlags').value = rule.modification.flags || 'g';
-      break;
+      case 'regex':
+        setElementValue('regexPattern', rule.modification.pattern);
+        setElementValue('regexReplacement', rule.modification.replacement);
+        setElementValue('regexFlags', rule.modification.flags || 'g');
+        break;
 
-    case 'function':
-      document.getElementById('functionCode').value = rule.modification.code || '';
-      break;
+      case 'function':
+        setElementValue('functionCode', rule.modification.code);
+        break;
+    }
   }
 
   // Populate status code
-  if (rule.modifyStatusCode) {
-    document.getElementById('modifyStatusCode').value = rule.modifyStatusCode;
-  }
+  setElementValue('modifyStatusCode', rule.modifyStatusCode);
 
   // Populate header modifications
   clearHeaderModifications();
   if (rule.modifyHeaders && Array.isArray(rule.modifyHeaders)) {
     rule.modifyHeaders.forEach(header => {
-      addHeaderModification(header.name, header.value, header.action);
+      if (header && header.name) {
+        addHeaderModification(header.name, header.value, header.action);
+      }
     });
   }
 
   // Populate group selection
-  if (rule.groupId) {
-    document.getElementById('ruleGroup').value = rule.groupId;
-  } else {
-    document.getElementById('ruleGroup').value = '';
-  }
+  setElementValue('ruleGroup', rule.groupId || '');
 }
 
 function resetForm() {

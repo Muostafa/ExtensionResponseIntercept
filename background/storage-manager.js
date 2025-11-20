@@ -1,3 +1,16 @@
+// Utility: Debounce function to prevent excessive saves
+function debounce(func, wait) {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+}
+
 // Storage Manager - Handles all storage operations
 export class StorageManager {
   constructor() {
@@ -9,6 +22,12 @@ export class StorageManager {
     };
     this.listeners = [];
     this.groupListeners = [];
+    this.QUOTA_WARNING_THRESHOLD = 0.8; // 80% of quota
+    this.QUOTA_BYTES_LIMIT = 10485760; // 10MB in bytes (chrome.storage.local limit)
+
+    // Create debounced save methods (500ms delay)
+    this.saveRulesDebounced = debounce(this.saveRules.bind(this), 500);
+    this.saveGroupsDebounced = debounce(this.saveGroups.bind(this), 500);
   }
 
   async loadRules() {
@@ -65,13 +84,80 @@ export class StorageManager {
     }
   }
 
+  /**
+   * Calculate approximate size of data in bytes
+   */
+  getDataSize(data) {
+    try {
+      return new Blob([JSON.stringify(data)]).size;
+    } catch (error) {
+      console.error('Failed to calculate data size:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Get current storage usage
+   */
+  async getStorageUsage() {
+    try {
+      const data = await chrome.storage.local.get(null);
+      const totalSize = this.getDataSize(data);
+      const percentUsed = (totalSize / this.QUOTA_BYTES_LIMIT) * 100;
+      return {
+        bytesUsed: totalSize,
+        bytesAvailable: this.QUOTA_BYTES_LIMIT - totalSize,
+        percentUsed: percentUsed,
+        quotaExceeded: totalSize >= this.QUOTA_BYTES_LIMIT,
+        nearQuota: percentUsed >= (this.QUOTA_WARNING_THRESHOLD * 100)
+      };
+    } catch (error) {
+      console.error('Failed to get storage usage:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Check if saving data would exceed quota
+   */
+  async checkStorageQuota(newData) {
+    try {
+      const currentData = await chrome.storage.local.get(null);
+      const dataSize = this.getDataSize({ ...currentData, ...newData });
+      return {
+        canSave: dataSize < this.QUOTA_BYTES_LIMIT,
+        estimatedSize: dataSize,
+        availableSpace: this.QUOTA_BYTES_LIMIT - dataSize
+      };
+    } catch (error) {
+      console.error('Failed to check storage quota:', error);
+      return { canSave: true, estimatedSize: 0, availableSpace: this.QUOTA_BYTES_LIMIT };
+    }
+  }
+
   async saveRules() {
     try {
+      // Check quota before saving
+      const quotaCheck = await this.checkStorageQuota({ rules: this.rules });
+
+      if (!quotaCheck.canSave) {
+        const errorMsg = `Storage quota exceeded! Cannot save rules. Used: ${(quotaCheck.estimatedSize / 1024 / 1024).toFixed(2)}MB / 10MB`;
+        console.error(errorMsg);
+        throw new Error(errorMsg);
+      }
+
+      // Warn if approaching quota
+      const usage = await this.getStorageUsage();
+      if (usage && usage.nearQuota) {
+        console.warn(`Storage usage is at ${usage.percentUsed.toFixed(1)}% (${(usage.bytesUsed / 1024 / 1024).toFixed(2)}MB / 10MB)`);
+      }
+
       await chrome.storage.local.set({ rules: this.rules });
       this.notifyListeners();
-      console.log('Rules saved');
+      console.log('Rules saved successfully');
     } catch (error) {
       console.error('Failed to save rules:', error);
+      throw error; // Re-throw to let caller handle
     }
   }
 
@@ -189,7 +275,24 @@ export class StorageManager {
   }
 
   generateId() {
-    return `rule_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    // Use crypto.randomUUID() for better uniqueness
+    try {
+      if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return `rule_${crypto.randomUUID()}`;
+      }
+    } catch (error) {
+      console.warn('crypto.randomUUID not available, using fallback');
+    }
+
+    // Fallback for older browsers - use crypto.getRandomValues for better randomness
+    try {
+      const array = new Uint32Array(2);
+      crypto.getRandomValues(array);
+      return `rule_${Date.now()}_${array[0].toString(36)}_${array[1].toString(36)}`;
+    } catch (error) {
+      // Last resort fallback
+      return `rule_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    }
   }
 
   async exportRules() {
@@ -298,11 +401,21 @@ export class StorageManager {
 
   async saveGroups() {
     try {
+      // Check quota before saving
+      const quotaCheck = await this.checkStorageQuota({ groups: this.groups });
+
+      if (!quotaCheck.canSave) {
+        const errorMsg = `Storage quota exceeded! Cannot save groups. Used: ${(quotaCheck.estimatedSize / 1024 / 1024).toFixed(2)}MB / 10MB`;
+        console.error(errorMsg);
+        throw new Error(errorMsg);
+      }
+
       await chrome.storage.local.set({ groups: this.groups });
       this.notifyGroupListeners();
-      console.log('Groups saved');
+      console.log('Groups saved successfully');
     } catch (error) {
       console.error('Failed to save groups:', error);
+      throw error; // Re-throw to let caller handle
     }
   }
 
@@ -398,6 +511,23 @@ export class StorageManager {
   }
 
   generateGroupId() {
-    return `group_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    // Use crypto.randomUUID() for better uniqueness
+    try {
+      if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        return `group_${crypto.randomUUID()}`;
+      }
+    } catch (error) {
+      console.warn('crypto.randomUUID not available, using fallback');
+    }
+
+    // Fallback for older browsers - use crypto.getRandomValues for better randomness
+    try {
+      const array = new Uint32Array(2);
+      crypto.getRandomValues(array);
+      return `group_${Date.now()}_${array[0].toString(36)}_${array[1].toString(36)}`;
+    } catch (error) {
+      // Last resort fallback
+      return `group_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    }
   }
 }
