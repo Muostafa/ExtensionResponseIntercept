@@ -295,6 +295,16 @@ Your support helps:
 
 Every contribution, no matter how small, is greatly appreciated and motivates continued development!
 
+## About the Developer
+
+This extension is created and maintained by **Mustafa Omran**, a passionate software developer dedicated to building tools that enhance developer productivity and streamline workflows.
+
+### Connect with Me
+- 🌐 **Portfolio**: [mustafaomran.vercel.app](https://mustafaomran.vercel.app/)
+- ☕ **Support**: [Buy Me a Coffee](https://buymeacoffee.com/MustafaOmran)
+
+I'm always open to feedback, suggestions, and collaboration opportunities. If you have ideas for new features or improvements, feel free to reach out!
+
 ## License
 
 MIT License - feel free to use and modify as needed.

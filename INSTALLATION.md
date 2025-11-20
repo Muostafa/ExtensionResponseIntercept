@@ -191,3 +191,13 @@ If you encounter issues:
 ## Support
 
 For bugs, feature requests, or questions, please refer to the project repository or documentation.
+
+## About the Developer
+
+This extension is created and maintained by **Mustafa Omran**, a passionate software developer dedicated to building tools that enhance developer productivity and streamline workflows.
+
+**Connect with me:**
+- 🌐 Portfolio: [mustafaomran.vercel.app](https://mustafaomran.vercel.app/)
+- ☕ Support: [Buy Me a Coffee](https://buymeacoffee.com/MustafaOmran)
+
+Your feedback and suggestions are always welcome!
