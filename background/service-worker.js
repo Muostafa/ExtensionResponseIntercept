@@ -177,7 +177,10 @@ class ServiceWorker {
 
       await chrome.debugger.attach({ tabId }, '1.3');
       await chrome.debugger.sendCommand({ tabId }, 'Fetch.enable', {
-        patterns: [{ urlPattern: '*', requestStage: 'Request' }]
+        patterns: [
+          { urlPattern: '*', requestStage: 'Request' },
+          { urlPattern: '*', requestStage: 'Response' }
+        ]
       });
 
       this.activeTabs.add(tabId);

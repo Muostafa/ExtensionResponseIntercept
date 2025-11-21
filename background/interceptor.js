@@ -67,19 +67,25 @@ export class ResponseInterceptor {
     const url = request.url;
     const method = request.method;
 
-    // This is now a request (intercepting at Request stage)
+    // REQUEST STAGE - intercepting before the request is sent
     if (!responseStatusCode) {
       console.log(`Intercepted request: ${method} ${url}`);
 
       const startTime = Date.now();
 
       // Log the network request for "Create Rule from Network" feature
-      this.logNetworkRequest(tabId, {
+      const logId = this.logNetworkRequest(tabId, {
         url,
         method,
         headers: request.headers,
         timestamp: startTime
       });
+
+      // Track this request so we can update the log with response body later
+      if (!this.pendingRequests.has(tabId)) {
+        this.pendingRequests.set(tabId, new Map());
+      }
+      this.pendingRequests.get(tabId).set(url + '|' + method, logId);
 
       try {
         // Check if any rules match this request
@@ -148,9 +154,48 @@ export class ResponseInterceptor {
       return;
     }
 
-    // This should not happen anymore since we're intercepting at Request stage
-    // But keeping this as fallback in case of mixed-stage interception
-    console.warn(`Received response-stage event (unexpected): ${method} ${url} [${responseStatusCode}]`);
+    // RESPONSE STAGE - intercepting after the response is received
+    // Capture the response body for the "Create Rule from Network" feature
+    try {
+      const contentType = this.getContentType(responseHeaders);
+      const isJsonOrText = contentType.includes('json') ||
+                           contentType.includes('text') ||
+                           contentType.includes('javascript') ||
+                           contentType.includes('xml');
+
+      if (isJsonOrText) {
+        // Get the response body
+        try {
+          const bodyResponse = await chrome.debugger.sendCommand(
+            { tabId },
+            'Fetch.getResponseBody',
+            { requestId }
+          );
+
+          if (bodyResponse && bodyResponse.body) {
+            const responseBody = bodyResponse.base64Encoded
+              ? this.base64Decode(bodyResponse.body)
+              : bodyResponse.body;
+
+            // Find and update the corresponding log entry
+            const requestKey = url + '|' + method;
+            const tabPendingRequests = this.pendingRequests.get(tabId);
+            if (tabPendingRequests && tabPendingRequests.has(requestKey)) {
+              const logId = tabPendingRequests.get(requestKey);
+              this.updateLogResponseBody(tabId, logId, responseBody, responseStatusCode);
+              tabPendingRequests.delete(requestKey);
+            }
+          }
+        } catch (bodyError) {
+          // Some responses may not have a body, that's okay
+          console.log(`Could not get response body for ${url}:`, bodyError.message);
+        }
+      }
+    } catch (error) {
+      console.error(`Error capturing response for ${url}:`, error);
+    }
+
+    // Continue with the response
     await chrome.debugger.sendCommand(
       { tabId },
       'Fetch.continueRequest',
@@ -377,6 +422,7 @@ export class ResponseInterceptor {
 
   /**
    * Log a network request for the "Create Rule from Network" feature
+   * @returns {string} The log entry ID
    */
   logNetworkRequest(tabId, requestData) {
     if (!this.networkLogs.has(tabId)) {
@@ -393,7 +439,9 @@ export class ResponseInterceptor {
       headers: requestData.headers || {},
       timestamp: requestData.timestamp || Date.now(),
       intercepted: false, // Will be updated if rule matches
-      ruleName: null
+      ruleName: null,
+      responseBody: null, // Will be populated when response is received
+      responseStatus: null
     };
 
     // Check if a rule will intercept this request
@@ -409,6 +457,33 @@ export class ResponseInterceptor {
     // Limit the number of logs per tab
     if (logs.length > this.MAX_LOGS_PER_TAB) {
       logs.pop();
+    }
+
+    return logEntry.id;
+  }
+
+  /**
+   * Update a log entry with the response body
+   */
+  updateLogResponseBody(tabId, logId, responseBody, statusCode) {
+    const logs = this.networkLogs.get(tabId);
+    if (!logs) return;
+
+    const logEntry = logs.find(log => log.id === logId);
+    if (logEntry) {
+      // Truncate large responses to avoid memory issues
+      logEntry.responseBody = this.truncateForStorage(responseBody, 50000);
+      logEntry.responseStatus = statusCode;
+
+      // Try to prettify JSON responses
+      if (logEntry.responseBody) {
+        try {
+          const parsed = JSON.parse(logEntry.responseBody);
+          logEntry.responseBody = JSON.stringify(parsed, null, 2);
+        } catch {
+          // Not JSON, keep as-is
+        }
+      }
     }
   }
 
@@ -463,7 +538,13 @@ export class ResponseInterceptor {
       ? `${logEntry.method} ${pathParts.slice(-2).join('/')}`
       : `${logEntry.method} ${url.host}`;
 
-    return {
+    // Use the captured response body as default, or a placeholder
+    let defaultResponseBody = '{\n  "message": "Intercepted response"\n}';
+    if (logEntry.responseBody) {
+      defaultResponseBody = logEntry.responseBody;
+    }
+
+    const rule = {
       name: suggestedName,
       description: `Auto-generated from ${logEntry.url}`,
       urlPattern: pattern,
@@ -473,8 +554,15 @@ export class ResponseInterceptor {
       modifyType: 'replace',
       modification: {
         type: 'json',
-        value: '{\n  "message": "Intercepted response"\n}'
+        value: defaultResponseBody
       }
     };
+
+    // Add status code if we captured one
+    if (logEntry.responseStatus) {
+      rule.modifyStatusCode = logEntry.responseStatus;
+    }
+
+    return rule;
   }
 }

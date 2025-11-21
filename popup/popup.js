@@ -856,23 +856,27 @@ function displayNetworkLogs(logs) {
     const time = new Date(log.timestamp).toLocaleTimeString();
     const urlObj = new URL(log.url);
     const shortUrl = urlObj.pathname + urlObj.search;
+    const hasResponse = log.responseBody !== null && log.responseBody !== undefined;
+    const statusClass = log.responseStatus ? (log.responseStatus >= 400 ? 'error' : 'success') : '';
 
     return `
-      <div class="network-log-item ${log.intercepted ? 'intercepted' : ''}" data-log-id="${log.id}">
+      <div class="network-log-item ${log.intercepted ? 'intercepted' : ''} ${hasResponse ? 'has-response' : ''}" data-log-id="${log.id}">
         <div class="network-log-header">
           <div class="network-log-info">
             <div>
               <span class="network-log-method ${log.method}">${log.method}</span>
+              ${log.responseStatus ? `<span class="network-log-status ${statusClass}">${log.responseStatus}</span>` : '<span class="network-log-status pending">...</span>'}
               <span class="network-log-time">${time}</span>
             </div>
             <span class="network-log-url" title="${escapeHtml(log.url)}">${escapeHtml(shortUrl)}</span>
             <div class="network-log-meta">
               <span>${urlObj.host}</span>
               ${log.intercepted ? `<span class="intercepted-badge">Intercepted by: ${escapeHtml(log.ruleName)}</span>` : ''}
+              ${hasResponse ? '<span class="response-badge">Response captured</span>' : ''}
             </div>
           </div>
           <div class="network-log-actions">
-            <button class="btn-create-rule" data-log-id="${log.id}" title="Create rule from this request">
+            <button class="btn-create-rule" data-log-id="${log.id}" title="${hasResponse ? 'Create rule with captured response' : 'Create rule from this request'}">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="12" y1="5" x2="12" y2="19"/>
                 <line x1="5" y1="12" x2="19" y2="12"/>
@@ -940,7 +944,7 @@ async function openCreateRuleModal(logEntry) {
     document.getElementById('modalRuleName').value = suggestedRule.name || '';
     document.getElementById('modalUrlPattern').value = suggestedRule.urlPattern || '';
     document.getElementById('modalResponseBody').value = suggestedRule.modification?.value || '{\n  "message": "Intercepted response"\n}';
-    document.getElementById('modalStatusCode').value = '';
+    document.getElementById('modalStatusCode').value = suggestedRule.modifyStatusCode || '';
 
     // Set method checkboxes
     const methodCheckboxes = document.querySelectorAll('#modalMethods input[type="checkbox"]');
