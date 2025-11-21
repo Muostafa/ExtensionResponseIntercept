@@ -567,40 +567,6 @@ function setupEventListeners() {
     }
   });
 
-  // NEW UI: Modification type radio buttons
-  document.querySelectorAll('input[name="modifyTypeRadio"]').forEach(radio => {
-    radio.addEventListener('change', (e) => {
-      const value = e.target.value;
-      // Sync with hidden select for compatibility
-      document.getElementById('modifyType').value = value;
-      updateModificationOptions(value);
-    });
-  });
-
-  // NEW UI: Pattern hint chips
-  document.querySelectorAll('.hint-chip').forEach(chip => {
-    chip.addEventListener('click', (e) => {
-      const pattern = e.target.dataset.pattern;
-      document.getElementById('urlPattern').value = pattern;
-      document.getElementById('urlPattern').focus();
-    });
-  });
-
-  // NEW UI: Status code preset buttons
-  document.querySelectorAll('.preset-btn[data-status]').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      const status = e.target.dataset.status;
-      document.getElementById('modifyStatusCode').value = status;
-    });
-  });
-
-  // NEW UI: Update header empty state visibility when headers change
-  const headerModContainer = document.getElementById('headerModifications');
-  if (headerModContainer) {
-    const observer = new MutationObserver(updateHeaderEmptyState);
-    observer.observe(headerModContainer, { childList: true });
-  }
-  updateHeaderEmptyState();
 }
 
 function updateModificationOptions(type) {
@@ -620,12 +586,6 @@ function updateModificationOptions(type) {
   const selectedOption = document.getElementById(optionMap[type]);
   if (selectedOption) {
     selectedOption.style.display = 'block';
-  }
-
-  // NEW UI: Sync radio buttons with hidden select
-  const radioBtn = document.querySelector(`input[name="modifyTypeRadio"][value="${type}"]`);
-  if (radioBtn) {
-    radioBtn.checked = true;
   }
 }
 
@@ -910,20 +870,11 @@ function resetForm() {
   document.getElementById('formTitle').textContent = 'Create New Rule';
   document.getElementById('ruleEnabled').checked = true;
   document.querySelectorAll('input[name="methods"]')[0].checked = true; // Check GET by default
-
-  // Reset modification type (both hidden select and radio buttons)
   document.getElementById('modifyType').value = 'replace';
   updateModificationOptions('replace');
-
   document.getElementById('modifyStatusCode').value = '';
   clearHeaderModifications();
   currentEditingRuleId = null;
-
-  // NEW UI: Update subtitle text
-  const subtitle = document.querySelector('.rule-editor-subtitle');
-  if (subtitle) {
-    subtitle.textContent = 'Configure how API responses should be intercepted and modified';
-  }
 }
 
 async function toggleRule(ruleId) {
@@ -1121,11 +1072,7 @@ function addHeaderModification(name = '', value = '', action = 'set') {
   // Add event listener for remove button
   headerRow.querySelector('.remove-header-btn').addEventListener('click', () => {
     headerRow.remove();
-    updateHeaderEmptyState();
   });
-
-  // Update empty state visibility
-  updateHeaderEmptyState();
 }
 
 function getHeaderModifications() {
@@ -1148,24 +1095,18 @@ function getHeaderModifications() {
 function clearHeaderModifications() {
   document.getElementById('headerModifications').innerHTML = '';
   headerModificationCounter = 0;
-  updateHeaderEmptyState();
 }
 
-// NEW UI: Update header empty state visibility
-function updateHeaderEmptyState() {
-  const container = document.getElementById('headerModifications');
-  const emptyState = document.getElementById('headerModEmpty');
-  if (container && emptyState) {
-    const hasHeaders = container.querySelectorAll('.header-mod-row').length > 0;
-    emptyState.style.display = hasHeaders ? 'none' : 'flex';
-  }
-}
-
-// NEW UI: Toggle advanced section collapse
+// Toggle advanced section collapse
 function toggleAdvancedSection() {
   const section = document.getElementById('advancedSection');
+  const icon = document.getElementById('advancedCollapseIcon');
   if (section) {
-    section.classList.toggle('collapsed');
+    const isHidden = section.style.display === 'none';
+    section.style.display = isHidden ? 'block' : 'none';
+    if (icon) {
+      icon.textContent = isHidden ? '-' : '+';
+    }
   }
 }
 
