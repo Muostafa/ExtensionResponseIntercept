@@ -6,7 +6,14 @@ export class RuleEngine {
   }
 
   setRules(rules) {
-    this.rules = rules.filter(rule => rule.enabled);
+    // Validate input is an array
+    if (!Array.isArray(rules)) {
+      console.error('setRules: rules must be an array, received:', typeof rules);
+      this.rules = [];
+      return;
+    }
+    // Filter to only enabled rules with valid structure
+    this.rules = rules.filter(rule => rule && typeof rule === 'object' && rule.enabled);
     this.compilePatterns();
     console.log(`Rule engine loaded ${this.rules.length} enabled rules`);
   }
@@ -53,14 +60,23 @@ export class RuleEngine {
     // Convert wildcard pattern to regex
     // * matches any characters except /
     // ** matches any characters including /
-    const regexPattern = pattern
-      .replace(/\./g, '\\.')
-      .replace(/\*\*/g, '<!DOUBLE_WILDCARD!>')
-      .replace(/\*/g, '[^/]*')
-      .replace(/<!DOUBLE_WILDCARD!>/g, '.*');
+    try {
+      const regexPattern = pattern
+        // First, escape all regex special characters except * (which we'll handle specially)
+        .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+        // Handle ** (double wildcard) - matches any characters including /
+        .replace(/\*\*/g, '<!DOUBLE_WILDCARD!>')
+        // Handle * (single wildcard) - matches any characters except /
+        .replace(/\*/g, '[^/]*')
+        // Restore double wildcard
+        .replace(/<!DOUBLE_WILDCARD!>/g, '.*');
 
-    const regex = new RegExp(`^${regexPattern}$`);
-    return regex.test(url);
+      const regex = new RegExp(`^${regexPattern}$`);
+      return regex.test(url);
+    } catch (error) {
+      console.error('Invalid wildcard pattern:', error);
+      return false;
+    }
   }
 
   findMatchingRules(url, method = 'GET') {
