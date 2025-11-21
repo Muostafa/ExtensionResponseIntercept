@@ -1166,6 +1166,9 @@ function deleteGroup(groupId) {
 
   const ruleCount = getRuleCountForGroup(groupId);
   let message = `Are you sure you want to delete the group "${group.name}"?`;
+  if (ruleCount > 0) {
+    message += ` This group contains ${ruleCount} rule(s).`;
+  }
 
   // Store the group ID for the confirmation handler
   document.getElementById('deleteGroupId').value = groupId;
