@@ -1164,25 +1164,17 @@ function deleteGroup(groupId) {
   const group = currentGroups.find(g => g.id === groupId);
   if (!group) return;
 
-  const ruleCount = getRuleCountForGroup(groupId);
-  let message = `Are you sure you want to delete the group "${group.name}"?`;
-  if (ruleCount > 0) {
-    message += ` This group contains ${ruleCount} rule(s).`;
-  }
+  const message = `Are you sure you want to delete the group "${group.name}"?`;
 
   // Store the group ID for the confirmation handler
   document.getElementById('deleteGroupId').value = groupId;
   document.getElementById('deleteGroupMessage').textContent = message;
 
-  // Show or hide the delete options based on whether there are rules
+  // Always show the delete options so user can choose what to do with rules
   const deleteOptionsEl = document.getElementById('deleteGroupOptions');
-  if (ruleCount > 0) {
-    deleteOptionsEl.style.display = 'block';
-    // Reset to default option
-    document.querySelector('input[name="deleteGroupAction"][value="keep"]').checked = true;
-  } else {
-    deleteOptionsEl.style.display = 'none';
-  }
+  deleteOptionsEl.style.display = 'block';
+  // Reset to default option (keep rules)
+  document.querySelector('input[name="deleteGroupAction"][value="keep"]').checked = true;
 
   // Show the modal
   document.getElementById('deleteGroupModal').style.display = 'flex';
