@@ -166,9 +166,9 @@ async function loadRules() {
 }
 
 function sortAndFilterRules(rules) {
-  const sortBy = document.getElementById('ruleSortBy')?.value || 'modified';
+  const sortBy = document.getElementById('ruleSortBy')?.value || 'created';
   const sortOrder = document.getElementById('ruleSortOrder')?.value || 'desc';
-  const enabledRulesFirst = document.getElementById('enabledRulesFirst')?.checked ?? true;
+  const enabledRulesFirst = document.getElementById('enabledRulesFirst')?.checked ?? false;
 
   // Sort rules
   const sortedRules = [...rules].sort((a, b) => {
