@@ -55,17 +55,53 @@ function setupThemeToggle() {
 }
 
 // Toast notifications
-function showToast(message, type = 'info') {
+let activeToastTimeout = null;
+
+function showToast(message, type = 'info', action = null) {
   const toast = document.getElementById('toast');
   if (!toast) return;
 
-  toast.textContent = message;
+  // Clear any existing timeout
+  if (activeToastTimeout) {
+    clearTimeout(activeToastTimeout);
+    activeToastTimeout = null;
+  }
+
+  // Build toast content
+  if (action && action.label && action.callback) {
+    toast.innerHTML = `
+      <span class="toast-message">${escapeHtml(message)}</span>
+      <button class="toast-action" type="button">${escapeHtml(action.label)}</button>
+    `;
+
+    // Add click handler for action button
+    const actionBtn = toast.querySelector('.toast-action');
+    actionBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (activeToastTimeout) {
+        clearTimeout(activeToastTimeout);
+        activeToastTimeout = null;
+      }
+      toast.classList.remove('show');
+      action.callback();
+    }, { once: true });
+  } else {
+    toast.textContent = message;
+  }
+
   toast.className = `toast ${type}`;
   toast.classList.add('show');
 
-  setTimeout(() => {
+  // Auto-hide after duration (longer for actionable toasts)
+  const duration = action ? 5000 : 3000;
+  activeToastTimeout = setTimeout(() => {
     toast.classList.remove('show');
-  }, 3000);
+    activeToastTimeout = null;
+    // Call onExpire callback if provided (for permanent deletion)
+    if (action && action.onExpire) {
+      action.onExpire();
+    }
+  }, duration);
 }
 
 // Setup navigation
@@ -130,9 +166,9 @@ async function loadRules() {
 }
 
 function sortAndFilterRules(rules) {
-  const sortBy = document.getElementById('ruleSortBy')?.value || 'modified';
+  const sortBy = document.getElementById('ruleSortBy')?.value || 'created';
   const sortOrder = document.getElementById('ruleSortOrder')?.value || 'desc';
-  const enabledRulesFirst = document.getElementById('enabledRulesFirst')?.checked ?? true;
+  const enabledRulesFirst = document.getElementById('enabledRulesFirst')?.checked ?? false;
 
   // Sort rules
   const sortedRules = [...rules].sort((a, b) => {
@@ -884,22 +920,73 @@ async function toggleRule(ruleId) {
   }
 }
 
-async function deleteRule(ruleId) {
-  if (!confirm('Are you sure you want to delete this rule?')) {
-    return;
-  }
+// Store for undo functionality
+let pendingDeletedRule = null;
 
+async function deleteRule(ruleId) {
   try {
+    // Find the rule before deletion to store it for potential undo
+    const ruleToDelete = window.currentRules?.find(r => r.id === ruleId);
+
+    if (!ruleToDelete) {
+      showToast('Rule not found', 'error');
+      return;
+    }
+
+    // Store the rule for potential undo
+    pendingDeletedRule = { ...ruleToDelete };
+
+    // Delete the rule
     await chrome.runtime.sendMessage({
       action: 'deleteRule',
       ruleId: ruleId
     });
 
+    // Refresh the UI
     await loadRules();
-    showToast('Rule deleted successfully', 'success');
+
+    // Show toast with undo option
+    showToast('Rule deleted', 'success', {
+      label: 'Undo',
+      callback: async () => {
+        await undoDeleteRule();
+      },
+      onExpire: () => {
+        // Clear the stored rule after timeout (deletion is permanent)
+        pendingDeletedRule = null;
+      }
+    });
   } catch (error) {
     console.error('Failed to delete rule:', error);
     showToast('Failed to delete rule', 'error');
+    pendingDeletedRule = null;
+  }
+}
+
+async function undoDeleteRule() {
+  if (!pendingDeletedRule) {
+    showToast('Nothing to undo', 'error');
+    return;
+  }
+
+  try {
+    // Restore the rule (will get a new ID but retain all other properties)
+    const ruleData = { ...pendingDeletedRule };
+    delete ruleData.id; // Let the backend generate a new ID
+    delete ruleData.createdAt;
+    delete ruleData.modifiedAt;
+
+    await chrome.runtime.sendMessage({
+      action: 'addRule',
+      rule: ruleData
+    });
+
+    pendingDeletedRule = null;
+    await loadRules();
+    showToast('Rule restored', 'success');
+  } catch (error) {
+    console.error('Failed to restore rule:', error);
+    showToast('Failed to restore rule', 'error');
   }
 }
 
