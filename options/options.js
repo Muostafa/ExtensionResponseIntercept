@@ -4,11 +4,68 @@ let headerModificationCounter = 0;
 
 // Initialize options page
 document.addEventListener('DOMContentLoaded', async () => {
+  loadTheme();
   await loadGroups();
   await loadRules();
   setupEventListeners();
   setupNavigation();
+  setupThemeToggle();
 });
+
+// Theme management
+function loadTheme() {
+  const savedTheme = localStorage.getItem('theme') || 'light';
+  document.documentElement.setAttribute('data-theme', savedTheme);
+  updateThemeButton(savedTheme);
+}
+
+function toggleTheme() {
+  const currentTheme = document.documentElement.getAttribute('data-theme');
+  const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', newTheme);
+  localStorage.setItem('theme', newTheme);
+  updateThemeButton(newTheme);
+  showToast(`Switched to ${newTheme} mode`, 'success');
+}
+
+function updateThemeButton(theme) {
+  const themeToggle = document.getElementById('themeToggle');
+  const themeText = document.getElementById('themeText');
+  if (themeToggle && themeText) {
+    themeText.textContent = theme === 'dark' ? 'Light Mode' : 'Dark Mode';
+    themeToggle.innerHTML = theme === 'dark'
+      ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="5"/>
+          <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+        </svg>
+        <span id="themeText">Light Mode</span>`
+      : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+        </svg>
+        <span id="themeText">Dark Mode</span>`;
+  }
+}
+
+function setupThemeToggle() {
+  const themeToggle = document.getElementById('themeToggle');
+  if (themeToggle) {
+    themeToggle.addEventListener('click', toggleTheme);
+  }
+}
+
+// Toast notifications
+function showToast(message, type = 'info') {
+  const toast = document.getElementById('toast');
+  if (!toast) return;
+
+  toast.textContent = message;
+  toast.className = `toast ${type}`;
+  toast.classList.add('show');
+
+  setTimeout(() => {
+    toast.classList.remove('show');
+  }, 3000);
+}
 
 // Setup navigation
 function setupNavigation() {
@@ -359,7 +416,7 @@ async function saveRule() {
   const ruleData = collectFormData();
 
   if (!ruleData) {
-    alert('Please fill in all required fields');
+    showToast('Please fill in all required fields', 'error');
     return;
   }
 
@@ -377,13 +434,15 @@ async function saveRule() {
       });
     }
 
+    const message = currentEditingRuleId ? 'Rule updated successfully' : 'Rule created successfully';
     currentEditingRuleId = null;
     resetForm();
     await loadRules();
     showTab('rules');
+    showToast(message, 'success');
   } catch (error) {
     console.error('Failed to save rule:', error);
-    alert('Failed to save rule: ' + error.message);
+    showToast('Failed to save rule: ' + error.message, 'error');
   }
 }
 
@@ -469,7 +528,7 @@ function collectFormData() {
   if (statusCode) {
     const validation = validateStatusCode(statusCode);
     if (!validation.valid) {
-      alert(validation.message);
+      showToast(validation.message, 'error');
       return null;
     }
     if (validation.warning) {
@@ -512,7 +571,7 @@ async function editRule(ruleId) {
   // Validate ruleId
   if (!ruleId) {
     console.error('editRule: ruleId is required');
-    alert('Invalid rule ID');
+    showToast('Invalid rule ID', 'error');
     return;
   }
 
@@ -521,7 +580,7 @@ async function editRule(ruleId) {
 
     if (!response || !response.rules) {
       console.error('Failed to get rules: Invalid response');
-      alert('Failed to load rules');
+      showToast('Failed to load rules', 'error');
       return;
     }
 
@@ -529,7 +588,7 @@ async function editRule(ruleId) {
     const rule = rules.find(r => r && r.id === ruleId);
 
     if (!rule) {
-      alert('Rule not found');
+      showToast('Rule not found', 'error');
       return;
     }
 
@@ -543,7 +602,7 @@ async function editRule(ruleId) {
     }
   } catch (error) {
     console.error('Failed to edit rule:', error);
-    alert('Failed to load rule: ' + (error.message || 'Unknown error'));
+    showToast('Failed to load rule', 'error');
   }
 }
 
@@ -673,9 +732,10 @@ async function deleteRule(ruleId) {
     });
 
     await loadRules();
+    showToast('Rule deleted successfully', 'success');
   } catch (error) {
     console.error('Failed to delete rule:', error);
-    alert('Failed to delete rule');
+    showToast('Failed to delete rule', 'error');
   }
 }
 
@@ -685,7 +745,7 @@ async function duplicateRule(ruleId) {
     const ruleToDuplicate = window.currentRules.find(r => r.id === ruleId);
 
     if (!ruleToDuplicate) {
-      alert('Rule not found');
+      showToast('Rule not found', 'error');
       return;
     }
 
@@ -709,9 +769,10 @@ async function duplicateRule(ruleId) {
 
     // Reload rules to show the new duplicate
     await loadRules();
+    showToast('Rule duplicated successfully', 'success');
   } catch (error) {
     console.error('Failed to duplicate rule:', error);
-    alert('Failed to duplicate rule');
+    showToast('Failed to duplicate rule', 'error');
   }
 }
 
@@ -736,7 +797,7 @@ async function exportRules() {
     URL.revokeObjectURL(url);
   } catch (error) {
     console.error('Failed to export rules:', error);
-    alert('Failed to export rules');
+    showToast('Failed to export rules', 'error');
   }
 }
 
@@ -749,7 +810,7 @@ async function importRules(e) {
     const data = JSON.parse(text);
 
     if (!data.rules || !Array.isArray(data.rules)) {
-      alert('Invalid file format');
+      showToast('Invalid file format', 'error');
       return;
     }
 
@@ -762,11 +823,11 @@ async function importRules(e) {
     }
 
     await loadRules();
-    alert(`Successfully imported ${data.rules.length} rules`);
+    showToast(`Successfully imported ${data.rules.length} rules`, "success");
     e.target.value = ''; // Reset file input
   } catch (error) {
     console.error('Failed to import rules:', error);
-    alert('Failed to import rules: ' + error.message);
+    showToast('Failed to import rules', 'error');
   }
 }
 
@@ -791,10 +852,10 @@ async function clearAllRules() {
     }
 
     await loadRules();
-    alert('All rules have been deleted');
+    showToast('All rules have been deleted', 'success');
   } catch (error) {
     console.error('Failed to clear rules:', error);
-    alert('Failed to clear rules');
+    showToast('Failed to clear rules', 'error');
   }
 }
 
@@ -980,7 +1041,7 @@ async function toggleGroup(groupId) {
     await loadRules(); // Reload rules to reflect group state changes
   } catch (error) {
     console.error('Failed to toggle group:', error);
-    alert('Failed to toggle group');
+    showToast('Failed to toggle group', 'error');
   }
 }
 
@@ -1021,9 +1082,10 @@ async function deleteGroup(groupId) {
     });
     await loadGroups();
     await loadRules(); // Reload rules to update group indicators
+    showToast('Group deleted successfully', 'success');
   } catch (error) {
     console.error('Failed to delete group:', error);
-    alert('Failed to delete group');
+    showToast('Failed to delete group', 'error');
   }
 }
 
@@ -1039,7 +1101,7 @@ async function saveGroup(e) {
   };
 
   if (!groupData.name) {
-    alert('Please enter a group name');
+    showToast('Please enter a group name', 'error');
     return;
   }
 
@@ -1059,12 +1121,14 @@ async function saveGroup(e) {
       });
     }
 
+    const message = groupId ? 'Group updated successfully' : 'Group created successfully';
     closeGroupModal();
     await loadGroups();
     await loadRules(); // Reload rules to update group indicators
+    showToast(message, 'success');
   } catch (error) {
     console.error('Failed to save group:', error);
-    alert('Failed to save group');
+    showToast('Failed to save group', 'error');
   }
 }
 
@@ -1117,7 +1181,7 @@ function prettifyJsonInTextarea() {
   const content = textarea.value.trim();
 
   if (!content) {
-    alert('Please enter some JSON content first');
+    showToast('Please enter some JSON content first', 'error');
     return;
   }
 
@@ -1127,7 +1191,7 @@ function prettifyJsonInTextarea() {
     const prettified = JSON.stringify(jsonData, null, 2);
     textarea.value = prettified;
   } catch (error) {
-    alert('Invalid JSON: ' + error.message + '\n\nPlease check your JSON syntax.');
+    showToast('Invalid JSON: ' + error.message, 'error');
   }
 }
 
