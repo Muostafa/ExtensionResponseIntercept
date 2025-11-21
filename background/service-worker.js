@@ -18,7 +18,7 @@ class ServiceWorker {
     // Load rules and groups from storage
     await this.storageManager.loadRules();
     await this.storageManager.loadGroups();
-    this.ruleEngine.setRules(this.storageManager.getRules());
+    this.ruleEngine.setRules(this.storageManager.getEnabledRules());
 
     // Listen for settings changes
     this.storageManager.onRulesChanged((rules) => {
@@ -124,7 +124,7 @@ class ServiceWorker {
         break;
 
       case 'deleteGroup':
-        await this.storageManager.deleteGroup(request.groupId);
+        await this.storageManager.deleteGroup(request.groupId, request.deleteRules);
         sendResponse({ success: true });
         break;
 
