@@ -5,7 +5,9 @@ export class ResponseInterceptor {
     this.storageManager = storageManager;
     this.attachedTabs = new Map();
     this.pendingRequests = new Map();
+    this.networkLogs = new Map(); // Store network logs per tab
     this.MAX_TABS = 100; // Limit to prevent memory issues
+    this.MAX_LOGS_PER_TAB = 100; // Limit logs per tab
     this.setupDebuggerListener();
     this.startPeriodicCleanup();
   }
@@ -70,6 +72,14 @@ export class ResponseInterceptor {
       console.log(`Intercepted request: ${method} ${url}`);
 
       const startTime = Date.now();
+
+      // Log the network request for "Create Rule from Network" feature
+      this.logNetworkRequest(tabId, {
+        url,
+        method,
+        headers: request.headers,
+        timestamp: startTime
+      });
 
       try {
         // Check if any rules match this request
@@ -363,5 +373,108 @@ export class ResponseInterceptor {
       clearInterval(this.cleanupInterval);
       this.cleanupInterval = null;
     }
+  }
+
+  /**
+   * Log a network request for the "Create Rule from Network" feature
+   */
+  logNetworkRequest(tabId, requestData) {
+    if (!this.networkLogs.has(tabId)) {
+      this.networkLogs.set(tabId, []);
+    }
+
+    const logs = this.networkLogs.get(tabId);
+
+    // Create log entry with unique ID
+    const logEntry = {
+      id: `log_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      url: requestData.url,
+      method: requestData.method,
+      headers: requestData.headers || {},
+      timestamp: requestData.timestamp || Date.now(),
+      intercepted: false, // Will be updated if rule matches
+      ruleName: null
+    };
+
+    // Check if a rule will intercept this request
+    const matchingRules = this.ruleEngine.findMatchingRules(requestData.url, requestData.method);
+    if (matchingRules.length > 0) {
+      logEntry.intercepted = true;
+      logEntry.ruleName = matchingRules[0].name;
+    }
+
+    // Add to beginning of array (newest first)
+    logs.unshift(logEntry);
+
+    // Limit the number of logs per tab
+    if (logs.length > this.MAX_LOGS_PER_TAB) {
+      logs.pop();
+    }
+  }
+
+  /**
+   * Get network logs for a specific tab
+   */
+  getNetworkLogs(tabId) {
+    return this.networkLogs.get(tabId) || [];
+  }
+
+  /**
+   * Get all network logs across all tabs
+   */
+  getAllNetworkLogs() {
+    const allLogs = [];
+    for (const [tabId, logs] of this.networkLogs) {
+      logs.forEach(log => {
+        allLogs.push({ ...log, tabId });
+      });
+    }
+    // Sort by timestamp (newest first)
+    return allLogs.sort((a, b) => b.timestamp - a.timestamp);
+  }
+
+  /**
+   * Clear network logs for a specific tab
+   */
+  clearNetworkLogs(tabId) {
+    if (tabId) {
+      this.networkLogs.delete(tabId);
+    } else {
+      this.networkLogs.clear();
+    }
+  }
+
+  /**
+   * Generate a suggested rule from a network request
+   */
+  generateRuleFromRequest(logEntry) {
+    // Parse URL to create a smart pattern
+    const url = new URL(logEntry.url);
+    const pathname = url.pathname;
+
+    // Create a wildcard pattern from the URL
+    // Replace numeric segments with wildcards (e.g., /users/123 -> /users/*)
+    const patternPath = pathname.replace(/\/\d+/g, '/*');
+    const pattern = `*://${url.host}${patternPath}*`;
+
+    // Generate a name based on the URL
+    const pathParts = pathname.split('/').filter(p => p && !/^\d+$/.test(p));
+    const suggestedName = pathParts.length > 0
+      ? `${logEntry.method} ${pathParts.slice(-2).join('/')}`
+      : `${logEntry.method} ${url.host}`;
+
+    return {
+      name: suggestedName,
+      description: `Auto-generated from ${logEntry.url}`,
+      urlPattern: pattern,
+      matchType: 'wildcard',
+      methods: [logEntry.method],
+      enabled: true,
+      modifyType: 'replace',
+      modification: {
+        type: 'json',
+        value: '{\n  "message": "Intercepted response"\n}'
+      }
+    };
   }
 }
