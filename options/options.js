@@ -420,9 +420,8 @@ function expandAllGroups() {
 
 function addRuleToGroup(groupId) {
   currentEditingRuleId = null;
-  resetForm();
-  document.getElementById('ruleGroup').value = groupId;
-  showTab('new-rule');
+  showTab('new-rule');  // This calls resetForm() internally
+  document.getElementById('ruleGroup').value = groupId;  // Set group after form is reset
 }
 
 function attachRuleEventListeners() {
