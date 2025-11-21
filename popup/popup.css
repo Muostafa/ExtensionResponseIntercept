@@ -37,16 +37,21 @@
   --primary: #818cf8;
   --primary-dark: #6366f1;
   --primary-light: #a5b4fc;
+  --secondary: #a78bfa;
 
-  --bg-primary: #1e1e2e;
-  --bg-secondary: #262637;
-  --bg-tertiary: #313244;
+  --bg-primary: #0f172a;
+  --bg-secondary: #1e293b;
+  --bg-tertiary: #334155;
 
-  --text-primary: #cdd6f4;
-  --text-secondary: #a6adc8;
-  --text-muted: #6c7086;
+  --text-primary: #f1f5f9;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
 
-  --border-color: #45475a;
+  --border-color: #475569;
+
+  --success: #34d399;
+  --danger: #f87171;
+  --warning: #fbbf24;
 }
 
 * {
@@ -1110,6 +1115,80 @@ header .subtitle {
 
 .animate-slide-up {
   animation: slideUp 0.3s ease;
+}
+
+/* Dark mode specific overrides */
+[data-theme="dark"] .rule-pattern {
+  color: #a5b4fc;
+}
+
+[data-theme="dark"] .rule-tag {
+  background: rgba(129, 140, 248, 0.15);
+  color: #c7d2fe;
+}
+
+[data-theme="dark"] .rule-tag.method {
+  background: rgba(167, 139, 250, 0.15);
+  color: #ddd6fe;
+}
+
+[data-theme="dark"] .rule-tag.type {
+  background: rgba(129, 140, 248, 0.15);
+  color: #c7d2fe;
+}
+
+[data-theme="dark"] .badge {
+  background: #6366f1;
+}
+
+[data-theme="dark"] .json-editor,
+[data-theme="dark"] .status-code-input {
+  background: #1e293b;
+  border-color: #475569;
+  color: #f1f5f9;
+}
+
+[data-theme="dark"] .json-editor:focus,
+[data-theme="dark"] .status-code-input:focus {
+  background: #0f172a;
+  border-color: #818cf8;
+}
+
+[data-theme="dark"] .filter-select {
+  background: #1e293b;
+  border-color: #475569;
+  color: #f1f5f9;
+}
+
+[data-theme="dark"] .search-input {
+  background: #1e293b;
+  border-color: #475569;
+  color: #f1f5f9;
+}
+
+[data-theme="dark"] .search-input:focus {
+  background: #0f172a;
+}
+
+[data-theme="dark"] .edit-error {
+  background: rgba(248, 113, 113, 0.15);
+  border-color: rgba(248, 113, 113, 0.3);
+  color: #fca5a5;
+}
+
+[data-theme="dark"] .toast {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+[data-theme="dark"] .btn-cancel {
+  background: #334155;
+  border-color: #475569;
+  color: #cbd5e1;
+}
+
+[data-theme="dark"] .btn-cancel:hover {
+  background: #475569;
 }
 
 /* Responsive adjustments */
