@@ -232,10 +232,6 @@
             <td>Needed to identify which tabs have the debugger attached and to show tab-specific status.</td>
           </tr>
           <tr>
-            <td><code>webRequest</code></td>
-            <td>Enables monitoring of network requests to apply your interception rules.</td>
-          </tr>
-          <tr>
             <td><code>host_permissions: &lt;all_urls&gt;</code></td>
             <td>Required to intercept responses from any website you're developing or testing. The extension only activates on tabs where you explicitly attach the debugger.</td>
           </tr>
@@ -252,20 +248,6 @@
         <li><strong>User Control:</strong> You can delete all data at any time via the Import/Export settings page</li>
         <li><strong>Open Source:</strong> The extension code is available for inspection on GitHub</li>
       </ul>
-    </section>
-
-    <section>
-      <h2>Custom JavaScript Functions</h2>
-      <div class="highlight-box warning">
-        <strong>Security Notice:</strong> The extension allows you to write custom JavaScript functions
-        to transform responses. These functions run locally in your browser. Only use code you trust,
-        and never import rules from untrusted sources.
-      </div>
-      <p>
-        Custom functions are executed in a sandboxed context and only have access to the response body
-        they are designed to modify. They cannot access your browsing data, cookies, or other sensitive
-        information.
-      </p>
     </section>
 
     <section>

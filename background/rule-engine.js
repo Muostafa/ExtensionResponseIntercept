@@ -189,9 +189,6 @@ export class RuleEngine {
       case 'regex':
         return this.regexReplace(originalBody, modification);
 
-      case 'function':
-        return this.executeFunction(originalBody, modification);
-
       default:
         console.warn(`Unknown modify type: ${modifyType}`);
         return null;
@@ -279,18 +276,6 @@ export class RuleEngine {
       return originalBody.replace(regex, replacement);
     } catch (error) {
       console.error('Failed to apply regex replacement:', error);
-      return null;
-    }
-  }
-
-  executeFunction(originalBody, modification) {
-    // Execute custom JavaScript function
-    // WARNING: This is potentially dangerous and should be sandboxed
-    try {
-      const func = new Function('body', modification.code);
-      return func(originalBody);
-    } catch (error) {
-      console.error('Failed to execute custom function:', error);
       return null;
     }
   }

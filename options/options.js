@@ -462,8 +462,7 @@ function getModifyTypeLabel(type) {
   const labels = {
     'replace': 'Replace Body',
     'json-path': 'JSON Path',
-    'regex': 'Regex',
-    'function': 'Function'
+    'regex': 'Regex'
   };
   return labels[type] || type;
 }
@@ -578,8 +577,7 @@ function updateModificationOptions(type) {
   const optionMap = {
     'replace': 'replaceOptions',
     'json-path': 'jsonPathOptions',
-    'regex': 'regexOptions',
-    'function': 'functionOptions'
+    'regex': 'regexOptions'
   };
 
   const selectedOption = document.getElementById(optionMap[type]);
@@ -687,12 +685,6 @@ function collectFormData() {
         pattern: document.getElementById('regexPattern').value,
         replacement: document.getElementById('regexReplacement').value,
         flags: document.getElementById('regexFlags').value
-      };
-      break;
-
-    case 'function':
-      modification = {
-        code: document.getElementById('functionCode').value
       };
       break;
   }
@@ -838,10 +830,6 @@ function populateForm(rule) {
         setElementValue('regexPattern', rule.modification.pattern);
         setElementValue('regexReplacement', rule.modification.replacement);
         setElementValue('regexFlags', rule.modification.flags || 'g');
-        break;
-
-      case 'function':
-        setElementValue('functionCode', rule.modification.code);
         break;
     }
   }

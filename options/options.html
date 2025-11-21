@@ -282,7 +282,6 @@
               <option value="replace">Replace Entire Body</option>
               <option value="json-path">Modify JSON Path</option>
               <option value="regex">Regex Find & Replace</option>
-              <option value="function">Custom Function</option>
             </select>
           </div>
 
@@ -328,27 +327,6 @@
               <label for="regexFlags">Flags (optional)</label>
               <input type="text" id="regexFlags" class="form-control" placeholder="gi" value="g">
               <small class="form-hint">g=global, i=case-insensitive, m=multiline</small>
-            </div>
-          </div>
-
-          <!-- Function -->
-          <div id="functionOptions" class="modification-options" style="display: none;">
-            <div class="security-warning" style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px;">
-              <div style="display: flex; align-items: flex-start; gap: 10px;">
-                <span style="font-size: 20px;">⚠️</span>
-                <div>
-                  <strong style="color: #92400e;">Security Notice</strong>
-                  <p style="margin: 4px 0 0 0; color: #78350f; font-size: 13px;">
-                    Custom JavaScript functions execute with extension privileges. Only use code you trust and understand.
-                    Never import rules containing custom functions from untrusted sources.
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div class="form-group">
-              <label for="functionCode">JavaScript Function</label>
-              <textarea id="functionCode" class="form-control code-editor" rows="10" placeholder="// body parameter contains the original response&#10;return body.replace('error', 'success');"></textarea>
-              <small class="form-hint">Function receives 'body' parameter and must return the modified body string.</small>
             </div>
           </div>
 
@@ -464,7 +442,6 @@
               <li>Test your patterns on a single tab first before enabling globally</li>
               <li>Check the browser console for debugging information</li>
               <li>The debugger must be attached to a tab for interception to work</li>
-              <li>Be careful with custom functions - they execute with extension privileges</li>
             </ul>
           </section>
 
