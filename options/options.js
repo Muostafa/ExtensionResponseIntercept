@@ -1,6 +1,7 @@
 // Options page script
 let currentEditingRuleId = null;
 let headerModificationCounter = 0;
+let collapsedGroups = new Set(); // Track collapsed group IDs
 
 // Initialize options page
 document.addEventListener('DOMContentLoaded', async () => {
@@ -131,25 +132,10 @@ async function loadRules() {
 function sortAndFilterRules(rules) {
   const sortBy = document.getElementById('ruleSortBy')?.value || 'modified';
   const sortOrder = document.getElementById('ruleSortOrder')?.value || 'desc';
-  const hideDisabledGroupRules = document.getElementById('hideDisabledGroupRules')?.checked ?? true;
   const enabledRulesFirst = document.getElementById('enabledRulesFirst')?.checked ?? true;
 
-  // Filter rules from disabled groups
-  let filteredRules = rules;
-  if (hideDisabledGroupRules) {
-    filteredRules = rules.filter(rule => {
-      // If rule has no group, always show it
-      if (!rule.groupId) return true;
-
-      // If rule belongs to a group, check if group is enabled
-      const group = currentGroups.find(g => g.id === rule.groupId);
-      // Show if group doesn't exist or group is enabled
-      return !group || group.enabled;
-    });
-  }
-
   // Sort rules
-  const sortedRules = [...filteredRules].sort((a, b) => {
+  const sortedRules = [...rules].sort((a, b) => {
     // First, sort by enabled status if that option is checked
     if (enabledRulesFirst) {
       const enabledDiff = (b.enabled ? 1 : 0) - (a.enabled ? 1 : 0);
@@ -174,70 +160,269 @@ function sortAndFilterRules(rules) {
 }
 
 function displayRules(rules) {
-  const rulesList = document.getElementById('rulesList');
+  const groupedRulesList = document.getElementById('groupedRulesList');
   const emptyState = document.getElementById('emptyState');
 
   // Apply sorting and filtering
   const processedRules = sortAndFilterRules(rules);
 
-  if (processedRules.length === 0) {
-    rulesList.style.display = 'none';
+  // Check if there are any rules at all
+  if (rules.length === 0 && currentGroups.length === 0) {
+    groupedRulesList.style.display = 'none';
     emptyState.style.display = 'block';
     return;
   }
 
-  rulesList.style.display = 'grid';
+  groupedRulesList.style.display = 'block';
   emptyState.style.display = 'none';
 
-  rulesList.innerHTML = processedRules.map(rule => {
-    const methods = rule.methods && rule.methods.length > 0
-      ? rule.methods.join(', ')
-      : 'All Methods';
+  // Organize rules by groups
+  const groupedRules = {};
+  const ungroupedRules = [];
 
-    // Get group info if rule belongs to a group
-    let groupIndicator = '';
+  processedRules.forEach(rule => {
     if (rule.groupId) {
-      const group = currentGroups.find(g => g.id === rule.groupId);
-      if (group) {
-        groupIndicator = `<span class="group-indicator" style="border-left-color: ${group.color}; background: ${group.color}20; color: ${group.color};">${escapeHtml(group.name)}</span>`;
+      if (!groupedRules[rule.groupId]) {
+        groupedRules[rule.groupId] = [];
       }
+      groupedRules[rule.groupId].push(rule);
+    } else {
+      ungroupedRules.push(rule);
     }
+  });
 
-    return `
-      <div class="rule-card ${rule.enabled ? '' : 'disabled'}">
-        <div class="rule-card-header">
-          <div>
-            <div class="rule-card-title">
-              <span>${escapeHtml(rule.name)}</span>
-              ${groupIndicator}
+  // Sort groups by name
+  const sortedGroups = [...currentGroups].sort((a, b) => a.name.localeCompare(b.name));
+
+  let html = '';
+
+  // Render groups with their rules
+  sortedGroups.forEach(group => {
+    const groupRules = groupedRules[group.id] || [];
+    const isCollapsed = collapsedGroups.has(group.id);
+    const enabledInGroup = groupRules.filter(r => r.enabled).length;
+
+    html += `
+      <div class="options-group-container ${group.enabled ? '' : 'group-disabled'}" data-group-id="${group.id}">
+        <div class="options-group-header" data-group-id="${group.id}">
+          <div class="options-group-header-left">
+            <button class="options-group-collapse-btn ${isCollapsed ? 'collapsed' : ''}" data-group-id="${group.id}">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </button>
+            <div class="options-group-color-bar" style="background: ${group.color}"></div>
+            <div class="options-group-info">
+              <div class="options-group-title">${escapeHtml(group.name)}</div>
+              ${group.description ? `<div class="options-group-description">${escapeHtml(group.description)}</div>` : ''}
+              <div class="options-group-stats">
+                <span>${groupRules.length} rule${groupRules.length !== 1 ? 's' : ''}</span>
+                <span>${enabledInGroup} active</span>
+              </div>
             </div>
-            ${rule.description ? `<div class="rule-card-description">${escapeHtml(rule.description)}</div>` : ''}
           </div>
-          <div class="toggle-switch-small">
-            <input type="checkbox" id="toggle-${rule.id}" ${rule.enabled ? 'checked' : ''} data-rule-id="${rule.id}">
-            <label for="toggle-${rule.id}"></label>
+          <div class="options-group-header-actions">
+            <div class="toggle-switch-small group-toggle">
+              <input type="checkbox" id="group-toggle-${group.id}" class="group-toggle-input" data-group-id="${group.id}" ${group.enabled ? 'checked' : ''}>
+              <label for="group-toggle-${group.id}"></label>
+            </div>
+            <button class="btn btn-secondary btn-small edit-group-btn" data-group-id="${group.id}" title="Edit Group">Edit</button>
+            <button class="btn btn-danger btn-small delete-group-btn" data-group-id="${group.id}" title="Delete Group">Delete</button>
           </div>
         </div>
-
-        <div class="rule-card-pattern">${escapeHtml(rule.urlPattern)}</div>
-
-        <div class="rule-card-meta">
-          <span class="rule-badge">${rule.matchType}</span>
-          <span class="rule-badge method">${methods}</span>
-          <span class="rule-badge">${getModifyTypeLabel(rule.modifyType)}</span>
-        </div>
-
-        <div class="rule-card-actions">
-          <button class="btn btn-secondary btn-small edit-btn" data-rule-id="${rule.id}">Edit</button>
-          <button class="btn btn-secondary btn-small duplicate-btn" data-rule-id="${rule.id}">Duplicate</button>
-          <button class="btn btn-danger btn-small delete-btn" data-rule-id="${rule.id}">Delete</button>
+        <div class="options-group-rules ${isCollapsed ? 'collapsed' : ''}" data-group-rules="${group.id}">
+          ${groupRules.length === 0 ? `
+            <div class="options-group-empty">
+              <span>No rules in this group</span>
+              <button class="btn btn-secondary btn-small add-rule-to-group-btn" data-group-id="${group.id}">+ Add Rule</button>
+            </div>
+          ` : `
+            <div class="options-rules-grid">
+              ${groupRules.map(rule => renderRuleCard(rule, group)).join('')}
+            </div>
+          `}
         </div>
       </div>
     `;
-  }).join('');
+  });
+
+  // Render ungrouped rules
+  const isUngroupedCollapsed = collapsedGroups.has('ungrouped');
+  html += `
+    <div class="options-group-container ungrouped-container" data-group-id="ungrouped">
+      <div class="options-group-header ungrouped-header" data-group-id="ungrouped">
+        <div class="options-group-header-left">
+          <button class="options-group-collapse-btn ${isUngroupedCollapsed ? 'collapsed' : ''}" data-group-id="ungrouped">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </button>
+          <div class="options-group-color-bar ungrouped-bar"></div>
+          <div class="options-group-info">
+            <div class="options-group-title">Ungrouped Rules</div>
+            <div class="options-group-stats">
+              <span>${ungroupedRules.length} rule${ungroupedRules.length !== 1 ? 's' : ''}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="options-group-rules ${isUngroupedCollapsed ? 'collapsed' : ''}" data-group-rules="ungrouped">
+        ${ungroupedRules.length === 0 ? `
+          <div class="options-group-empty">
+            <span>No ungrouped rules</span>
+          </div>
+        ` : `
+          <div class="options-rules-grid">
+            ${ungroupedRules.map(rule => renderRuleCard(rule, null)).join('')}
+          </div>
+        `}
+      </div>
+    </div>
+  `;
+
+  groupedRulesList.innerHTML = html;
 
   // Add event listeners
   attachRuleEventListeners();
+  attachGroupEventListeners();
+}
+
+function renderRuleCard(rule, group) {
+  const isGroupDisabled = group && !group.enabled;
+  const methods = rule.methods && rule.methods.length > 0
+    ? rule.methods.join(', ')
+    : 'All Methods';
+
+  const cardClasses = [
+    'rule-card',
+    rule.enabled ? '' : 'disabled',
+    isGroupDisabled ? 'group-disabled-card' : ''
+  ].filter(Boolean).join(' ');
+
+  return `
+    <div class="${cardClasses}" data-rule-id="${rule.id}">
+      ${isGroupDisabled ? '<div class="group-disabled-banner">Inactive - Group is disabled</div>' : ''}
+      <div class="rule-card-header">
+        <div class="rule-card-title-wrapper">
+          <span class="rule-card-title">${escapeHtml(rule.name)}</span>
+          ${rule.description ? `<div class="rule-card-description">${escapeHtml(rule.description)}</div>` : ''}
+        </div>
+        <div class="toggle-switch-small">
+          <input type="checkbox" id="toggle-${rule.id}" ${rule.enabled ? 'checked' : ''} ${isGroupDisabled ? 'disabled' : ''} data-rule-id="${rule.id}">
+          <label for="toggle-${rule.id}" ${isGroupDisabled ? 'class="toggle-disabled"' : ''}></label>
+        </div>
+      </div>
+
+      <div class="rule-card-pattern">${escapeHtml(rule.urlPattern)}</div>
+
+      <div class="rule-card-meta">
+        <span class="rule-badge">${rule.matchType}</span>
+        <span class="rule-badge method">${methods}</span>
+        <span class="rule-badge">${getModifyTypeLabel(rule.modifyType)}</span>
+      </div>
+
+      <div class="rule-card-actions">
+        <button class="btn btn-secondary btn-small edit-btn" data-rule-id="${rule.id}">Edit</button>
+        <button class="btn btn-secondary btn-small duplicate-btn" data-rule-id="${rule.id}">Duplicate</button>
+        <button class="btn btn-danger btn-small delete-btn" data-rule-id="${rule.id}">Delete</button>
+      </div>
+    </div>
+  `;
+}
+
+function attachGroupEventListeners() {
+  // Group collapse buttons
+  document.querySelectorAll('.options-group-collapse-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const groupId = e.currentTarget.dataset.groupId;
+      toggleGroupCollapse(groupId);
+    });
+  });
+
+  // Group header click to collapse
+  document.querySelectorAll('.options-group-header').forEach(header => {
+    header.addEventListener('click', (e) => {
+      // Don't collapse if clicking on actions
+      if (e.target.closest('.options-group-header-actions')) return;
+      if (e.target.closest('.options-group-collapse-btn')) return;
+      const groupId = header.dataset.groupId;
+      toggleGroupCollapse(groupId);
+    });
+  });
+
+  // Group toggles
+  document.querySelectorAll('.group-toggle-input').forEach(toggle => {
+    toggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+    });
+    toggle.addEventListener('change', async (e) => {
+      const groupId = e.target.dataset.groupId;
+      await toggleGroup(groupId);
+    });
+  });
+
+  // Edit group buttons
+  document.querySelectorAll('.edit-group-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const groupId = e.target.dataset.groupId;
+      editGroup(groupId);
+    });
+  });
+
+  // Delete group buttons
+  document.querySelectorAll('.delete-group-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const groupId = e.target.dataset.groupId;
+      await deleteGroup(groupId);
+    });
+  });
+
+  // Add rule to group buttons
+  document.querySelectorAll('.add-rule-to-group-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const groupId = e.target.dataset.groupId;
+      addRuleToGroup(groupId);
+    });
+  });
+}
+
+function toggleGroupCollapse(groupId) {
+  const btn = document.querySelector(`.options-group-collapse-btn[data-group-id="${groupId}"]`);
+  const rulesContainer = document.querySelector(`[data-group-rules="${groupId}"]`);
+
+  if (collapsedGroups.has(groupId)) {
+    collapsedGroups.delete(groupId);
+    btn?.classList.remove('collapsed');
+    rulesContainer?.classList.remove('collapsed');
+  } else {
+    collapsedGroups.add(groupId);
+    btn?.classList.add('collapsed');
+    rulesContainer?.classList.add('collapsed');
+  }
+}
+
+function collapseAllGroups() {
+  currentGroups.forEach(group => {
+    collapsedGroups.add(group.id);
+  });
+  collapsedGroups.add('ungrouped');
+  displayRules(window.currentRules || []);
+}
+
+function expandAllGroups() {
+  collapsedGroups.clear();
+  displayRules(window.currentRules || []);
+}
+
+function addRuleToGroup(groupId) {
+  currentEditingRuleId = null;
+  resetForm();
+  document.getElementById('ruleGroup').value = groupId;
+  showTab('new-rule');
 }
 
 function attachRuleEventListeners() {
@@ -289,40 +474,17 @@ function setupEventListeners() {
   // Rule sorting and filtering controls
   const ruleSortBy = document.getElementById('ruleSortBy');
   const ruleSortOrder = document.getElementById('ruleSortOrder');
-  const hideDisabledGroupRules = document.getElementById('hideDisabledGroupRules');
   const enabledRulesFirst = document.getElementById('enabledRulesFirst');
 
-  if (ruleSortBy) {
-    ruleSortBy.addEventListener('change', () => {
-      if (window.currentRules) {
-        displayRules(window.currentRules);
-      }
-    });
-  }
-
-  if (ruleSortOrder) {
-    ruleSortOrder.addEventListener('change', () => {
-      if (window.currentRules) {
-        displayRules(window.currentRules);
-      }
-    });
-  }
-
-  if (hideDisabledGroupRules) {
-    hideDisabledGroupRules.addEventListener('change', () => {
-      if (window.currentRules) {
-        displayRules(window.currentRules);
-      }
-    });
-  }
-
-  if (enabledRulesFirst) {
-    enabledRulesFirst.addEventListener('change', () => {
-      if (window.currentRules) {
-        displayRules(window.currentRules);
-      }
-    });
-  }
+  [ruleSortBy, ruleSortOrder, enabledRulesFirst].forEach(el => {
+    if (el) {
+      el.addEventListener('change', () => {
+        if (window.currentRules) {
+          displayRules(window.currentRules);
+        }
+      });
+    }
+  });
 
   // Add new rule button
   document.getElementById('addNewRuleBtn').addEventListener('click', () => {
@@ -337,6 +499,10 @@ function setupEventListeners() {
     resetForm();
     showTab('new-rule');
   });
+
+  // Collapse/Expand all buttons
+  document.getElementById('collapseAllBtn')?.addEventListener('click', collapseAllGroups);
+  document.getElementById('expandAllBtn')?.addEventListener('click', expandAllGroups);
 
   // Form submit
   document.getElementById('ruleForm').addEventListener('submit', async (e) => {
@@ -378,14 +544,13 @@ function setupEventListeners() {
   });
 
   // Group management buttons
-  document.getElementById('addNewGroupBtn').addEventListener('click', openGroupModal);
-  document.getElementById('createFirstGroup').addEventListener('click', openGroupModal);
-  document.getElementById('groupForm').addEventListener('submit', saveGroup);
-  document.getElementById('closeGroupModal').addEventListener('click', closeGroupModal);
-  document.getElementById('cancelGroupBtn').addEventListener('click', closeGroupModal);
+  document.getElementById('addNewGroupBtn')?.addEventListener('click', openGroupModal);
+  document.getElementById('groupForm')?.addEventListener('submit', saveGroup);
+  document.getElementById('closeGroupModal')?.addEventListener('click', closeGroupModal);
+  document.getElementById('cancelGroupBtn')?.addEventListener('click', closeGroupModal);
 
   // Close modal when clicking outside
-  document.getElementById('groupModal').addEventListener('click', (e) => {
+  document.getElementById('groupModal')?.addEventListener('click', (e) => {
     if (e.target.id === 'groupModal') {
       closeGroupModal();
     }
@@ -926,90 +1091,10 @@ async function loadGroups() {
   try {
     const response = await chrome.runtime.sendMessage({ action: 'getGroups' });
     currentGroups = response.groups || [];
-    displayGroups(currentGroups);
     updateGroupSelectors();
   } catch (error) {
     console.error('Failed to load groups:', error);
   }
-}
-
-function displayGroups(groups) {
-  const groupsList = document.getElementById('groupsList');
-  const emptyState = document.getElementById('groupsEmptyState');
-
-  if (!groups || groups.length === 0) {
-    groupsList.style.display = 'none';
-    emptyState.style.display = 'block';
-    return;
-  }
-
-  groupsList.style.display = 'grid';
-  emptyState.style.display = 'none';
-
-  groupsList.innerHTML = groups.map(group => {
-    const ruleCount = getRuleCountForGroup(group.id);
-    const enabledRuleCount = getEnabledRuleCountForGroup(group.id);
-
-    return `
-      <div class="group-card" style="border-left-color: ${group.color}">
-        <div class="group-card-header">
-          <div class="group-info">
-            <h3>${escapeHtml(group.name)}</h3>
-            ${group.description ? `<p>${escapeHtml(group.description)}</p>` : ''}
-          </div>
-          <div class="group-actions">
-            <span class="group-badge ${group.enabled ? 'enabled' : 'disabled'}">
-              ${group.enabled ? 'Enabled' : 'Disabled'}
-            </span>
-            <div class="toggle-switch-small">
-              <input type="checkbox" id="group-toggle-${group.id}" ${group.enabled ? 'checked' : ''} data-group-id="${group.id}">
-              <label for="group-toggle-${group.id}"></label>
-            </div>
-          </div>
-        </div>
-        <div class="group-stats">
-          <div class="group-stat">
-            <strong>${ruleCount}</strong> rules
-          </div>
-          <div class="group-stat">
-            <strong>${enabledRuleCount}</strong> enabled
-          </div>
-        </div>
-        <div class="rule-card-actions" style="margin-top: 15px;">
-          <button class="btn btn-secondary btn-small edit-group-btn" data-group-id="${group.id}">Edit</button>
-          <button class="btn btn-danger btn-small delete-group-btn" data-group-id="${group.id}">Delete</button>
-        </div>
-      </div>
-    `;
-  }).join('');
-
-  attachGroupEventListeners();
-}
-
-function attachGroupEventListeners() {
-  // Toggle switches
-  document.querySelectorAll('[id^="group-toggle-"]').forEach(toggle => {
-    toggle.addEventListener('change', async (e) => {
-      const groupId = e.target.dataset.groupId;
-      await toggleGroup(groupId);
-    });
-  });
-
-  // Edit buttons
-  document.querySelectorAll('.edit-group-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      const groupId = e.target.dataset.groupId;
-      editGroup(groupId);
-    });
-  });
-
-  // Delete buttons
-  document.querySelectorAll('.delete-group-btn').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      const groupId = e.target.dataset.groupId;
-      await deleteGroup(groupId);
-    });
-  });
 }
 
 function getRuleCountForGroup(groupId) {
