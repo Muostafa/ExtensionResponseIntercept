@@ -1307,6 +1307,9 @@ textarea.form-control {
   opacity: 0;
   transform: translateY(20px);
   transition: all var(--transition-normal);
+  display: flex;
+  align-items: center;
+  gap: 16px;
 }
 
 .toast.show {
@@ -1322,6 +1325,32 @@ textarea.form-control {
 .toast.error {
   background: var(--danger);
   color: white;
+}
+
+.toast-message {
+  flex: 1;
+}
+
+.toast-action {
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: white;
+  padding: 6px 14px;
+  border-radius: var(--border-radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.toast-action:hover {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.toast-action:active {
+  transform: scale(0.95);
 }
 
 /* Responsive */
