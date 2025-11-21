@@ -21,16 +21,7 @@
               <line x1="16" y1="13" x2="8" y2="13"/>
               <line x1="16" y1="17" x2="8" y2="17"/>
             </svg>
-            Rules
-          </span>
-        </a>
-        <a href="#" class="nav-item" data-tab="groups">
-          <span>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
-              <line x1="7" y1="7" x2="7.01" y2="7"/>
-            </svg>
-            Groups
+            Rules & Groups
           </span>
         </a>
         <a href="#" class="nav-item" data-tab="new-rule">
@@ -96,17 +87,20 @@
     </aside>
 
     <main class="main-content">
-      <!-- Rules Tab -->
+      <!-- Rules & Groups Tab -->
       <div id="rules-tab" class="tab-content active">
         <div class="header">
-          <h2>Manage Rules</h2>
-          <button id="addNewRuleBtn" class="btn btn-primary">+ Add New Rule</button>
+          <h2>Rules & Groups</h2>
+          <div class="header-actions">
+            <button id="addNewGroupBtn" class="btn btn-secondary">+ New Group</button>
+            <button id="addNewRuleBtn" class="btn btn-primary">+ New Rule</button>
+          </div>
         </div>
 
-        <div class="card" style="margin-bottom: 20px;">
+        <div class="card options-toolbar" style="margin-bottom: 20px;">
           <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
             <div>
-              <label for="ruleSortBy" style="font-weight: 500; margin-right: 8px;">Sort by:</label>
+              <label for="ruleSortBy" style="font-weight: 500; margin-right: 8px;">Sort rules:</label>
               <select id="ruleSortBy" class="form-control" style="display: inline-block; width: auto;">
                 <option value="modified">Last Modified</option>
                 <option value="created">Date Created</option>
@@ -122,14 +116,18 @@
             </div>
             <div>
               <label class="checkbox-label">
-                <input type="checkbox" id="enabledRulesFirst" checked> Show enabled rules first
+                <input type="checkbox" id="enabledRulesFirst" checked> Enabled rules first
               </label>
+            </div>
+            <div style="margin-left: auto;">
+              <button id="collapseAllBtn" class="btn btn-secondary btn-small">Collapse All</button>
+              <button id="expandAllBtn" class="btn btn-secondary btn-small">Expand All</button>
             </div>
           </div>
         </div>
 
-        <div id="rulesList" class="rules-grid">
-          <!-- Rules will be populated here -->
+        <div id="groupedRulesList" class="grouped-rules-container">
+          <!-- Groups with rules will be populated here -->
         </div>
 
         <div id="emptyState" class="empty-state" style="display: none;">
@@ -138,31 +136,8 @@
           <p>Create your first rule to start intercepting and modifying API responses</p>
           <button id="emptyStateCreateRuleBtn" class="btn btn-primary">Create Rule</button>
         </div>
-      </div>
 
-      <!-- Groups Tab -->
-      <div id="groups-tab" class="tab-content">
-        <div class="header">
-          <h2>Manage Groups</h2>
-          <button id="addNewGroupBtn" class="btn btn-primary">+ Add New Group</button>
-        </div>
-
-        <div class="card">
-          <p>Organize your rules into groups to easily enable/disable multiple rules at once. When a group is disabled, all rules in that group will be inactive regardless of their individual enabled state.</p>
-        </div>
-
-        <div id="groupsList" class="rules-grid">
-          <!-- Groups will be populated here -->
-        </div>
-
-        <div id="groupsEmptyState" class="empty-state" style="display: none;">
-          <div class="empty-icon">🏷️</div>
-          <h3>No Custom Groups Yet</h3>
-          <p>Create groups to organize and manage your rules more efficiently</p>
-          <button class="btn btn-primary" id="createFirstGroup">Create Group</button>
-        </div>
-
-        <!-- Add/Edit Group Modal (hidden by default) -->
+        <!-- Add/Edit Group Modal -->
         <div id="groupModal" class="modal" style="display: none;">
           <div class="modal-content">
             <div class="modal-header">
