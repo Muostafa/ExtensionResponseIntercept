@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy - API Response Interceptor</title>
+  <style>
+    :root {
+      --bg-primary: #ffffff;
+      --bg-secondary: #f8f9fa;
+      --text-primary: #1a1a2e;
+      --text-secondary: #6c757d;
+      --border-color: #e9ecef;
+      --accent-color: #4361ee;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg-primary: #1a1a2e;
+        --bg-secondary: #16213e;
+        --text-primary: #e9ecef;
+        --text-secondary: #adb5bd;
+        --border-color: #2d3748;
+        --accent-color: #4cc9f0;
+      }
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.7;
+      padding: 40px 20px;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 40px;
+      padding-bottom: 30px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    h1 {
+      font-size: 2rem;
+      margin-bottom: 10px;
+      color: var(--accent-color);
+    }
+
+    .last-updated {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+    }
+
+    h2 {
+      font-size: 1.4rem;
+      margin: 30px 0 15px 0;
+      color: var(--accent-color);
+    }
+
+    h3 {
+      font-size: 1.1rem;
+      margin: 20px 0 10px 0;
+    }
+
+    p {
+      margin-bottom: 15px;
+      color: var(--text-primary);
+    }
+
+    ul, ol {
+      margin: 15px 0;
+      padding-left: 25px;
+    }
+
+    li {
+      margin-bottom: 8px;
+    }
+
+    .highlight-box {
+      background: var(--bg-secondary);
+      border-left: 4px solid var(--accent-color);
+      padding: 15px 20px;
+      margin: 20px 0;
+      border-radius: 0 8px 8px 0;
+    }
+
+    .highlight-box.warning {
+      border-left-color: #f59e0b;
+    }
+
+    .highlight-box.success {
+      border-left-color: #10b981;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+    }
+
+    th, td {
+      padding: 12px;
+      text-align: left;
+      border: 1px solid var(--border-color);
+    }
+
+    th {
+      background: var(--bg-secondary);
+      font-weight: 600;
+    }
+
+    code {
+      background: var(--bg-secondary);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.9em;
+    }
+
+    .contact-section {
+      background: var(--bg-secondary);
+      padding: 25px;
+      border-radius: 12px;
+      margin-top: 40px;
+    }
+
+    a {
+      color: var(--accent-color);
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    footer {
+      text-align: center;
+      margin-top: 50px;
+      padding-top: 30px;
+      border-top: 1px solid var(--border-color);
+      color: var(--text-secondary);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Privacy Policy</h1>
+      <p class="subtitle">API Response Interceptor - Chrome Extension</p>
+      <p class="last-updated">Last Updated: November 2024</p>
+    </header>
+
+    <section>
+      <h2>Overview</h2>
+      <p>
+        API Response Interceptor is a developer tool designed to help web developers test and debug
+        API integrations by intercepting and modifying HTTP responses. This privacy policy explains
+        how the extension handles your data.
+      </p>
+
+      <div class="highlight-box success">
+        <strong>Privacy First:</strong> This extension operates entirely locally on your device.
+        No data is ever transmitted to external servers, collected by the developer, or shared with third parties.
+      </div>
+    </section>
+
+    <section>
+      <h2>Data Collection</h2>
+
+      <h3>What We DO NOT Collect</h3>
+      <ul>
+        <li>Personal information (name, email, address, etc.)</li>
+        <li>Browsing history or visited URLs</li>
+        <li>Network request/response content</li>
+        <li>Authentication tokens or credentials</li>
+        <li>Usage analytics or telemetry</li>
+        <li>Any data transmitted to external servers</li>
+      </ul>
+
+      <h3>What Is Stored Locally</h3>
+      <p>The extension stores the following data locally on your device using Chrome's storage API:</p>
+      <ul>
+        <li><strong>Interception Rules:</strong> The rules you create (URL patterns, response modifications, headers)</li>
+        <li><strong>Rule Groups:</strong> Organizational groups for your rules</li>
+        <li><strong>Extension Settings:</strong> Your preferences (theme, sort order, etc.)</li>
+        <li><strong>Network Logs:</strong> Temporarily captured request/response data (session only, cleared on browser restart)</li>
+      </ul>
+
+      <div class="highlight-box warning">
+        <strong>Important:</strong> Network logs are stored in memory only and are automatically
+        cleared when you close the browser or disable the extension. They are never persisted to disk.
+      </div>
+    </section>
+
+    <section>
+      <h2>Permissions Explained</h2>
+      <p>This extension requires certain permissions to function. Here's why each permission is needed:</p>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Permission</th>
+            <th>Purpose</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>debugger</code></td>
+            <td>Required to intercept and modify network responses using Chrome DevTools Protocol. This is the core functionality of the extension.</td>
+          </tr>
+          <tr>
+            <td><code>storage</code></td>
+            <td>Used to save your interception rules and settings locally. Data never leaves your device.</td>
+          </tr>
+          <tr>
+            <td><code>activeTab</code></td>
+            <td>Allows attaching the debugger to the currently active tab when you click the extension icon.</td>
+          </tr>
+          <tr>
+            <td><code>tabs</code></td>
+            <td>Needed to identify which tabs have the debugger attached and to show tab-specific status.</td>
+          </tr>
+          <tr>
+            <td><code>webRequest</code></td>
+            <td>Enables monitoring of network requests to apply your interception rules.</td>
+          </tr>
+          <tr>
+            <td><code>host_permissions: &lt;all_urls&gt;</code></td>
+            <td>Required to intercept responses from any website you're developing or testing. The extension only activates on tabs where you explicitly attach the debugger.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>How Your Data Is Protected</h2>
+      <ul>
+        <li><strong>Local Storage Only:</strong> All data remains on your device</li>
+        <li><strong>No External Connections:</strong> The extension never connects to external servers</li>
+        <li><strong>No Analytics:</strong> We don't track how you use the extension</li>
+        <li><strong>User Control:</strong> You can delete all data at any time via the Import/Export settings page</li>
+        <li><strong>Open Source:</strong> The extension code is available for inspection on GitHub</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Custom JavaScript Functions</h2>
+      <div class="highlight-box warning">
+        <strong>Security Notice:</strong> The extension allows you to write custom JavaScript functions
+        to transform responses. These functions run locally in your browser. Only use code you trust,
+        and never import rules from untrusted sources.
+      </div>
+      <p>
+        Custom functions are executed in a sandboxed context and only have access to the response body
+        they are designed to modify. They cannot access your browsing data, cookies, or other sensitive
+        information.
+      </p>
+    </section>
+
+    <section>
+      <h2>Third-Party Services</h2>
+      <p>
+        This extension does not integrate with any third-party services, analytics platforms,
+        or advertising networks. All functionality is self-contained.
+      </p>
+    </section>
+
+    <section>
+      <h2>Data Retention</h2>
+      <ul>
+        <li><strong>Rules and Settings:</strong> Stored until you manually delete them or uninstall the extension</li>
+        <li><strong>Network Logs:</strong> Stored in memory only; cleared when browser closes or debugger detaches</li>
+      </ul>
+      <p>
+        To delete all extension data, use the "Clear All Rules" option in the Import/Export settings,
+        or uninstall the extension.
+      </p>
+    </section>
+
+    <section>
+      <h2>Children's Privacy</h2>
+      <p>
+        This extension is a developer tool and is not intended for use by children under 13.
+        We do not knowingly collect any information from children.
+      </p>
+    </section>
+
+    <section>
+      <h2>Changes to This Policy</h2>
+      <p>
+        We may update this privacy policy from time to time. Any changes will be reflected on this
+        page with an updated "Last Updated" date. Continued use of the extension after changes
+        constitutes acceptance of the new policy.
+      </p>
+    </section>
+
+    <section class="contact-section">
+      <h2>Contact</h2>
+      <p>
+        If you have any questions about this privacy policy or the extension, you can reach the developer at:
+      </p>
+      <ul>
+        <li><strong>Developer:</strong> Mustafa Omran</li>
+        <li><strong>Website:</strong> <a href="https://mustafaomran.vercel.app/" target="_blank">mustafaomran.vercel.app</a></li>
+        <li><strong>GitHub:</strong> <a href="https://github.com/Muostafa" target="_blank">github.com/Muostafa</a></li>
+      </ul>
+    </section>
+
+    <footer>
+      <p>&copy; 2024 Mustafa Omran. All rights reserved.</p>
+      <p>API Response Interceptor - A Developer Tool</p>
+    </footer>
+  </div>
+</body>
+</html>
