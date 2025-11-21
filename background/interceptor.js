@@ -224,16 +224,6 @@ export class ResponseInterceptor {
           this.ruleEngine.setNestedProperty(jsonData, path, this.parseValue(value));
           return JSON.stringify(jsonData);
 
-        case 'function':
-          // Execute the function with empty body
-          try {
-            const func = new Function('body', rule.modification.code);
-            return func('{}');
-          } catch (error) {
-            console.error('Failed to execute custom function:', error);
-            return '{}';
-          }
-
         case 'regex':
           // Can't apply regex without original body, return empty object
           console.warn('Regex modification not applicable for blocked requests');
