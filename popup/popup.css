@@ -1272,6 +1272,395 @@ header .subtitle {
   color: #f1f5f9;
 }
 
+/* View Tabs */
+.view-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+}
+
+.view-tab {
+  flex: 1;
+  padding: 10px 16px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all var(--transition-fast);
+  position: relative;
+}
+
+.view-tab:hover {
+  background: var(--bg-tertiary);
+  color: var(--primary);
+}
+
+.view-tab.active {
+  color: var(--primary);
+  background: var(--bg-primary);
+}
+
+.view-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--primary);
+}
+
+.view-tab .badge.small {
+  font-size: 9px;
+  padding: 1px 5px;
+  margin-left: 2px;
+}
+
+/* Network Section */
+.network-section {
+  padding: 16px 20px;
+}
+
+.network-search-container {
+  position: relative;
+  margin-bottom: 12px;
+}
+
+.network-logs-list {
+  max-height: 320px;
+  overflow-y: auto;
+  margin: 0 -4px;
+  padding: 0 4px;
+}
+
+.network-logs-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.network-logs-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.network-logs-list::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 3px;
+}
+
+/* Network Log Item */
+.network-log-item {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  transition: all var(--transition-fast);
+}
+
+.network-log-item:last-child {
+  margin-bottom: 0;
+}
+
+.network-log-item:hover {
+  border-color: var(--primary);
+  box-shadow: var(--shadow);
+}
+
+.network-log-item.intercepted {
+  border-left: 3px solid var(--success);
+}
+
+.network-log-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.network-log-info {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.network-log-method {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-right: 6px;
+  text-transform: uppercase;
+}
+
+.network-log-method.GET { background: rgba(99, 102, 241, 0.1); color: var(--primary); }
+.network-log-method.POST { background: rgba(16, 185, 129, 0.1); color: var(--success); }
+.network-log-method.PUT { background: rgba(245, 158, 11, 0.1); color: var(--warning); }
+.network-log-method.DELETE { background: rgba(239, 68, 68, 0.1); color: var(--danger); }
+.network-log-method.PATCH { background: rgba(139, 92, 246, 0.1); color: var(--secondary); }
+
+.network-log-url {
+  font-size: 11px;
+  color: var(--text-primary);
+  font-family: 'SF Mono', 'Consolas', monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+  margin-top: 4px;
+}
+
+.network-log-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.network-log-meta .intercepted-badge {
+  color: var(--success);
+  font-weight: 500;
+}
+
+.network-log-time {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-left: 4px;
+}
+
+.network-log-status {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 4px;
+  border-radius: 3px;
+  margin-left: 4px;
+}
+
+.network-log-status.success {
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--success);
+}
+
+.network-log-status.error {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--danger);
+}
+
+.network-log-status.pending {
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+}
+
+.response-badge {
+  color: var(--primary);
+  font-weight: 500;
+}
+
+.network-log-item.has-response {
+  border-left: 3px solid var(--primary);
+}
+
+.network-log-item.has-response.intercepted {
+  border-left: 3px solid var(--success);
+}
+
+.network-log-actions {
+  flex-shrink: 0;
+}
+
+.btn-create-rule {
+  background: var(--primary);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all var(--transition-fast);
+}
+
+.btn-create-rule:hover {
+  background: var(--primary-dark);
+  transform: translateY(-1px);
+}
+
+/* Modal Styles */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.modal-content {
+  position: relative;
+  background: var(--bg-primary);
+  border-radius: var(--border-radius-lg);
+  width: 340px;
+  max-height: 90vh;
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+  animation: modalSlideIn 0.2s ease;
+}
+
+@keyframes modalSlideIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.modal-header h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.modal-body {
+  padding: 16px 20px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.modal-footer {
+  display: flex;
+  gap: 8px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+}
+
+.modal-footer .btn {
+  flex: 1;
+}
+
+/* Form Groups */
+.form-group {
+  margin-bottom: 14px;
+}
+
+.form-group:last-child {
+  margin-bottom: 0;
+}
+
+.form-group label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 6px;
+}
+
+.form-hint {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  font-style: italic;
+}
+
+.method-checkboxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.checkbox-label input {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--primary);
+}
+
+/* Dark mode for network section */
+[data-theme="dark"] .network-log-item {
+  background: #1e293b;
+  border-color: #475569;
+}
+
+[data-theme="dark"] .network-log-url {
+  color: #f1f5f9;
+}
+
+[data-theme="dark"] .network-log-method.GET { background: rgba(129, 140, 248, 0.15); color: #a5b4fc; }
+[data-theme="dark"] .network-log-method.POST { background: rgba(52, 211, 153, 0.15); color: #6ee7b7; }
+[data-theme="dark"] .network-log-method.PUT { background: rgba(251, 191, 36, 0.15); color: #fcd34d; }
+[data-theme="dark"] .network-log-method.DELETE { background: rgba(248, 113, 113, 0.15); color: #fca5a5; }
+[data-theme="dark"] .network-log-method.PATCH { background: rgba(167, 139, 250, 0.15); color: #c4b5fd; }
+
+[data-theme="dark"] .network-log-status.success { background: rgba(52, 211, 153, 0.15); color: #6ee7b7; }
+[data-theme="dark"] .network-log-status.error { background: rgba(248, 113, 113, 0.15); color: #fca5a5; }
+[data-theme="dark"] .network-log-status.pending { background: #334155; color: #94a3b8; }
+[data-theme="dark"] .response-badge { color: #a5b4fc; }
+
+[data-theme="dark"] .modal-content {
+  background: #1e293b;
+}
+
+[data-theme="dark"] .modal-overlay {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+[data-theme="dark"] .view-tab {
+  color: #94a3b8;
+}
+
+[data-theme="dark"] .view-tab:hover {
+  background: #334155;
+  color: #a5b4fc;
+}
+
+[data-theme="dark"] .view-tab.active {
+  color: #a5b4fc;
+  background: #0f172a;
+}
+
 /* Responsive adjustments */
 @media (prefers-reduced-motion: reduce) {
   *,

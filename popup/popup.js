@@ -2,6 +2,11 @@
 let currentTab = null;
 let activeEditRuleIds = new Set();
 let searchQuery = '';
+let networkSearchQuery = '';
+let currentView = 'rules'; // 'rules' or 'network'
+let selectedLogEntry = null;
+let networkLogs = [];
+let networkRefreshInterval = null;
 
 // Initialize popup
 document.addEventListener('DOMContentLoaded', async () => {
@@ -19,6 +24,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Setup event listeners
   setupEventListeners();
   setupStorageListener();
+  setupViewTabs();
+  setupNetworkSection();
+  setupCreateRuleModal();
+
+  // Start network logs refresh if on network tab
+  startNetworkRefresh();
 });
 
 // Theme management
@@ -695,4 +706,343 @@ function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
+}
+
+// ==================== View Tabs ====================
+
+function setupViewTabs() {
+  const rulesTabBtn = document.getElementById('rulesTabBtn');
+  const networkTabBtn = document.getElementById('networkTabBtn');
+
+  if (rulesTabBtn) {
+    rulesTabBtn.addEventListener('click', () => switchView('rules'));
+  }
+
+  if (networkTabBtn) {
+    networkTabBtn.addEventListener('click', () => switchView('network'));
+  }
+}
+
+function switchView(view) {
+  currentView = view;
+  const rulesTabBtn = document.getElementById('rulesTabBtn');
+  const networkTabBtn = document.getElementById('networkTabBtn');
+  const rulesSection = document.querySelector('.rules-section');
+  const networkSection = document.getElementById('networkSection');
+
+  if (view === 'rules') {
+    rulesTabBtn?.classList.add('active');
+    networkTabBtn?.classList.remove('active');
+    if (rulesSection) rulesSection.style.display = 'block';
+    if (networkSection) networkSection.style.display = 'none';
+  } else {
+    rulesTabBtn?.classList.remove('active');
+    networkTabBtn?.classList.add('active');
+    if (rulesSection) rulesSection.style.display = 'none';
+    if (networkSection) networkSection.style.display = 'block';
+    loadNetworkLogs();
+  }
+}
+
+// ==================== Network Logs ====================
+
+function setupNetworkSection() {
+  // Search input
+  const networkSearchInput = document.getElementById('networkSearchInput');
+  if (networkSearchInput) {
+    networkSearchInput.addEventListener('input', (e) => {
+      networkSearchQuery = e.target.value;
+      displayNetworkLogs(networkLogs);
+    });
+
+    networkSearchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        networkSearchInput.value = '';
+        networkSearchQuery = '';
+        displayNetworkLogs(networkLogs);
+      }
+    });
+  }
+
+  // Clear logs button
+  const clearNetworkLogsBtn = document.getElementById('clearNetworkLogs');
+  if (clearNetworkLogsBtn) {
+    clearNetworkLogsBtn.addEventListener('click', async () => {
+      try {
+        await chrome.runtime.sendMessage({
+          action: 'clearNetworkLogs',
+          tabId: currentTab?.id
+        });
+        networkLogs = [];
+        displayNetworkLogs([]);
+        showToast('Network logs cleared', 'success');
+      } catch (error) {
+        console.error('Failed to clear network logs:', error);
+        showToast('Failed to clear logs', 'error');
+      }
+    });
+  }
+}
+
+function startNetworkRefresh() {
+  // Refresh network logs every 2 seconds
+  networkRefreshInterval = setInterval(() => {
+    if (currentView === 'network') {
+      loadNetworkLogs();
+    }
+  }, 2000);
+}
+
+async function loadNetworkLogs() {
+  try {
+    const response = await chrome.runtime.sendMessage({
+      action: 'getNetworkLogs',
+      tabId: currentTab?.id
+    });
+    networkLogs = response.logs || [];
+    displayNetworkLogs(networkLogs);
+
+    // Update network logs count badge
+    const countBadge = document.getElementById('networkLogsCount');
+    if (countBadge) {
+      if (networkLogs.length > 0) {
+        countBadge.textContent = networkLogs.length > 99 ? '99+' : networkLogs.length;
+        countBadge.style.display = 'inline';
+      } else {
+        countBadge.style.display = 'none';
+      }
+    }
+  } catch (error) {
+    console.error('Failed to load network logs:', error);
+  }
+}
+
+function displayNetworkLogs(logs) {
+  const networkLogsList = document.getElementById('networkLogsList');
+  const networkEmptyState = document.getElementById('networkEmptyState');
+
+  if (!networkLogsList) return;
+
+  // Filter logs based on search query
+  let filteredLogs = logs;
+  if (networkSearchQuery.trim()) {
+    const query = networkSearchQuery.toLowerCase();
+    filteredLogs = logs.filter(log =>
+      log.url.toLowerCase().includes(query) ||
+      log.method.toLowerCase().includes(query)
+    );
+  }
+
+  if (filteredLogs.length === 0) {
+    networkLogsList.innerHTML = '';
+    if (networkEmptyState) {
+      networkEmptyState.style.display = 'block';
+      if (logs.length > 0 && networkSearchQuery.trim()) {
+        networkEmptyState.querySelector('h3').textContent = 'No Results';
+        networkEmptyState.querySelector('p').textContent = 'No requests match your filter';
+      } else {
+        networkEmptyState.querySelector('h3').textContent = 'No Network Requests';
+        networkEmptyState.querySelector('p').textContent = 'Attach debugger to start capturing network requests';
+      }
+    }
+    return;
+  }
+
+  if (networkEmptyState) {
+    networkEmptyState.style.display = 'none';
+  }
+
+  networkLogsList.innerHTML = filteredLogs.map(log => {
+    const time = new Date(log.timestamp).toLocaleTimeString();
+    const urlObj = new URL(log.url);
+    const shortUrl = urlObj.pathname + urlObj.search;
+    const hasResponse = log.responseBody !== null && log.responseBody !== undefined;
+    const statusClass = log.responseStatus ? (log.responseStatus >= 400 ? 'error' : 'success') : '';
+
+    return `
+      <div class="network-log-item ${log.intercepted ? 'intercepted' : ''} ${hasResponse ? 'has-response' : ''}" data-log-id="${log.id}">
+        <div class="network-log-header">
+          <div class="network-log-info">
+            <div>
+              <span class="network-log-method ${log.method}">${log.method}</span>
+              ${log.responseStatus ? `<span class="network-log-status ${statusClass}">${log.responseStatus}</span>` : '<span class="network-log-status pending">...</span>'}
+              <span class="network-log-time">${time}</span>
+            </div>
+            <span class="network-log-url" title="${escapeHtml(log.url)}">${escapeHtml(shortUrl)}</span>
+            <div class="network-log-meta">
+              <span>${urlObj.host}</span>
+              ${log.intercepted ? `<span class="intercepted-badge">Intercepted by: ${escapeHtml(log.ruleName)}</span>` : ''}
+              ${hasResponse ? '<span class="response-badge">Response captured</span>' : ''}
+            </div>
+          </div>
+          <div class="network-log-actions">
+            <button class="btn-create-rule" data-log-id="${log.id}" title="${hasResponse ? 'Create rule with captured response' : 'Create rule from this request'}">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              Rule
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Add event listeners for create rule buttons
+  document.querySelectorAll('.btn-create-rule').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const logId = e.currentTarget.dataset.logId;
+      const log = networkLogs.find(l => l.id === logId);
+      if (log) {
+        openCreateRuleModal(log);
+      }
+    });
+  });
+}
+
+// ==================== Create Rule Modal ====================
+
+function setupCreateRuleModal() {
+  const modal = document.getElementById('createRuleModal');
+  const closeModalBtn = document.getElementById('closeModal');
+  const cancelBtn = document.getElementById('cancelCreateRule');
+  const confirmBtn = document.getElementById('confirmCreateRule');
+  const overlay = modal?.querySelector('.modal-overlay');
+
+  if (closeModalBtn) {
+    closeModalBtn.addEventListener('click', closeCreateRuleModal);
+  }
+
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', closeCreateRuleModal);
+  }
+
+  if (overlay) {
+    overlay.addEventListener('click', closeCreateRuleModal);
+  }
+
+  if (confirmBtn) {
+    confirmBtn.addEventListener('click', createRuleFromModal);
+  }
+}
+
+async function openCreateRuleModal(logEntry) {
+  selectedLogEntry = logEntry;
+  const modal = document.getElementById('createRuleModal');
+
+  try {
+    // Get suggested rule from service worker
+    const response = await chrome.runtime.sendMessage({
+      action: 'generateRuleFromRequest',
+      logEntry: logEntry
+    });
+
+    const suggestedRule = response.rule;
+
+    // Populate modal fields
+    document.getElementById('modalRuleName').value = suggestedRule.name || '';
+    document.getElementById('modalUrlPattern').value = suggestedRule.urlPattern || '';
+    document.getElementById('modalResponseBody').value = suggestedRule.modification?.value || '{\n  "message": "Intercepted response"\n}';
+    document.getElementById('modalStatusCode').value = suggestedRule.modifyStatusCode || '';
+
+    // Set method checkboxes
+    const methodCheckboxes = document.querySelectorAll('#modalMethods input[type="checkbox"]');
+    methodCheckboxes.forEach(checkbox => {
+      checkbox.checked = suggestedRule.methods?.includes(checkbox.value) || false;
+    });
+
+    // Show modal
+    if (modal) {
+      modal.style.display = 'flex';
+    }
+  } catch (error) {
+    console.error('Failed to generate rule suggestion:', error);
+    showToast('Failed to generate rule', 'error');
+  }
+}
+
+function closeCreateRuleModal() {
+  const modal = document.getElementById('createRuleModal');
+  if (modal) {
+    modal.style.display = 'none';
+  }
+  selectedLogEntry = null;
+}
+
+async function createRuleFromModal() {
+  if (!selectedLogEntry) {
+    showToast('No request selected', 'error');
+    return;
+  }
+
+  const name = document.getElementById('modalRuleName').value.trim();
+  const urlPattern = document.getElementById('modalUrlPattern').value.trim();
+  const responseBody = document.getElementById('modalResponseBody').value.trim();
+  const statusCode = document.getElementById('modalStatusCode').value;
+
+  // Validate required fields
+  if (!name) {
+    showToast('Rule name is required', 'error');
+    return;
+  }
+
+  if (!urlPattern) {
+    showToast('URL pattern is required', 'error');
+    return;
+  }
+
+  // Validate JSON if provided
+  if (responseBody) {
+    try {
+      JSON.parse(responseBody);
+    } catch (e) {
+      showToast('Invalid JSON in response body', 'error');
+      return;
+    }
+  }
+
+  // Get selected methods
+  const methodCheckboxes = document.querySelectorAll('#modalMethods input[type="checkbox"]:checked');
+  const methods = Array.from(methodCheckboxes).map(cb => cb.value);
+
+  if (methods.length === 0) {
+    showToast('Select at least one HTTP method', 'error');
+    return;
+  }
+
+  // Create the rule
+  const rule = {
+    name,
+    urlPattern,
+    matchType: 'wildcard',
+    methods,
+    enabled: true,
+    modifyType: 'replace',
+    modification: {
+      type: 'json',
+      value: responseBody || '{}'
+    }
+  };
+
+  if (statusCode) {
+    rule.modifyStatusCode = parseInt(statusCode);
+  }
+
+  try {
+    await chrome.runtime.sendMessage({
+      action: 'addRule',
+      rule
+    });
+
+    showToast('Rule created successfully', 'success');
+    closeCreateRuleModal();
+
+    // Switch to rules view
+    switchView('rules');
+    await loadRules();
+  } catch (error) {
+    console.error('Failed to create rule:', error);
+    showToast('Failed to create rule', 'error');
+  }
 }

@@ -81,6 +81,25 @@
       </button>
     </section>
 
+    <section class="view-tabs">
+      <button id="rulesTabBtn" class="view-tab active">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+        </svg>
+        Rules
+      </button>
+      <button id="networkTabBtn" class="view-tab">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="2" y1="12" x2="22" y2="12"/>
+          <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+        </svg>
+        Network
+        <span id="networkLogsCount" class="badge small" style="display: none;">0</span>
+      </button>
+    </section>
+
     <section class="rules-section">
       <div class="section-header">
         <div class="section-title">
@@ -160,6 +179,94 @@
         <p>No rules match your search</p>
       </div>
     </section>
+
+    <section id="networkSection" class="network-section" style="display: none;">
+      <div class="section-header">
+        <div class="section-title">
+          <h2>Network Requests</h2>
+        </div>
+        <button id="clearNetworkLogs" class="btn-ghost" title="Clear logs">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+          </svg>
+          Clear
+        </button>
+      </div>
+
+      <div class="network-search-container">
+        <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input type="text" id="networkSearchInput" class="search-input" placeholder="Filter by URL or method...">
+      </div>
+
+      <div id="networkLogsList" class="network-logs-list">
+        <!-- Network logs will be populated here -->
+      </div>
+
+      <div id="networkEmptyState" class="empty-state">
+        <div class="empty-icon">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.5">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="2" y1="12" x2="22" y2="12"/>
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+          </svg>
+        </div>
+        <h3>No Network Requests</h3>
+        <p>Attach debugger to start capturing network requests</p>
+      </div>
+    </section>
+
+    <!-- Create Rule Modal -->
+    <div id="createRuleModal" class="modal" style="display: none;">
+      <div class="modal-overlay"></div>
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Create Rule from Request</h3>
+          <button id="closeModal" class="btn-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label>Rule Name</label>
+            <input type="text" id="modalRuleName" class="form-control" placeholder="Enter rule name">
+          </div>
+          <div class="form-group">
+            <label>URL Pattern</label>
+            <input type="text" id="modalUrlPattern" class="form-control" placeholder="URL pattern">
+            <div class="form-hint">Use * for wildcard matching</div>
+          </div>
+          <div class="form-group">
+            <label>Method</label>
+            <div id="modalMethods" class="method-checkboxes">
+              <label class="checkbox-label"><input type="checkbox" value="GET"> GET</label>
+              <label class="checkbox-label"><input type="checkbox" value="POST"> POST</label>
+              <label class="checkbox-label"><input type="checkbox" value="PUT"> PUT</label>
+              <label class="checkbox-label"><input type="checkbox" value="DELETE"> DELETE</label>
+              <label class="checkbox-label"><input type="checkbox" value="PATCH"> PATCH</label>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Response Body (JSON)</label>
+            <textarea id="modalResponseBody" class="json-editor" rows="5" placeholder='{"key": "value"}'></textarea>
+          </div>
+          <div class="form-group">
+            <label>Status Code (optional)</label>
+            <input type="number" id="modalStatusCode" class="form-control" placeholder="200" min="100" max="599">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="cancelCreateRule" class="btn btn-secondary">Cancel</button>
+          <button id="confirmCreateRule" class="btn btn-primary">Create Rule</button>
+        </div>
+      </div>
+    </div>
 
     <section class="actions-section">
       <div class="footer-actions">

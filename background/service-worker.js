@@ -138,6 +138,31 @@ class ServiceWorker {
         sendResponse({ success: true });
         break;
 
+      case 'getNetworkLogs':
+        const logs = request.tabId
+          ? this.interceptor.getNetworkLogs(request.tabId)
+          : this.interceptor.getAllNetworkLogs();
+        sendResponse({ logs });
+        break;
+
+      case 'clearNetworkLogs':
+        this.interceptor.clearNetworkLogs(request.tabId);
+        sendResponse({ success: true });
+        break;
+
+      case 'generateRuleFromRequest':
+        const suggestedRule = this.interceptor.generateRuleFromRequest(request.logEntry);
+        sendResponse({ rule: suggestedRule });
+        break;
+
+      case 'createRuleFromRequest':
+        const ruleFromRequest = this.interceptor.generateRuleFromRequest(request.logEntry);
+        // Merge with any user modifications
+        const finalRule = { ...ruleFromRequest, ...request.modifications };
+        await this.storageManager.addRule(finalRule);
+        sendResponse({ success: true, rule: finalRule });
+        break;
+
       default:
         sendResponse({ error: 'Unknown action' });
     }
@@ -152,7 +177,10 @@ class ServiceWorker {
 
       await chrome.debugger.attach({ tabId }, '1.3');
       await chrome.debugger.sendCommand({ tabId }, 'Fetch.enable', {
-        patterns: [{ urlPattern: '*', requestStage: 'Request' }]
+        patterns: [
+          { urlPattern: '*', requestStage: 'Request' },
+          { urlPattern: '*', requestStage: 'Response' }
+        ]
       });
 
       this.activeTabs.add(tabId);
