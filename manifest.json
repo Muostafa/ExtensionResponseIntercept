@@ -2,13 +2,12 @@
   "manifest_version": 3,
   "name": "API Response Interceptor",
   "version": "2.0.0",
-  "description": "Intercept and modify API responses, headers, and status codes in real-time",
+  "description": "Developer tool for API testing - intercept and modify API responses, headers, and status codes for debugging and mocking",
   "permissions": [
     "debugger",
     "storage",
     "activeTab",
-    "tabs",
-    "webRequest"
+    "tabs"
   ],
   "host_permissions": [
     "<all_urls>"
