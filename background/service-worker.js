@@ -150,6 +150,15 @@ class ServiceWorker {
         sendResponse({ success: true });
         break;
 
+      case 'getNetworkLoggingStatus':
+        sendResponse({ enabled: this.interceptor.isNetworkLoggingEnabled() });
+        break;
+
+      case 'setNetworkLogging':
+        this.interceptor.setNetworkLogging(request.enabled);
+        sendResponse({ success: true, enabled: request.enabled });
+        break;
+
       case 'generateRuleFromRequest':
         const suggestedRule = this.interceptor.generateRuleFromRequest(request.logEntry);
         sendResponse({ rule: suggestedRule });

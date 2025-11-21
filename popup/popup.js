@@ -8,6 +8,7 @@ let selectedLogEntry = null;
 let networkLogs = [];
 let networkRefreshInterval = null;
 let collapsedGroups = new Set(); // Track collapsed group IDs
+let isNetworkLoggingEnabled = true; // Track network logging state
 
 // Initialize popup
 document.addEventListener('DOMContentLoaded', async () => {
@@ -915,6 +916,14 @@ function setupNetworkSection() {
     });
   }
 
+  // Toggle network logging button
+  const toggleLoggingBtn = document.getElementById('toggleNetworkLogging');
+  if (toggleLoggingBtn) {
+    toggleLoggingBtn.addEventListener('click', toggleNetworkLogging);
+    // Load initial logging status
+    loadNetworkLoggingStatus();
+  }
+
   // Clear logs button
   const clearNetworkLogsBtn = document.getElementById('clearNetworkLogs');
   if (clearNetworkLogsBtn) {
@@ -932,6 +941,51 @@ function setupNetworkSection() {
         showToast('Failed to clear logs', 'error');
       }
     });
+  }
+}
+
+async function loadNetworkLoggingStatus() {
+  try {
+    const response = await chrome.runtime.sendMessage({ action: 'getNetworkLoggingStatus' });
+    isNetworkLoggingEnabled = response.enabled;
+    updateLoggingButtonState();
+  } catch (error) {
+    console.error('Failed to load network logging status:', error);
+  }
+}
+
+async function toggleNetworkLogging() {
+  try {
+    const newState = !isNetworkLoggingEnabled;
+    await chrome.runtime.sendMessage({
+      action: 'setNetworkLogging',
+      enabled: newState
+    });
+    isNetworkLoggingEnabled = newState;
+    updateLoggingButtonState();
+    showToast(newState ? 'Network logging resumed' : 'Network logging paused', 'success');
+  } catch (error) {
+    console.error('Failed to toggle network logging:', error);
+    showToast('Failed to toggle logging', 'error');
+  }
+}
+
+function updateLoggingButtonState() {
+  const toggleBtn = document.getElementById('toggleNetworkLogging');
+  const toggleText = document.getElementById('toggleLoggingText');
+
+  if (toggleBtn) {
+    if (isNetworkLoggingEnabled) {
+      toggleBtn.classList.add('logging-active');
+      toggleBtn.classList.remove('logging-paused');
+      toggleBtn.title = 'Stop logging';
+      if (toggleText) toggleText.textContent = 'Recording';
+    } else {
+      toggleBtn.classList.remove('logging-active');
+      toggleBtn.classList.add('logging-paused');
+      toggleBtn.title = 'Start logging';
+      if (toggleText) toggleText.textContent = 'Paused';
+    }
   }
 }
 

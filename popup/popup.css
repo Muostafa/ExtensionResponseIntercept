@@ -1557,6 +1557,57 @@ header .subtitle {
   border-radius: 3px;
 }
 
+/* Network Header Actions */
+.network-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#toggleNetworkLogging {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+#toggleNetworkLogging .icon-record {
+  color: var(--danger);
+  animation: pulse-record 1.5s ease-in-out infinite;
+}
+
+#toggleNetworkLogging .icon-paused {
+  color: var(--text-muted);
+}
+
+#toggleNetworkLogging.logging-active .icon-record {
+  display: block;
+}
+
+#toggleNetworkLogging.logging-active .icon-paused {
+  display: none !important;
+}
+
+#toggleNetworkLogging.logging-paused .icon-record {
+  display: none !important;
+}
+
+#toggleNetworkLogging.logging-paused .icon-paused {
+  display: block !important;
+}
+
+#toggleNetworkLogging.logging-paused {
+  color: var(--text-muted);
+}
+
+@keyframes pulse-record {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
 /* Network Log Item */
 .network-log-item {
   background: var(--bg-secondary);
