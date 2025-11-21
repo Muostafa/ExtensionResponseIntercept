@@ -555,6 +555,18 @@ function setupEventListeners() {
       closeGroupModal();
     }
   });
+
+  // Delete group modal buttons
+  document.getElementById('closeDeleteGroupModal')?.addEventListener('click', closeDeleteGroupModal);
+  document.getElementById('cancelDeleteGroupBtn')?.addEventListener('click', closeDeleteGroupModal);
+  document.getElementById('confirmDeleteGroupBtn')?.addEventListener('click', confirmDeleteGroup);
+
+  // Close delete group modal when clicking outside
+  document.getElementById('deleteGroupModal')?.addEventListener('click', (e) => {
+    if (e.target.id === 'deleteGroupModal') {
+      closeDeleteGroupModal();
+    }
+  });
 }
 
 function updateModificationOptions(type) {
@@ -1148,30 +1160,61 @@ function editGroup(groupId) {
   document.getElementById('groupModal').style.display = 'flex';
 }
 
-async function deleteGroup(groupId) {
+function deleteGroup(groupId) {
   const group = currentGroups.find(g => g.id === groupId);
   if (!group) return;
 
   const ruleCount = getRuleCountForGroup(groupId);
   let message = `Are you sure you want to delete the group "${group.name}"?`;
+
+  // Store the group ID for the confirmation handler
+  document.getElementById('deleteGroupId').value = groupId;
+  document.getElementById('deleteGroupMessage').textContent = message;
+
+  // Show or hide the delete options based on whether there are rules
+  const deleteOptionsEl = document.getElementById('deleteGroupOptions');
   if (ruleCount > 0) {
-    message += `\n\nThis group contains ${ruleCount} rule(s). The rules will not be deleted, but they will become ungrouped.`;
+    deleteOptionsEl.style.display = 'block';
+    // Reset to default option
+    document.querySelector('input[name="deleteGroupAction"][value="keep"]').checked = true;
+  } else {
+    deleteOptionsEl.style.display = 'none';
   }
 
-  if (!confirm(message)) return;
+  // Show the modal
+  document.getElementById('deleteGroupModal').style.display = 'flex';
+}
+
+async function confirmDeleteGroup() {
+  const groupId = document.getElementById('deleteGroupId').value;
+  if (!groupId) return;
+
+  const deleteRulesOption = document.querySelector('input[name="deleteGroupAction"]:checked');
+  const deleteRules = deleteRulesOption ? deleteRulesOption.value === 'delete' : false;
 
   try {
     await chrome.runtime.sendMessage({
       action: 'deleteGroup',
-      groupId: groupId
+      groupId: groupId,
+      deleteRules: deleteRules
     });
+
+    // Hide modal
+    document.getElementById('deleteGroupModal').style.display = 'none';
+
     await loadGroups();
     await loadRules(); // Reload rules to update group indicators
-    showToast('Group deleted successfully', 'success');
+
+    const message = deleteRules ? 'Group and rules deleted successfully' : 'Group deleted successfully';
+    showToast(message, 'success');
   } catch (error) {
     console.error('Failed to delete group:', error);
     showToast('Failed to delete group', 'error');
   }
+}
+
+function closeDeleteGroupModal() {
+  document.getElementById('deleteGroupModal').style.display = 'none';
 }
 
 async function saveGroup(e) {

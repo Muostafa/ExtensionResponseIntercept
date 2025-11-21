@@ -525,18 +525,23 @@ export class StorageManager {
     return null;
   }
 
-  async deleteGroup(groupId) {
+  async deleteGroup(groupId, deleteRules = false) {
     const index = this.groups.findIndex(g => g.id === groupId);
     if (index !== -1) {
-      // Remove group reference from all rules
-      this.rules.forEach(rule => {
-        if (rule.groupId === groupId) {
-          delete rule.groupId;
-        }
-      });
+      if (deleteRules) {
+        // Delete all rules in this group
+        this.rules = this.rules.filter(rule => rule.groupId !== groupId);
+      } else {
+        // Remove group reference from all rules (rules become ungrouped)
+        this.rules.forEach(rule => {
+          if (rule.groupId === groupId) {
+            delete rule.groupId;
+          }
+        });
+      }
       this.groups.splice(index, 1);
       await this.saveGroups();
-      await this.saveRules(); // Save rules to persist removed groupId references
+      await this.saveRules(); // Save rules to persist changes
       return true;
     }
     return false;

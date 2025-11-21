@@ -124,7 +124,7 @@ class ServiceWorker {
         break;
 
       case 'deleteGroup':
-        await this.storageManager.deleteGroup(request.groupId);
+        await this.storageManager.deleteGroup(request.groupId, request.deleteRules);
         sendResponse({ success: true });
         break;
 
