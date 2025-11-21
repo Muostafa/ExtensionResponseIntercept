@@ -1,10 +1,21 @@
-// Rule Engine - Matches requests against rules and applies modifications
+/**
+ * Rule Engine - Matches requests against rules and applies modifications
+ * @class RuleEngine
+ * @description Core engine for matching URLs against defined rules and applying
+ * response modifications including body changes, header modifications, and status codes.
+ */
 export class RuleEngine {
   constructor() {
+    /** @type {Array<Object>} Active rules loaded from storage */
     this.rules = [];
+    /** @type {Map<string, RegExp>} Pre-compiled regex patterns for performance */
     this.compiledPatterns = new Map();
   }
 
+  /**
+   * Set the active rules for the engine
+   * @param {Array<Object>} rules - Array of rule objects to load
+   */
   setRules(rules) {
     // Validate input is an array
     if (!Array.isArray(rules)) {
@@ -18,6 +29,10 @@ export class RuleEngine {
     console.log(`Rule engine loaded ${this.rules.length} enabled rules`);
   }
 
+  /**
+   * Pre-compile regex patterns for better performance
+   * @private
+   */
   compilePatterns() {
     this.compiledPatterns.clear();
     this.rules.forEach(rule => {
@@ -31,6 +46,13 @@ export class RuleEngine {
     });
   }
 
+  /**
+   * Check if a URL matches a pattern based on match type
+   * @param {string} url - The URL to test
+   * @param {string} pattern - The pattern to match against
+   * @param {string} matchType - Type of matching: 'exact', 'wildcard', 'regex', or 'contains'
+   * @returns {boolean} True if the URL matches the pattern
+   */
   matchUrl(url, pattern, matchType) {
     switch (matchType) {
       case 'exact':
@@ -56,6 +78,13 @@ export class RuleEngine {
     }
   }
 
+  /**
+   * Match URL against a wildcard pattern
+   * @param {string} url - The URL to test
+   * @param {string} pattern - Wildcard pattern (* matches non-slash chars, ** matches any)
+   * @returns {boolean} True if the URL matches the wildcard pattern
+   * @private
+   */
   wildcardMatch(url, pattern) {
     // Convert wildcard pattern to regex
     // * matches any characters except /
@@ -79,6 +108,12 @@ export class RuleEngine {
     }
   }
 
+  /**
+   * Find all rules that match a given URL and HTTP method
+   * @param {string} url - The request URL
+   * @param {string} [method='GET'] - The HTTP method
+   * @returns {Array<Object>} Array of matching rules
+   */
   findMatchingRules(url, method = 'GET') {
     const matchingRules = [];
 
@@ -99,6 +134,16 @@ export class RuleEngine {
     return matchingRules;
   }
 
+  /**
+   * Apply rule modifications to a response
+   * @param {string} url - The request URL
+   * @param {string} method - The HTTP method
+   * @param {string} originalBody - The original response body
+   * @param {string} contentType - The response content type
+   * @param {Array<Object>} originalHeaders - Original response headers
+   * @param {number} originalStatusCode - Original HTTP status code
+   * @returns {Promise<Object|null>} Modified response object or null if no modifications
+   */
   async modifyResponse(url, method, originalBody, contentType, originalHeaders, originalStatusCode) {
     const matchingRules = this.findMatchingRules(url, method);
 
@@ -150,6 +195,13 @@ export class RuleEngine {
     }
   }
 
+  /**
+   * Apply header modifications to response headers
+   * @param {Array<Object>} originalHeaders - Original headers array
+   * @param {Array<Object>} modifications - Header modifications to apply
+   * @returns {Array<Object>} Modified headers array
+   * @private
+   */
   applyHeaderModifications(originalHeaders, modifications) {
     const headersMap = new Map();
 
@@ -178,6 +230,15 @@ export class RuleEngine {
     }));
   }
 
+  /**
+   * Apply a body modification based on modification type
+   * @param {string} originalBody - The original response body
+   * @param {Object} modification - The modification configuration
+   * @param {string} modifyType - Type: 'replace', 'json-path', 'regex', or 'function'
+   * @param {string} contentType - The content type of the response
+   * @returns {Promise<string|null>} Modified body or null if modification fails
+   * @private
+   */
   async applyModification(originalBody, modification, modifyType, contentType) {
     switch (modifyType) {
       case 'replace':

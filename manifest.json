@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
   "name": "API Response Interceptor",
-  "version": "2.0.0",
-  "description": "Intercept and modify API responses, headers, and status codes in real-time",
+  "short_name": "API Intercept",
+  "version": "2.0.1",
+  "description": "Intercept and modify API responses, headers, and status codes in real-time. Perfect for developers testing APIs, mocking responses, and debugging web applications.",
   "permissions": [
     "debugger",
     "storage",

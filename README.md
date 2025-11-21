@@ -277,6 +277,17 @@ No build process required - this is a pure JavaScript extension. Simply load it 
 - Be cautious when importing rule configurations
 - The extension requires powerful permissions - review the code before installing
 
+## Privacy
+
+Your privacy is important to us. Key points:
+
+- **All data stays local**: Rules, settings, and groups are stored only on your device
+- **No external servers**: The extension never sends data to external servers
+- **No analytics**: We don't track your usage or collect any telemetry
+- **No personal data**: We don't collect or store any personal information
+
+For complete details, see our [Privacy Policy](PRIVACY.md).
+
 ## Support This Project
 
 If you find this extension useful and it's helping you in your development workflow, consider supporting its development and maintenance!
@@ -315,12 +326,20 @@ Contributions are welcome! Please feel free to submit issues or pull requests.
 
 ## Changelog
 
-### Version 2.0.0 (Current)
+### Version 2.0.1 (Current)
+- **IMPROVED**: Added comprehensive privacy policy
+- **IMPROVED**: Enhanced accessibility with ARIA labels
+- **IMPROVED**: Added JSDoc documentation
+- **IMPROVED**: Store compliance improvements
+- **IMPROVED**: Better manifest.json configuration
+
+### Version 2.0.0
 - **NEW**: Response header modification (add, set, remove headers)
 - **NEW**: HTTP status code modification
+- **NEW**: Rule groups for better organization
 - **IMPROVED**: Rule engine now supports multi-layer modifications
 - **IMPROVED**: Better error handling and logging
-- **IMPROVED**: Enhanced UI
+- **IMPROVED**: Enhanced UI with dark mode support
 
 ### Version 1.0.0
 - Initial release

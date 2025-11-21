@@ -1,4 +1,10 @@
-// Utility: Debounce function to prevent excessive saves
+/**
+ * Debounce function to prevent excessive saves
+ * @param {Function} func - Function to debounce
+ * @param {number} wait - Wait time in milliseconds
+ * @returns {Function} Debounced function
+ * @private
+ */
 function debounce(func, wait) {
   let timeout;
   return function executedFunction(...args) {
@@ -11,25 +17,41 @@ function debounce(func, wait) {
   };
 }
 
-// Storage Manager - Handles all storage operations
+/**
+ * Storage Manager - Handles all storage operations for rules, groups, and settings
+ * @class StorageManager
+ * @description Manages persistence of rules and groups using Chrome's storage API.
+ * Includes quota management, import/export functionality, and change listeners.
+ */
 export class StorageManager {
   constructor() {
+    /** @type {Array<Object>} All rules */
     this.rules = [];
+    /** @type {Array<Object>} All groups */
     this.groups = [];
+    /** @type {Object} Global settings */
     this.settings = {
       globalEnabled: true,
       logging: true
     };
+    /** @type {Array<Function>} Rule change listeners */
     this.listeners = [];
+    /** @type {Array<Function>} Group change listeners */
     this.groupListeners = [];
-    this.QUOTA_WARNING_THRESHOLD = 0.8; // 80% of quota
-    this.QUOTA_BYTES_LIMIT = 10485760; // 10MB in bytes (chrome.storage.local limit)
+    /** @type {number} Warning threshold for storage quota (80%) */
+    this.QUOTA_WARNING_THRESHOLD = 0.8;
+    /** @type {number} Chrome storage.local limit in bytes (10MB) */
+    this.QUOTA_BYTES_LIMIT = 10485760;
 
     // Create debounced save methods (500ms delay)
     this.saveRulesDebounced = debounce(this.saveRules.bind(this), 500);
     this.saveGroupsDebounced = debounce(this.saveGroups.bind(this), 500);
   }
 
+  /**
+   * Load rules and settings from Chrome storage
+   * @returns {Promise<void>}
+   */
   async loadRules() {
     try {
       const data = await chrome.storage.local.get(['rules', 'settings']);
@@ -135,6 +157,11 @@ export class StorageManager {
     }
   }
 
+  /**
+   * Save rules to Chrome storage with quota checking
+   * @returns {Promise<void>}
+   * @throws {Error} If storage quota is exceeded
+   */
   async saveRules() {
     try {
       // Check quota before saving
@@ -170,10 +197,18 @@ export class StorageManager {
     }
   }
 
+  /**
+   * Get all rules
+   * @returns {Array<Object>} All rules
+   */
   getRules() {
     return this.rules;
   }
 
+  /**
+   * Get enabled rules, respecting group enabled state
+   * @returns {Array<Object>} Enabled rules
+   */
   getEnabledRules() {
     return this.rules.filter(rule => {
       // Rule must be enabled
@@ -189,6 +224,11 @@ export class StorageManager {
     });
   }
 
+  /**
+   * Add a new rule
+   * @param {Object} rule - Rule configuration object
+   * @returns {Promise<Object>} The created rule with generated ID
+   */
   async addRule(rule) {
     const now = Date.now();
     const newRule = {
@@ -203,6 +243,12 @@ export class StorageManager {
     return newRule;
   }
 
+  /**
+   * Update an existing rule
+   * @param {string} ruleId - ID of the rule to update
+   * @param {Object} updates - Properties to update
+   * @returns {Promise<Object|null>} Updated rule or null if not found
+   */
   async updateRule(ruleId, updates) {
     const index = this.rules.findIndex(r => r.id === ruleId);
     if (index !== -1) {
@@ -220,6 +266,11 @@ export class StorageManager {
     return null;
   }
 
+  /**
+   * Delete a rule by ID
+   * @param {string} ruleId - ID of the rule to delete
+   * @returns {Promise<boolean>} True if rule was deleted
+   */
   async deleteRule(ruleId) {
     const index = this.rules.findIndex(r => r.id === ruleId);
     if (index !== -1) {
