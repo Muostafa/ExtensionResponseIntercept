@@ -271,7 +271,8 @@ export class StorageManager {
   }
 
   notifyListeners() {
-    this.listeners.forEach(callback => callback(this.rules));
+    // Pass only enabled rules (respecting both rule and group enabled status)
+    this.listeners.forEach(callback => callback(this.getEnabledRules()));
   }
 
   generateId() {
