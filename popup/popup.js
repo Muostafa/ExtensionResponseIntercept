@@ -7,6 +7,7 @@ let currentView = 'rules'; // 'rules' or 'network'
 let selectedLogEntry = null;
 let networkLogs = [];
 let networkRefreshInterval = null;
+let collapsedGroups = new Set(); // Track collapsed group IDs
 
 // Initialize popup
 document.addEventListener('DOMContentLoaded', async () => {
@@ -113,18 +114,9 @@ async function loadRules() {
 function sortAndFilterRules(rules, groups) {
   const sortBy = document.getElementById('popupSortBy')?.value || 'modified';
   const sortOrder = document.getElementById('popupSortOrder')?.value || 'desc';
-  const hideDisabledGroupRules = document.getElementById('popupHideDisabledGroupRules')?.checked ?? true;
   const enabledRulesFirst = document.getElementById('popupEnabledRulesFirst')?.checked ?? true;
 
-  // Filter rules from disabled groups
-  let filteredRules = rules;
-  if (hideDisabledGroupRules) {
-    filteredRules = rules.filter(rule => {
-      if (!rule.groupId) return true;
-      const group = groups.find(g => g.id === rule.groupId);
-      return !group || group.enabled;
-    });
-  }
+  let filteredRules = [...rules];
 
   // Apply search filter
   if (searchQuery.trim()) {
@@ -137,7 +129,7 @@ function sortAndFilterRules(rules, groups) {
   }
 
   // Sort rules
-  const sortedRules = [...filteredRules].sort((a, b) => {
+  const sortedRules = filteredRules.sort((a, b) => {
     if (enabledRulesFirst) {
       const enabledDiff = (b.enabled ? 1 : 0) - (a.enabled ? 1 : 0);
       if (enabledDiff !== 0) return enabledDiff;
@@ -199,16 +191,121 @@ async function displayRules(rules) {
   emptyState.style.display = 'none';
   noSearchResults.style.display = 'none';
 
-  rulesList.innerHTML = processedRules.map(rule => {
-    const group = groups.find(g => g.id === rule.groupId);
-    const groupDot = group ? `<span class="group-dot" style="background: ${group.color}"></span>` : '';
+  // Organize rules by groups
+  const groupedRules = {};
+  const ungroupedRules = [];
 
-    return `
-    <div class="rule-item ${rule.enabled ? '' : 'disabled'} animate-slide-up" data-rule-id="${rule.id}">
+  processedRules.forEach(rule => {
+    if (rule.groupId) {
+      if (!groupedRules[rule.groupId]) {
+        groupedRules[rule.groupId] = [];
+      }
+      groupedRules[rule.groupId].push(rule);
+    } else {
+      ungroupedRules.push(rule);
+    }
+  });
+
+  // Sort groups by name
+  const sortedGroups = [...groups].sort((a, b) => a.name.localeCompare(b.name));
+
+  let html = '';
+
+  // Render groups with their rules
+  sortedGroups.forEach(group => {
+    const groupRules = groupedRules[group.id] || [];
+    if (groupRules.length === 0 && searchQuery.trim()) return; // Hide empty groups when searching
+
+    const isCollapsed = collapsedGroups.has(group.id);
+    const enabledInGroup = groupRules.filter(r => r.enabled).length;
+
+    html += `
+      <div class="group-container ${group.enabled ? '' : 'group-disabled'}" data-group-id="${group.id}">
+        <div class="group-header" data-group-id="${group.id}">
+          <div class="group-header-left">
+            <button class="group-collapse-btn ${isCollapsed ? 'collapsed' : ''}" data-group-id="${group.id}">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </button>
+            <div class="group-color-bar" style="background: ${group.color}"></div>
+            <div class="group-title-info">
+              <span class="group-title">${escapeHtml(group.name)}</span>
+              <span class="group-rule-count">${groupRules.length} rule${groupRules.length !== 1 ? 's' : ''}${groupRules.length > 0 ? ` (${enabledInGroup} active)` : ''}</span>
+            </div>
+          </div>
+          <div class="group-header-actions">
+            <div class="toggle-switch group-toggle">
+              <input type="checkbox" id="group-toggle-${group.id}" class="toggle-input group-toggle-input" data-group-id="${group.id}" ${group.enabled ? 'checked' : ''}>
+              <label for="group-toggle-${group.id}" class="toggle-label"></label>
+            </div>
+          </div>
+        </div>
+        <div class="group-rules ${isCollapsed ? 'collapsed' : ''}" data-group-rules="${group.id}">
+          ${groupRules.length === 0 ? `
+            <div class="group-empty-state">
+              <span>No rules in this group</span>
+            </div>
+          ` : groupRules.map(rule => renderRuleItem(rule, group)).join('')}
+        </div>
+      </div>
+    `;
+  });
+
+  // Render ungrouped rules
+  if (ungroupedRules.length > 0 || !searchQuery.trim()) {
+    const isCollapsed = collapsedGroups.has('ungrouped');
+    html += `
+      <div class="group-container ungrouped-container" data-group-id="ungrouped">
+        <div class="group-header ungrouped-header" data-group-id="ungrouped">
+          <div class="group-header-left">
+            <button class="group-collapse-btn ${isCollapsed ? 'collapsed' : ''}" data-group-id="ungrouped">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </button>
+            <div class="group-color-bar ungrouped-bar"></div>
+            <div class="group-title-info">
+              <span class="group-title">Ungrouped</span>
+              <span class="group-rule-count">${ungroupedRules.length} rule${ungroupedRules.length !== 1 ? 's' : ''}</span>
+            </div>
+          </div>
+        </div>
+        <div class="group-rules ${isCollapsed ? 'collapsed' : ''}" data-group-rules="ungrouped">
+          ${ungroupedRules.length === 0 ? `
+            <div class="group-empty-state">
+              <span>No ungrouped rules</span>
+            </div>
+          ` : ungroupedRules.map(rule => renderRuleItem(rule, null)).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  rulesList.innerHTML = html;
+
+  // Add event listeners
+  setupRuleEventListeners();
+  setupGroupEventListeners();
+
+  // Restore edit mode for rules that were previously in edit mode
+  for (const ruleId of activeEditRuleIds) {
+    if (rules.find(r => r.id === ruleId)) {
+      await toggleEditMode(ruleId, true);
+    } else {
+      activeEditRuleIds.delete(ruleId);
+    }
+  }
+}
+
+function renderRuleItem(rule, group) {
+  const isGroupDisabled = group && !group.enabled;
+
+  return `
+    <div class="rule-item ${rule.enabled ? '' : 'disabled'} ${isGroupDisabled ? 'group-disabled-rule' : ''}" data-rule-id="${rule.id}">
       <div class="rule-header">
         <div class="rule-info">
           <div class="rule-name" title="${escapeHtml(rule.name)}">
-            ${groupDot}
             ${escapeHtml(rule.name)}
           </div>
           <div class="rule-pattern" title="${escapeHtml(rule.urlPattern)}">${escapeHtml(rule.urlPattern)}</div>
@@ -218,15 +315,15 @@ async function displayRules(rules) {
           </div>
         </div>
         <div class="rule-actions">
-          <button class="btn-icon" data-rule-id="${rule.id}" title="Edit Rule">
+          <button class="btn-icon edit-rule-btn" data-rule-id="${rule.id}" title="Edit Rule">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
               <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
             </svg>
           </button>
           <div class="toggle-switch rule-toggle">
-            <input type="checkbox" id="rule-${rule.id}" class="toggle-input rule-toggle-input" data-rule-id="${rule.id}" ${rule.enabled ? 'checked' : ''}>
-            <label for="rule-${rule.id}" class="toggle-label"></label>
+            <input type="checkbox" id="rule-${rule.id}" class="toggle-input rule-toggle-input" data-rule-id="${rule.id}" ${rule.enabled ? 'checked' : ''} ${isGroupDisabled ? 'disabled' : ''}>
+            <label for="rule-${rule.id}" class="toggle-label ${isGroupDisabled ? 'toggle-disabled' : ''}"></label>
           </div>
         </div>
       </div>
@@ -255,9 +352,11 @@ async function displayRules(rules) {
         </div>
       </div>
     </div>
-  `}).join('');
+  `;
+}
 
-  // Add event listeners for rule toggles
+function setupRuleEventListeners() {
+  // Rule toggles
   document.querySelectorAll('.rule-toggle-input').forEach(toggle => {
     toggle.addEventListener('change', async (e) => {
       const ruleId = e.target.dataset.ruleId;
@@ -265,15 +364,16 @@ async function displayRules(rules) {
     });
   });
 
-  // Add event listeners for edit buttons
-  document.querySelectorAll('.btn-icon[data-rule-id]').forEach(btn => {
+  // Edit buttons
+  document.querySelectorAll('.edit-rule-btn').forEach(btn => {
     btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
       const ruleId = e.currentTarget.dataset.ruleId;
       await toggleEditMode(ruleId, true);
     });
   });
 
-  // Add event listeners for prettify buttons
+  // Prettify buttons
   document.querySelectorAll('.btn-prettify').forEach(btn => {
     btn.addEventListener('click', (e) => {
       const ruleId = e.target.dataset.ruleId;
@@ -281,7 +381,7 @@ async function displayRules(rules) {
     });
   });
 
-  // Add event listeners for save buttons
+  // Save buttons
   document.querySelectorAll('.btn-save').forEach(btn => {
     btn.addEventListener('click', async (e) => {
       const ruleId = e.target.dataset.ruleId;
@@ -289,21 +389,73 @@ async function displayRules(rules) {
     });
   });
 
-  // Add event listeners for cancel buttons
+  // Cancel buttons
   document.querySelectorAll('.btn-cancel').forEach(btn => {
     btn.addEventListener('click', (e) => {
       const ruleId = e.target.dataset.ruleId;
       toggleEditMode(ruleId, false);
     });
   });
+}
 
-  // Restore edit mode for rules that were previously in edit mode
-  for (const ruleId of activeEditRuleIds) {
-    if (rules.find(r => r.id === ruleId)) {
-      await toggleEditMode(ruleId, true);
-    } else {
-      activeEditRuleIds.delete(ruleId);
-    }
+function setupGroupEventListeners() {
+  // Group collapse buttons
+  document.querySelectorAll('.group-collapse-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const groupId = e.currentTarget.dataset.groupId;
+      toggleGroupCollapse(groupId);
+    });
+  });
+
+  // Group header click to collapse
+  document.querySelectorAll('.group-header').forEach(header => {
+    header.addEventListener('click', (e) => {
+      // Don't collapse if clicking on toggle
+      if (e.target.closest('.group-toggle')) return;
+      const groupId = header.dataset.groupId;
+      toggleGroupCollapse(groupId);
+    });
+  });
+
+  // Group toggles
+  document.querySelectorAll('.group-toggle-input').forEach(toggle => {
+    toggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+    });
+    toggle.addEventListener('change', async (e) => {
+      const groupId = e.target.dataset.groupId;
+      await toggleGroup(groupId);
+    });
+  });
+}
+
+function toggleGroupCollapse(groupId) {
+  const btn = document.querySelector(`.group-collapse-btn[data-group-id="${groupId}"]`);
+  const rulesContainer = document.querySelector(`[data-group-rules="${groupId}"]`);
+
+  if (collapsedGroups.has(groupId)) {
+    collapsedGroups.delete(groupId);
+    btn?.classList.remove('collapsed');
+    rulesContainer?.classList.remove('collapsed');
+  } else {
+    collapsedGroups.add(groupId);
+    btn?.classList.add('collapsed');
+    rulesContainer?.classList.add('collapsed');
+  }
+}
+
+async function toggleGroup(groupId) {
+  try {
+    await chrome.runtime.sendMessage({
+      action: 'toggleGroup',
+      groupId: groupId
+    });
+    showToast('Group toggled', 'success');
+    await loadRules();
+  } catch (error) {
+    console.error('Failed to toggle group:', error);
+    showToast('Failed to toggle group', 'error');
   }
 }
 
@@ -350,10 +502,9 @@ function setupEventListeners() {
   // Rule sorting and filtering controls
   const popupSortBy = document.getElementById('popupSortBy');
   const popupSortOrder = document.getElementById('popupSortOrder');
-  const popupHideDisabledGroupRules = document.getElementById('popupHideDisabledGroupRules');
   const popupEnabledRulesFirst = document.getElementById('popupEnabledRulesFirst');
 
-  [popupSortBy, popupSortOrder, popupHideDisabledGroupRules, popupEnabledRulesFirst].forEach(el => {
+  [popupSortBy, popupSortOrder, popupEnabledRulesFirst].forEach(el => {
     if (el) {
       el.addEventListener('change', () => {
         if (window.currentRules) {

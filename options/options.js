@@ -131,25 +131,10 @@ async function loadRules() {
 function sortAndFilterRules(rules) {
   const sortBy = document.getElementById('ruleSortBy')?.value || 'modified';
   const sortOrder = document.getElementById('ruleSortOrder')?.value || 'desc';
-  const hideDisabledGroupRules = document.getElementById('hideDisabledGroupRules')?.checked ?? true;
   const enabledRulesFirst = document.getElementById('enabledRulesFirst')?.checked ?? true;
 
-  // Filter rules from disabled groups
-  let filteredRules = rules;
-  if (hideDisabledGroupRules) {
-    filteredRules = rules.filter(rule => {
-      // If rule has no group, always show it
-      if (!rule.groupId) return true;
-
-      // If rule belongs to a group, check if group is enabled
-      const group = currentGroups.find(g => g.id === rule.groupId);
-      // Show if group doesn't exist or group is enabled
-      return !group || group.enabled;
-    });
-  }
-
   // Sort rules
-  const sortedRules = [...filteredRules].sort((a, b) => {
+  const sortedRules = [...rules].sort((a, b) => {
     // First, sort by enabled status if that option is checked
     if (enabledRulesFirst) {
       const enabledDiff = (b.enabled ? 1 : 0) - (a.enabled ? 1 : 0);
@@ -196,15 +181,25 @@ function displayRules(rules) {
 
     // Get group info if rule belongs to a group
     let groupIndicator = '';
+    let isGroupDisabled = false;
     if (rule.groupId) {
       const group = currentGroups.find(g => g.id === rule.groupId);
       if (group) {
-        groupIndicator = `<span class="group-indicator" style="border-left-color: ${group.color}; background: ${group.color}20; color: ${group.color};">${escapeHtml(group.name)}</span>`;
+        isGroupDisabled = !group.enabled;
+        const statusText = isGroupDisabled ? ' (Group Disabled)' : '';
+        groupIndicator = `<span class="group-indicator ${isGroupDisabled ? 'group-disabled' : ''}" style="border-left-color: ${group.color}; background: ${group.color}20; color: ${group.color};">${escapeHtml(group.name)}${statusText}</span>`;
       }
     }
 
+    const cardClasses = [
+      'rule-card',
+      rule.enabled ? '' : 'disabled',
+      isGroupDisabled ? 'group-disabled-card' : ''
+    ].filter(Boolean).join(' ');
+
     return `
-      <div class="rule-card ${rule.enabled ? '' : 'disabled'}">
+      <div class="${cardClasses}">
+        ${isGroupDisabled ? '<div class="group-disabled-banner">Inactive - Group is disabled</div>' : ''}
         <div class="rule-card-header">
           <div>
             <div class="rule-card-title">
@@ -214,8 +209,8 @@ function displayRules(rules) {
             ${rule.description ? `<div class="rule-card-description">${escapeHtml(rule.description)}</div>` : ''}
           </div>
           <div class="toggle-switch-small">
-            <input type="checkbox" id="toggle-${rule.id}" ${rule.enabled ? 'checked' : ''} data-rule-id="${rule.id}">
-            <label for="toggle-${rule.id}"></label>
+            <input type="checkbox" id="toggle-${rule.id}" ${rule.enabled ? 'checked' : ''} ${isGroupDisabled ? 'disabled' : ''} data-rule-id="${rule.id}">
+            <label for="toggle-${rule.id}" ${isGroupDisabled ? 'class="toggle-disabled"' : ''}></label>
           </div>
         </div>
 
@@ -289,40 +284,17 @@ function setupEventListeners() {
   // Rule sorting and filtering controls
   const ruleSortBy = document.getElementById('ruleSortBy');
   const ruleSortOrder = document.getElementById('ruleSortOrder');
-  const hideDisabledGroupRules = document.getElementById('hideDisabledGroupRules');
   const enabledRulesFirst = document.getElementById('enabledRulesFirst');
 
-  if (ruleSortBy) {
-    ruleSortBy.addEventListener('change', () => {
-      if (window.currentRules) {
-        displayRules(window.currentRules);
-      }
-    });
-  }
-
-  if (ruleSortOrder) {
-    ruleSortOrder.addEventListener('change', () => {
-      if (window.currentRules) {
-        displayRules(window.currentRules);
-      }
-    });
-  }
-
-  if (hideDisabledGroupRules) {
-    hideDisabledGroupRules.addEventListener('change', () => {
-      if (window.currentRules) {
-        displayRules(window.currentRules);
-      }
-    });
-  }
-
-  if (enabledRulesFirst) {
-    enabledRulesFirst.addEventListener('change', () => {
-      if (window.currentRules) {
-        displayRules(window.currentRules);
-      }
-    });
-  }
+  [ruleSortBy, ruleSortOrder, enabledRulesFirst].forEach(el => {
+    if (el) {
+      el.addEventListener('change', () => {
+        if (window.currentRules) {
+          displayRules(window.currentRules);
+        }
+      });
+    }
+  });
 
   // Add new rule button
   document.getElementById('addNewRuleBtn').addEventListener('click', () => {
