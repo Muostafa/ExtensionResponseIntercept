@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SecureApp - Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #fff;
+        }
+
+        .navbar {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #00d4ff;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+
+        .role-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .role-badge.user {
+            background: #4a5568;
+            color: #a0aec0;
+        }
+
+        .role-badge.admin {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .dashboard-header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .dashboard-header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .dashboard-header p {
+            color: #a0aec0;
+        }
+
+        .api-response-box {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .api-response-box h3 {
+            color: #00d4ff;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .api-response-box pre {
+            background: #0d1117;
+            padding: 1rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        .api-response-box .key {
+            color: #79c0ff;
+        }
+
+        .api-response-box .string {
+            color: #a5d6ff;
+        }
+
+        .api-response-box .boolean-true {
+            color: #7ee787;
+        }
+
+        .api-response-box .boolean-false {
+            color: #f85149;
+        }
+
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            padding: 1.5rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .card-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .card-icon.blue { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .card-icon.green { background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); }
+        .card-icon.orange { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
+        .card-icon.purple { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
+
+        .card h3 {
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .card p {
+            color: #a0aec0;
+            font-size: 0.9rem;
+        }
+
+        .card .stat {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #00d4ff;
+            margin-top: 0.5rem;
+        }
+
+        /* Admin Section - Initially Hidden */
+        .admin-section {
+            display: none;
+            margin-top: 2rem;
+            padding-top: 2rem;
+            border-top: 2px solid rgba(248, 81, 73, 0.3);
+        }
+
+        .admin-section.visible {
+            display: block;
+            animation: fadeIn 0.5s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .admin-section h2 {
+            color: #f85149;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .admin-section h2::before {
+            content: "🔐";
+        }
+
+        .admin-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .admin-card {
+            background: linear-gradient(135deg, rgba(248, 81, 73, 0.1) 0%, rgba(240, 147, 251, 0.1) 100%);
+            border: 1px solid rgba(248, 81, 73, 0.3);
+            border-radius: 16px;
+            padding: 1.5rem;
+        }
+
+        .admin-card h3 {
+            color: #f093fb;
+            margin-bottom: 0.5rem;
+        }
+
+        .admin-card p {
+            color: #a0aec0;
+            font-size: 0.9rem;
+        }
+
+        .admin-card .danger-btn {
+            margin-top: 1rem;
+            padding: 0.5rem 1rem;
+            background: linear-gradient(135deg, #f85149 0%, #da3633 100%);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            cursor: pointer;
+            font-weight: 600;
+            transition: transform 0.2s;
+        }
+
+        .admin-card .danger-btn:hover {
+            transform: scale(1.05);
+        }
+
+        .access-denied {
+            background: rgba(248, 81, 73, 0.1);
+            border: 1px solid rgba(248, 81, 73, 0.3);
+            border-radius: 12px;
+            padding: 2rem;
+            text-align: center;
+            margin-top: 2rem;
+        }
+
+        .access-denied h3 {
+            color: #f85149;
+            margin-bottom: 0.5rem;
+        }
+
+        .access-denied p {
+            color: #a0aec0;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 3rem;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-top-color: #00d4ff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .refresh-btn {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            padding: 1rem 1.5rem;
+            background: linear-gradient(135deg, #00d4ff 0%, #0099cc 100%);
+            border: none;
+            border-radius: 50px;
+            color: white;
+            cursor: pointer;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            box-shadow: 0 10px 30px rgba(0, 212, 255, 0.3);
+            transition: transform 0.2s;
+        }
+
+        .refresh-btn:hover {
+            transform: scale(1.05);
+        }
+
+        .endpoint-info {
+            background: rgba(0, 212, 255, 0.1);
+            border: 1px solid rgba(0, 212, 255, 0.3);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            font-family: monospace;
+            font-size: 0.85rem;
+        }
+
+        .endpoint-info span {
+            color: #00d4ff;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="logo">SecureApp</div>
+        <div class="user-info">
+            <span id="userName">Loading...</span>
+            <span id="roleBadge" class="role-badge user">User</span>
+            <div class="avatar" id="userAvatar">?</div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="dashboard-header">
+            <h1>Welcome to Your Dashboard</h1>
+            <p>View your account information and manage your settings</p>
+        </div>
+
+        <div class="api-response-box">
+            <h3>API Response from /api/user/profile</h3>
+            <div class="endpoint-info">
+                GET <span>https://demo-api.example.com/api/user/profile</span>
+            </div>
+            <pre id="apiResponse">Loading...</pre>
+        </div>
+
+        <div id="content">
+            <div class="loading">
+                <div class="spinner"></div>
+                <p>Fetching user data...</p>
+            </div>
+        </div>
+
+        <!-- Admin Section - Only visible when isAdmin: true -->
+        <div class="admin-section" id="adminSection">
+            <h2>Admin Control Panel</h2>
+            <div class="admin-cards">
+                <div class="admin-card">
+                    <h3>User Management</h3>
+                    <p>Manage all user accounts, reset passwords, and modify permissions.</p>
+                    <button class="danger-btn">Manage Users</button>
+                </div>
+                <div class="admin-card">
+                    <h3>System Settings</h3>
+                    <p>Configure application settings, API keys, and security policies.</p>
+                    <button class="danger-btn">Open Settings</button>
+                </div>
+                <div class="admin-card">
+                    <h3>Database Access</h3>
+                    <p>Direct access to database queries and data export functionality.</p>
+                    <button class="danger-btn">Access Database</button>
+                </div>
+                <div class="admin-card">
+                    <h3>Audit Logs</h3>
+                    <p>View complete system logs, user activities, and security events.</p>
+                    <button class="danger-btn">View Logs</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Access Denied Message for non-admins -->
+        <div class="access-denied" id="accessDenied" style="display: none;">
+            <h3>Admin Access Required</h3>
+            <p>You don't have permission to view the admin control panel.</p>
+            <p style="margin-top: 0.5rem; font-size: 0.85rem; color: #666;">Your role: <strong>Regular User</strong> | Required: <strong>Admin</strong></p>
+        </div>
+    </div>
+
+    <button class="refresh-btn" onclick="location.reload()">
+        🔄 Refresh Page
+    </button>
+
+    <script>
+        // Simulated API endpoint - In real scenario this would be an actual API call
+        const API_URL = 'https://demo-api.example.com/api/user/profile';
+
+        // This simulates what the API would return
+        // The extension can intercept and modify this response!
+        const mockApiResponse = {
+            success: true,
+            user: {
+                id: 12847,
+                name: "John Developer",
+                email: "john@example.com",
+                role: "user",
+                isAdmin: false,  // <-- This is what we'll change with the extension!
+                subscription: "pro",
+                createdAt: "2024-03-15"
+            }
+        };
+
+        function formatJsonWithHighlighting(obj, indent = 0) {
+            const spaces = '  '.repeat(indent);
+            let result = '';
+
+            if (typeof obj === 'object' && obj !== null) {
+                const isArray = Array.isArray(obj);
+                result += isArray ? '[\n' : '{\n';
+
+                const entries = Object.entries(obj);
+                entries.forEach(([key, value], index) => {
+                    const comma = index < entries.length - 1 ? ',' : '';
+                    const keyStr = isArray ? '' : `<span class="key">"${key}"</span>: `;
+
+                    if (typeof value === 'object' && value !== null) {
+                        result += `${spaces}  ${keyStr}${formatJsonWithHighlighting(value, indent + 1)}${comma}\n`;
+                    } else if (typeof value === 'string') {
+                        result += `${spaces}  ${keyStr}<span class="string">"${value}"</span>${comma}\n`;
+                    } else if (typeof value === 'boolean') {
+                        const boolClass = value ? 'boolean-true' : 'boolean-false';
+                        result += `${spaces}  ${keyStr}<span class="${boolClass}">${value}</span>${comma}\n`;
+                    } else {
+                        result += `${spaces}  ${keyStr}${value}${comma}\n`;
+                    }
+                });
+
+                result += spaces + (isArray ? ']' : '}');
+            }
+
+            return result;
+        }
+
+        async function fetchUserProfile() {
+            // Simulate network delay
+            await new Promise(resolve => setTimeout(resolve, 800));
+
+            // In a real app, this would be: const response = await fetch(API_URL);
+            // For demo purposes, we're using a mock that the extension can intercept
+
+            // Make actual fetch call so the extension can intercept it
+            try {
+                const response = await fetch(API_URL);
+                const data = await response.json();
+                return data;
+            } catch (error) {
+                // If fetch fails (expected since it's a fake URL), return mock data
+                // The extension intercepts BEFORE this fallback is needed
+                return mockApiResponse;
+            }
+        }
+
+        async function initDashboard() {
+            try {
+                const data = await fetchUserProfile();
+
+                // Display the API response
+                document.getElementById('apiResponse').innerHTML = formatJsonWithHighlighting(data);
+
+                // Update UI based on response
+                const user = data.user;
+
+                document.getElementById('userName').textContent = user.name;
+                document.getElementById('userAvatar').textContent = user.name.charAt(0);
+
+                // Update role badge
+                const roleBadge = document.getElementById('roleBadge');
+                if (user.isAdmin) {
+                    roleBadge.textContent = 'Admin';
+                    roleBadge.className = 'role-badge admin';
+                } else {
+                    roleBadge.textContent = 'User';
+                    roleBadge.className = 'role-badge user';
+                }
+
+                // Show main content
+                const contentHtml = `
+                    <div class="cards-grid">
+                        <div class="card">
+                            <div class="card-icon blue">📊</div>
+                            <h3>Your Projects</h3>
+                            <p>Active projects and tasks</p>
+                            <div class="stat">12</div>
+                        </div>
+                        <div class="card">
+                            <div class="card-icon green">💰</div>
+                            <h3>Subscription</h3>
+                            <p>Current plan: ${user.subscription.toUpperCase()}</p>
+                            <div class="stat">Active</div>
+                        </div>
+                        <div class="card">
+                            <div class="card-icon orange">📈</div>
+                            <h3>API Calls</h3>
+                            <p>This month's usage</p>
+                            <div class="stat">8,421</div>
+                        </div>
+                        <div class="card">
+                            <div class="card-icon purple">🔔</div>
+                            <h3>Notifications</h3>
+                            <p>Unread messages</p>
+                            <div class="stat">3</div>
+                        </div>
+                    </div>
+                `;
+
+                document.getElementById('content').innerHTML = contentHtml;
+
+                // Handle admin section visibility based on isAdmin
+                const adminSection = document.getElementById('adminSection');
+                const accessDenied = document.getElementById('accessDenied');
+
+                if (user.isAdmin === true) {
+                    // User is admin - show admin panel
+                    adminSection.classList.add('visible');
+                    accessDenied.style.display = 'none';
+                } else {
+                    // User is not admin - show access denied
+                    adminSection.classList.remove('visible');
+                    accessDenied.style.display = 'block';
+                }
+
+            } catch (error) {
+                console.error('Error fetching user profile:', error);
+                document.getElementById('content').innerHTML = `
+                    <div class="access-denied">
+                        <h3>Error Loading Dashboard</h3>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Initialize on page load
+        initDashboard();
+    </script>
+</body>
+</html>
