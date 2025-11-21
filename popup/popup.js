@@ -304,10 +304,10 @@ function setupStorageListener() {
         loadRules();
       }
 
-      // Reload groups if they changed
+      // Reload groups if they changed - reload rules since groups affect rule display
       if (changes.groups) {
-        console.log('Groups changed, reloading...');
-        loadGroups();
+        console.log('Groups changed, reloading rules...');
+        loadRules(); // Reload rules to reflect group changes
       }
 
       // Reload settings if they changed
@@ -573,6 +573,8 @@ async function saveJsonEdit(ruleId) {
 }
 
 function escapeHtml(text) {
+  if (text === null || text === undefined) return '';
+  if (typeof text !== 'string') text = String(text);
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;

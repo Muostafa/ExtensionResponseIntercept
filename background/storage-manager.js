@@ -304,22 +304,65 @@ export class StorageManager {
     };
   }
 
+  /**
+   * Validate a rule has required fields and proper structure
+   */
+  validateRule(rule) {
+    if (!rule || typeof rule !== 'object') {
+      return { valid: false, reason: 'Rule must be an object' };
+    }
+    if (!rule.name || typeof rule.name !== 'string') {
+      return { valid: false, reason: 'Rule must have a name' };
+    }
+    if (!rule.urlPattern || typeof rule.urlPattern !== 'string') {
+      return { valid: false, reason: 'Rule must have a URL pattern' };
+    }
+    if (!rule.matchType || !['exact', 'wildcard', 'regex', 'contains'].includes(rule.matchType)) {
+      return { valid: false, reason: 'Rule must have a valid match type' };
+    }
+    return { valid: true };
+  }
+
+  /**
+   * Validate a group has required fields and proper structure
+   */
+  validateGroup(group) {
+    if (!group || typeof group !== 'object') {
+      return { valid: false, reason: 'Group must be an object' };
+    }
+    if (!group.name || typeof group.name !== 'string') {
+      return { valid: false, reason: 'Group must have a name' };
+    }
+    return { valid: true };
+  }
+
   async importRules(data) {
     let importedCount = 0;
+    let skippedCount = 0;
 
     // Import groups first (if present)
     if (data.groups && Array.isArray(data.groups)) {
       const groupIdMap = {}; // Map old IDs to new IDs
 
-      const importedGroups = data.groups.map(group => {
-        const oldId = group.id;
-        const newGroup = {
-          ...group,
-          id: this.generateGroupId()
-        };
-        groupIdMap[oldId] = newGroup.id;
-        return newGroup;
-      });
+      const importedGroups = data.groups
+        .filter(group => {
+          const validation = this.validateGroup(group);
+          if (!validation.valid) {
+            console.warn('Skipping invalid group during import:', validation.reason, group);
+            return false;
+          }
+          return true;
+        })
+        .map(group => {
+          const oldId = group.id;
+          const newGroup = {
+            ...group,
+            id: this.generateGroupId(),
+            enabled: group.enabled !== false // Default to enabled
+          };
+          groupIdMap[oldId] = newGroup.id;
+          return newGroup;
+        });
 
       this.groups = [...this.groups, ...importedGroups];
       await this.saveGroups();
@@ -327,36 +370,67 @@ export class StorageManager {
       // Import rules and update group references
       if (data.rules && Array.isArray(data.rules)) {
         const now = Date.now();
-        const importedRules = data.rules.map(rule => {
+        const validRules = [];
+
+        for (const rule of data.rules) {
+          const validation = this.validateRule(rule);
+          if (!validation.valid) {
+            console.warn('Skipping invalid rule during import:', validation.reason, rule);
+            skippedCount++;
+            continue;
+          }
+
           const newRule = {
             ...rule,
             id: this.generateId(),
+            enabled: rule.enabled !== false, // Default to enabled
             createdAt: rule.createdAt || now,
             modifiedAt: rule.modifiedAt || now
           };
           // Update groupId if rule was in a group
           if (newRule.groupId && groupIdMap[newRule.groupId]) {
             newRule.groupId = groupIdMap[newRule.groupId];
+          } else if (newRule.groupId && !groupIdMap[newRule.groupId]) {
+            // Group doesn't exist in import, remove reference
+            delete newRule.groupId;
           }
-          return newRule;
-        });
-        this.rules = [...this.rules, ...importedRules];
+          validRules.push(newRule);
+        }
+
+        this.rules = [...this.rules, ...validRules];
         await this.saveRules();
-        importedCount = importedRules.length;
+        importedCount = validRules.length;
       }
     } else if (data.rules && Array.isArray(data.rules)) {
       // Legacy import (v1.0) - only rules, no groups
       const now = Date.now();
-      const importedRules = data.rules.map(rule => ({
-        ...rule,
-        id: this.generateId(),
-        groupId: undefined, // Clear any group references from old import
-        createdAt: rule.createdAt || now,
-        modifiedAt: rule.modifiedAt || now
-      }));
-      this.rules = [...this.rules, ...importedRules];
+      const validRules = [];
+
+      for (const rule of data.rules) {
+        const validation = this.validateRule(rule);
+        if (!validation.valid) {
+          console.warn('Skipping invalid rule during import:', validation.reason, rule);
+          skippedCount++;
+          continue;
+        }
+
+        validRules.push({
+          ...rule,
+          id: this.generateId(),
+          enabled: rule.enabled !== false, // Default to enabled
+          groupId: undefined, // Clear any group references from old import
+          createdAt: rule.createdAt || now,
+          modifiedAt: rule.modifiedAt || now
+        });
+      }
+
+      this.rules = [...this.rules, ...validRules];
       await this.saveRules();
-      importedCount = importedRules.length;
+      importedCount = validRules.length;
+    }
+
+    if (skippedCount > 0) {
+      console.warn(`Import completed: ${importedCount} rules imported, ${skippedCount} rules skipped due to validation errors`);
     }
 
     return importedCount;
