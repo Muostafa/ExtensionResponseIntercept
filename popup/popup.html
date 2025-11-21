@@ -179,13 +179,25 @@
         <div class="section-title">
           <h2>Network Requests</h2>
         </div>
-        <button id="clearNetworkLogs" class="btn-ghost" title="Clear logs">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="3 6 5 6 21 6"/>
-            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-          </svg>
-          Clear
-        </button>
+        <div class="network-header-actions">
+          <button id="toggleNetworkLogging" class="btn-ghost logging-active" title="Stop logging">
+            <svg class="icon-record" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+              <circle cx="12" cy="12" r="6"/>
+            </svg>
+            <svg class="icon-paused" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: none;">
+              <rect x="6" y="4" width="4" height="16"/>
+              <rect x="14" y="4" width="4" height="16"/>
+            </svg>
+            <span id="toggleLoggingText">Recording</span>
+          </button>
+          <button id="clearNetworkLogs" class="btn-ghost" title="Clear logs">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+            </svg>
+            Clear
+          </button>
+        </div>
       </div>
 
       <div class="network-search-container">

@@ -8,6 +8,7 @@ export class ResponseInterceptor {
     this.networkLogs = new Map(); // Store network logs per tab
     this.MAX_TABS = 100; // Limit to prevent memory issues
     this.MAX_LOGS_PER_TAB = 100; // Limit logs per tab
+    this.isLoggingEnabled = true; // Network logging enabled by default
     this.setupDebuggerListener();
     this.startPeriodicCleanup();
   }
@@ -422,9 +423,14 @@ export class ResponseInterceptor {
 
   /**
    * Log a network request for the "Create Rule from Network" feature
-   * @returns {string} The log entry ID
+   * @returns {string|null} The log entry ID, or null if logging is disabled
    */
   logNetworkRequest(tabId, requestData) {
+    // Skip logging if disabled
+    if (!this.isLoggingEnabled) {
+      return null;
+    }
+
     if (!this.networkLogs.has(tabId)) {
       this.networkLogs.set(tabId, []);
     }
@@ -517,6 +523,21 @@ export class ResponseInterceptor {
     } else {
       this.networkLogs.clear();
     }
+  }
+
+  /**
+   * Check if network logging is enabled
+   */
+  isNetworkLoggingEnabled() {
+    return this.isLoggingEnabled;
+  }
+
+  /**
+   * Enable or disable network logging
+   */
+  setNetworkLogging(enabled) {
+    this.isLoggingEnabled = enabled;
+    console.log(`Network logging ${enabled ? 'enabled' : 'disabled'}`);
   }
 
   /**
