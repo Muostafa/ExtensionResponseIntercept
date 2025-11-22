@@ -18,9 +18,8 @@ Developer tool to intercept and modify API responses in real-time. Test edge cas
 
 **Response Modification**
 - Replace entire response bodies with custom JSON
-- Modify specific JSON fields using path notation
+- Modify specific JSON fields using JSON path notation
 - Use regex find & replace for text transformations
-- Write custom JavaScript functions for complex transformations
 
 **Header Management**
 - Add, modify, or remove response headers
@@ -89,9 +88,6 @@ Allows the extension to attach the debugger to the currently active tab when the
 
 ### tabs
 Required to track which tabs have an active debugger session and display the correct status in the extension popup.
-
-### webRequest
-Enables monitoring of network requests to identify which ones match user-defined interception rules.
 
 ### Host Permissions (<all_urls>)
 Since this is a developer tool meant to test APIs on any website or localhost development server, broad host permissions are required. The extension only intercepts requests on tabs where the user has explicitly attached the debugger.
