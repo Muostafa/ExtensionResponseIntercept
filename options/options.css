@@ -104,17 +104,6 @@ body {
   gap: 10px;
 }
 
-.logo h1::before {
-  content: '';
-  width: 32px;
-  height: 32px;
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: var(--border-radius-sm);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
 .nav {
   margin-top: 16px;
   padding: 0 12px;

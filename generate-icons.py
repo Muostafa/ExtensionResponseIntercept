@@ -25,13 +25,9 @@ def create_icon(size):
     img = Image.new('RGBA', (size, size), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
 
-    # Colors - Modern teal/cyan gradient (network/tech feel)
-    color_start = (20, 184, 166)   # Teal #14B8A6
-    color_end = (6, 95, 124)       # Dark cyan #065F7C
-
-    # Alternative: Purple gradient (original)
-    # color_start = (139, 92, 246)   # Purple #8B5CF6
-    # color_end = (109, 40, 217)     # Darker purple #6D28D9
+    # Colors - Indigo to Purple gradient (matching app theme)
+    color_start = (99, 102, 241)   # Indigo #6366F1 (--primary)
+    color_end = (139, 92, 246)     # Purple #8B5CF6 (--secondary)
 
     scale = size / 128  # Base scale from 128px
     padding = int(8 * scale)
@@ -180,7 +176,7 @@ def main():
         print(f'Created {filename}')
 
     print('\nIcons generated successfully!')
-    print('Icons feature: Teal gradient with JSON brackets {{ }} and intercept arrow')
+    print('Icons feature: Indigo-purple gradient with JSON brackets {{ }} and intercept arrow')
     print('You can now load the extension in Chrome.')
 
 
