@@ -52,15 +52,11 @@ function handleRuleTriggeredNotification(notification) {
 
   const actionLabels = {
     'intercepted': 'Intercepted',
-    'redirected': 'Redirected',
-    'modified': 'Modified',
     'delayed': 'Delayed'
   };
 
   const actionIcons = {
     'intercepted': '✓',
-    'redirected': '↪',
-    'modified': '✎',
     'delayed': '⏱'
   };
 
@@ -395,21 +391,8 @@ async function displayRules(rules) {
 function renderRuleItem(rule, group) {
   const isGroupDisabled = group && !group.enabled;
 
-  // Determine action type
-  const actionType = rule.actionType || 'mockResponse';
-  const actionLabels = {
-    'mockResponse': 'Mock',
-    'redirect': 'Redirect',
-    'modifyRequest': 'Modify Req'
-  };
-  const actionClasses = {
-    'mockResponse': 'action-mock',
-    'redirect': 'action-redirect',
-    'modifyRequest': 'action-modify'
-  };
-
   // Build action badges
-  let actionBadges = `<span class="rule-tag ${actionClasses[actionType]}">${actionLabels[actionType]}</span>`;
+  let actionBadges = `<span class="rule-tag action-mock">Mock</span>`;
   if (rule.delay && rule.delay > 0) {
     actionBadges += `<span class="rule-tag delay">${rule.delay}ms</span>`;
   }

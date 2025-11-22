@@ -279,98 +279,16 @@
             </div>
           </div>
 
-          <!-- Action Type - NEW -->
-          <div class="form-group">
-            <label for="actionType">Action Type</label>
-            <select id="actionType" class="form-control">
-              <option value="mockResponse">Mock Response</option>
-              <option value="redirect">Redirect Request</option>
-              <option value="modifyRequest">Modify Request Body</option>
-            </select>
-            <small class="form-hint">Choose what action to perform on matching requests</small>
-          </div>
-
-          <!-- Delay Input - NEW -->
+          <!-- Delay Input -->
           <div class="form-group">
             <label for="ruleDelay">Delay (ms)</label>
             <input type="number" id="ruleDelay" class="form-control" placeholder="e.g., 1000, 2000" min="0" max="30000">
             <small class="form-hint">Add artificial delay in milliseconds (max 30 seconds). Useful for testing loading states.</small>
           </div>
 
-          <!-- Redirect Options - NEW -->
-          <div id="redirectOptions" class="action-options" style="display: none;">
-            <div class="form-group">
-              <label for="redirectUrl">Redirect URL</label>
-              <input type="text" id="redirectUrl" class="form-control" placeholder="https://staging-api.example.com{path}">
-              <small class="form-hint">
-                Use placeholders: {url}, {protocol}, {host}, {path}, {query}, {origin}<br>
-                Example: https://staging.api.com{path}{query}
-              </small>
-            </div>
-          </div>
-
-          <!-- Modify Request Body Options - NEW -->
-          <div id="modifyRequestOptions" class="action-options" style="display: none;">
-            <div class="form-group">
-              <label for="requestModifyType">Request Modification Type</label>
-              <select id="requestModifyType" class="form-control">
-                <option value="replace">Replace Entire Body</option>
-                <option value="json-path">Modify JSON Path</option>
-                <option value="regex">Regex Find & Replace</option>
-                <option value="merge">Merge JSON Objects</option>
-              </select>
-            </div>
-
-            <!-- Request Replace Body -->
-            <div id="requestReplaceOptions" class="request-mod-options">
-              <div class="form-group">
-                <label for="requestReplaceValue">New Request Body</label>
-                <textarea id="requestReplaceValue" class="form-control code-editor" rows="6" placeholder='{"key": "value"}'></textarea>
-              </div>
-            </div>
-
-            <!-- Request JSON Path -->
-            <div id="requestJsonPathOptions" class="request-mod-options" style="display: none;">
-              <div class="form-group">
-                <label for="requestJsonPath">JSON Path</label>
-                <input type="text" id="requestJsonPath" class="form-control" placeholder="data.userId">
-              </div>
-              <div class="form-group">
-                <label for="requestJsonValue">New Value</label>
-                <input type="text" id="requestJsonValue" class="form-control" placeholder='"test-user-123"'>
-              </div>
-            </div>
-
-            <!-- Request Regex -->
-            <div id="requestRegexOptions" class="request-mod-options" style="display: none;">
-              <div class="form-group">
-                <label for="requestRegexPattern">Regex Pattern</label>
-                <input type="text" id="requestRegexPattern" class="form-control" placeholder="password">
-              </div>
-              <div class="form-group">
-                <label for="requestRegexReplacement">Replacement</label>
-                <input type="text" id="requestRegexReplacement" class="form-control" placeholder="***">
-              </div>
-              <div class="form-group">
-                <label for="requestRegexFlags">Flags</label>
-                <input type="text" id="requestRegexFlags" class="form-control" placeholder="gi" value="g">
-              </div>
-            </div>
-
-            <!-- Request Merge JSON -->
-            <div id="requestMergeOptions" class="request-mod-options" style="display: none;">
-              <div class="form-group">
-                <label for="requestMergeValue">JSON to Merge</label>
-                <textarea id="requestMergeValue" class="form-control code-editor" rows="6" placeholder='{"additionalField": "value"}'></textarea>
-                <small class="form-hint">This JSON will be merged with the original request body</small>
-              </div>
-            </div>
-          </div>
-
-          <!-- Mock Response Options (existing, wrapped) -->
-          <div id="mockResponseOptions" class="action-options">
-            <div class="form-group">
-              <label for="modifyType">Response Modification Type</label>
+          <!-- Response Modification Options -->
+          <div class="form-group">
+            <label for="modifyType">Response Modification Type</label>
             <select id="modifyType" class="form-control">
               <option value="replace">Replace Entire Body</option>
               <option value="json-path">Modify JSON Path</option>
@@ -441,7 +359,6 @@
               <button type="button" id="clearHeadersBtn" class="btn btn-danger btn-small">Clear All Headers</button>
             </div>
           </div>
-          </div><!-- End mockResponseOptions -->
 
           <div class="form-group">
             <label class="checkbox-label">

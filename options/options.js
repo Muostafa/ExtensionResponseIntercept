@@ -524,21 +524,11 @@ function getModifyTypeLabel(type) {
 }
 
 function getActionTypeLabel(actionType) {
-  const labels = {
-    'mockResponse': 'Mock Response',
-    'redirect': 'Redirect',
-    'modifyRequest': 'Modify Request'
-  };
-  return labels[actionType] || 'Mock Response';
+  return 'Mock Response';
 }
 
 function getActionTypeClass(actionType) {
-  const classes = {
-    'mockResponse': 'action-mock',
-    'redirect': 'action-redirect',
-    'modifyRequest': 'action-modify'
-  };
-  return classes[actionType] || 'action-mock';
+  return 'action-mock';
 }
 
 // Setup event listeners
@@ -587,16 +577,6 @@ function setupEventListeners() {
     currentEditingRuleId = null;
     resetForm();
     showTab('rules');
-  });
-
-  // Action type change (NEW)
-  document.getElementById('actionType').addEventListener('change', (e) => {
-    updateActionTypeOptions(e.target.value);
-  });
-
-  // Request modify type change (NEW)
-  document.getElementById('requestModifyType').addEventListener('change', (e) => {
-    updateRequestModificationOptions(e.target.value);
   });
 
   // Modify type change
@@ -649,46 +629,6 @@ function setupEventListeners() {
       closeDeleteGroupModal();
     }
   });
-}
-
-function updateActionTypeOptions(actionType) {
-  // Hide all action options
-  document.querySelectorAll('.action-options').forEach(el => {
-    el.style.display = 'none';
-  });
-
-  // Show selected action options
-  switch (actionType) {
-    case 'mockResponse':
-      document.getElementById('mockResponseOptions').style.display = 'block';
-      break;
-    case 'redirect':
-      document.getElementById('redirectOptions').style.display = 'block';
-      break;
-    case 'modifyRequest':
-      document.getElementById('modifyRequestOptions').style.display = 'block';
-      break;
-  }
-}
-
-function updateRequestModificationOptions(type) {
-  // Hide all request modification options
-  document.querySelectorAll('.request-mod-options').forEach(el => {
-    el.style.display = 'none';
-  });
-
-  // Show selected option
-  const optionMap = {
-    'replace': 'requestReplaceOptions',
-    'json-path': 'requestJsonPathOptions',
-    'regex': 'requestRegexOptions',
-    'merge': 'requestMergeOptions'
-  };
-
-  const selectedOption = document.getElementById(optionMap[type]);
-  if (selectedOption) {
-    selectedOption.style.display = 'block';
-  }
 }
 
 function updateModificationOptions(type) {
@@ -775,7 +715,6 @@ function collectFormData() {
   const description = document.getElementById('ruleDescription').value.trim();
   const urlPattern = document.getElementById('urlPattern').value.trim();
   const matchType = document.getElementById('matchType').value;
-  const actionType = document.getElementById('actionType').value;
   const modifyType = document.getElementById('modifyType').value;
   const enabled = document.getElementById('ruleEnabled').checked;
 
@@ -804,7 +743,6 @@ function collectFormData() {
     urlPattern,
     matchType,
     methods,
-    actionType,
     enabled
   };
 
@@ -813,80 +751,56 @@ function collectFormData() {
     ruleData.delay = delay;
   }
 
-  // Handle different action types
-  switch (actionType) {
-    case 'redirect':
-      const redirectUrl = document.getElementById('redirectUrl').value.trim();
-      if (!redirectUrl) {
-        showToast('Please enter a redirect URL', 'error');
+  // Get modification data based on type
+  let modification = {};
+
+  switch (modifyType) {
+    case 'replace':
+      modification = {
+        type: 'text',
+        value: document.getElementById('replaceValue').value
+      };
+      break;
+
+    case 'json-path':
+      modification = {
+        path: document.getElementById('jsonPath').value,
+        value: document.getElementById('jsonValue').value
+      };
+      break;
+
+    case 'regex':
+      modification = {
+        pattern: document.getElementById('regexPattern').value,
+        replacement: document.getElementById('regexReplacement').value,
+        flags: document.getElementById('regexFlags').value
+      };
+      break;
+  }
+
+  ruleData.modifyType = modifyType;
+  ruleData.modification = modification;
+
+  // Get status code modification
+  const statusCode = document.getElementById('modifyStatusCode').value.trim();
+  if (statusCode) {
+    const validation = validateStatusCode(statusCode);
+    if (!validation.valid) {
+      showToast(validation.message, 'error');
+      return null;
+    }
+    if (validation.warning) {
+      if (!confirm(validation.warning)) {
         return null;
       }
-      ruleData.redirectUrl = redirectUrl;
-      break;
+    }
+    ruleData.modifyStatusCode = parseInt(statusCode, 10);
+  }
 
-    case 'modifyRequest':
-      const requestModifyType = document.getElementById('requestModifyType').value;
-      const requestBodyModification = collectRequestBodyModification(requestModifyType);
-      if (!requestBodyModification) {
-        return null;
-      }
-      ruleData.requestBodyModification = requestBodyModification;
-      break;
-
-    case 'mockResponse':
-    default:
-      // Get modification data based on type
-      let modification = {};
-
-      switch (modifyType) {
-        case 'replace':
-          modification = {
-            type: 'text',
-            value: document.getElementById('replaceValue').value
-          };
-          break;
-
-        case 'json-path':
-          modification = {
-            path: document.getElementById('jsonPath').value,
-            value: document.getElementById('jsonValue').value
-          };
-          break;
-
-        case 'regex':
-          modification = {
-            pattern: document.getElementById('regexPattern').value,
-            replacement: document.getElementById('regexReplacement').value,
-            flags: document.getElementById('regexFlags').value
-          };
-          break;
-      }
-
-      ruleData.modifyType = modifyType;
-      ruleData.modification = modification;
-
-      // Get status code modification
-      const statusCode = document.getElementById('modifyStatusCode').value.trim();
-      if (statusCode) {
-        const validation = validateStatusCode(statusCode);
-        if (!validation.valid) {
-          showToast(validation.message, 'error');
-          return null;
-        }
-        if (validation.warning) {
-          if (!confirm(validation.warning)) {
-            return null;
-          }
-        }
-        ruleData.modifyStatusCode = parseInt(statusCode, 10);
-      }
-
-      // Get header modifications
-      const modifyHeaders = getHeaderModifications();
-      if (modifyHeaders.length > 0) {
-        ruleData.modifyHeaders = modifyHeaders;
-      }
-      break;
+  // Get header modifications
+  const modifyHeaders = getHeaderModifications();
+  if (modifyHeaders.length > 0) {
+    ruleData.modifyHeaders = modifyHeaders;
   }
 
   // Get group assignment (use null to explicitly remove group)
@@ -898,57 +812,6 @@ function collectFormData() {
   return ruleData;
 }
 
-function collectRequestBodyModification(modifyType) {
-  const modification = { type: modifyType };
-
-  switch (modifyType) {
-    case 'replace':
-      modification.value = document.getElementById('requestReplaceValue').value;
-      break;
-
-    case 'json-path':
-      const jsonPath = document.getElementById('requestJsonPath').value.trim();
-      const jsonValue = document.getElementById('requestJsonValue').value.trim();
-      if (!jsonPath) {
-        showToast('Please enter a JSON path for request modification', 'error');
-        return null;
-      }
-      modification.jsonPath = jsonPath;
-      modification.value = jsonValue;
-      break;
-
-    case 'regex':
-      const pattern = document.getElementById('requestRegexPattern').value.trim();
-      if (!pattern) {
-        showToast('Please enter a regex pattern for request modification', 'error');
-        return null;
-      }
-      modification.findReplace = {
-        pattern: pattern,
-        replacement: document.getElementById('requestRegexReplacement').value,
-        flags: document.getElementById('requestRegexFlags').value || 'g'
-      };
-      break;
-
-    case 'merge':
-      const mergeValue = document.getElementById('requestMergeValue').value.trim();
-      if (!mergeValue) {
-        showToast('Please enter JSON to merge', 'error');
-        return null;
-      }
-      // Validate JSON
-      try {
-        JSON.parse(mergeValue);
-      } catch (e) {
-        showToast('Invalid JSON in merge value: ' + e.message, 'error');
-        return null;
-      }
-      modification.value = mergeValue;
-      break;
-  }
-
-  return modification;
-}
 
 async function editRule(ruleId) {
   // Validate ruleId
@@ -1026,86 +889,43 @@ function populateForm(rule) {
   // Set delay
   setElementValue('ruleDelay', rule.delay || '');
 
-  // Set action type and update UI
-  const actionType = rule.actionType || 'mockResponse';
-  setElementValue('actionType', actionType);
-  updateActionTypeOptions(actionType);
+  // Set response modify type
+  setElementValue('modifyType', rule.modifyType || 'replace');
+  if (rule.modifyType) {
+    updateModificationOptions(rule.modifyType);
+  }
 
-  // Handle different action types
-  switch (actionType) {
-    case 'redirect':
-      setElementValue('redirectUrl', rule.redirectUrl || '');
-      break;
+  // Populate modification fields
+  if (rule.modification) {
+    switch (rule.modifyType) {
+      case 'replace':
+        setElementValue('replaceValue', rule.modification.value);
+        break;
 
-    case 'modifyRequest':
-      if (rule.requestBodyModification) {
-        const reqMod = rule.requestBodyModification;
-        setElementValue('requestModifyType', reqMod.type || 'replace');
-        updateRequestModificationOptions(reqMod.type || 'replace');
+      case 'json-path':
+        setElementValue('jsonPath', rule.modification.path);
+        setElementValue('jsonValue', rule.modification.value);
+        break;
 
-        switch (reqMod.type) {
-          case 'replace':
-            setElementValue('requestReplaceValue', reqMod.value || '');
-            break;
-          case 'json-path':
-            setElementValue('requestJsonPath', reqMod.jsonPath || '');
-            setElementValue('requestJsonValue', reqMod.value || '');
-            break;
-          case 'regex':
-            if (reqMod.findReplace) {
-              setElementValue('requestRegexPattern', reqMod.findReplace.pattern || '');
-              setElementValue('requestRegexReplacement', reqMod.findReplace.replacement || '');
-              setElementValue('requestRegexFlags', reqMod.findReplace.flags || 'g');
-            }
-            break;
-          case 'merge':
-            setElementValue('requestMergeValue', reqMod.value || '');
-            break;
-        }
+      case 'regex':
+        setElementValue('regexPattern', rule.modification.pattern);
+        setElementValue('regexReplacement', rule.modification.replacement);
+        setElementValue('regexFlags', rule.modification.flags || 'g');
+        break;
+    }
+  }
+
+  // Populate status code
+  setElementValue('modifyStatusCode', rule.modifyStatusCode);
+
+  // Populate header modifications
+  clearHeaderModifications();
+  if (rule.modifyHeaders && Array.isArray(rule.modifyHeaders)) {
+    rule.modifyHeaders.forEach(header => {
+      if (header && header.name) {
+        addHeaderModification(header.name, header.value, header.action);
       }
-      break;
-
-    case 'mockResponse':
-    default:
-      // Set response modify type
-      setElementValue('modifyType', rule.modifyType || 'replace');
-      if (rule.modifyType) {
-        updateModificationOptions(rule.modifyType);
-      }
-
-      // Populate modification fields
-      if (rule.modification) {
-        switch (rule.modifyType) {
-          case 'replace':
-            setElementValue('replaceValue', rule.modification.value);
-            break;
-
-          case 'json-path':
-            setElementValue('jsonPath', rule.modification.path);
-            setElementValue('jsonValue', rule.modification.value);
-            break;
-
-          case 'regex':
-            setElementValue('regexPattern', rule.modification.pattern);
-            setElementValue('regexReplacement', rule.modification.replacement);
-            setElementValue('regexFlags', rule.modification.flags || 'g');
-            break;
-        }
-      }
-
-      // Populate status code
-      setElementValue('modifyStatusCode', rule.modifyStatusCode);
-
-      // Populate header modifications
-      clearHeaderModifications();
-      if (rule.modifyHeaders && Array.isArray(rule.modifyHeaders)) {
-        rule.modifyHeaders.forEach(header => {
-          if (header && header.name) {
-            addHeaderModification(header.name, header.value, header.action);
-          }
-        });
-      }
-      break;
+    });
   }
 
   // Populate group selection
@@ -1119,26 +939,8 @@ function resetForm() {
   document.getElementById('ruleEnabled').checked = true;
   document.querySelectorAll('input[name="methods"]')[0].checked = true; // Check GET by default
 
-  // Reset action type to mock response
-  document.getElementById('actionType').value = 'mockResponse';
-  updateActionTypeOptions('mockResponse');
-
   // Reset delay
   document.getElementById('ruleDelay').value = '';
-
-  // Reset redirect URL
-  document.getElementById('redirectUrl').value = '';
-
-  // Reset request body modification fields
-  document.getElementById('requestModifyType').value = 'replace';
-  updateRequestModificationOptions('replace');
-  document.getElementById('requestReplaceValue').value = '';
-  document.getElementById('requestJsonPath').value = '';
-  document.getElementById('requestJsonValue').value = '';
-  document.getElementById('requestRegexPattern').value = '';
-  document.getElementById('requestRegexReplacement').value = '';
-  document.getElementById('requestRegexFlags').value = 'g';
-  document.getElementById('requestMergeValue').value = '';
 
   // Reset response modification options
   updateModificationOptions('replace');
