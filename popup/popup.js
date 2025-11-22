@@ -29,10 +29,99 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupViewTabs();
   setupNetworkSection();
   setupCreateRuleModal();
+  setupNotificationListener();
 
   // Start network logs refresh if on network tab
   startNetworkRefresh();
 });
+
+// Setup listener for rule triggered notifications
+function setupNotificationListener() {
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.action === 'ruleTriggered' && message.notification) {
+      handleRuleTriggeredNotification(message.notification);
+    }
+    return false;
+  });
+}
+
+// Handle rule triggered notification - show visual feedback
+function handleRuleTriggeredNotification(notification) {
+  // Only show notification if it's for the current tab
+  if (notification.tabId !== currentTab?.id) return;
+
+  const actionLabels = {
+    'intercepted': 'Intercepted',
+    'delayed': 'Delayed'
+  };
+
+  const actionIcons = {
+    'intercepted': '✓',
+    'delayed': '⏱'
+  };
+
+  const action = actionLabels[notification.action] || notification.action;
+  const icon = actionIcons[notification.action] || '•';
+
+  // Show toast with rule info
+  showRuleToast(icon, notification.ruleName, action, notification.url);
+}
+
+// Show a styled toast for rule triggering
+function showRuleToast(icon, ruleName, action, url) {
+  // Create or get the rule toast container
+  let toastContainer = document.getElementById('ruleToastContainer');
+  if (!toastContainer) {
+    toastContainer = document.createElement('div');
+    toastContainer.id = 'ruleToastContainer';
+    toastContainer.className = 'rule-toast-container';
+    document.body.appendChild(toastContainer);
+  }
+
+  // Create the toast element
+  const toast = document.createElement('div');
+  toast.className = `rule-toast rule-toast-${action.toLowerCase()}`;
+
+  // Parse URL for display
+  let shortUrl = url;
+  try {
+    const urlObj = new URL(url);
+    shortUrl = urlObj.pathname.length > 30
+      ? '...' + urlObj.pathname.slice(-30)
+      : urlObj.pathname;
+  } catch (e) {
+    shortUrl = url.slice(-35);
+  }
+
+  toast.innerHTML = `
+    <span class="rule-toast-icon">${icon}</span>
+    <div class="rule-toast-content">
+      <span class="rule-toast-action">${action}</span>
+      <span class="rule-toast-rule">${escapeHtml(ruleName)}</span>
+      <span class="rule-toast-url" title="${escapeHtml(url)}">${escapeHtml(shortUrl)}</span>
+    </div>
+  `;
+
+  // Add to container
+  toastContainer.appendChild(toast);
+
+  // Animate in
+  requestAnimationFrame(() => {
+    toast.classList.add('show');
+  });
+
+  // Remove after delay
+  setTimeout(() => {
+    toast.classList.remove('show');
+    setTimeout(() => {
+      toast.remove();
+      // Remove container if empty
+      if (toastContainer.children.length === 0) {
+        toastContainer.remove();
+      }
+    }, 300);
+  }, 3000);
+}
 
 // Theme management
 function loadTheme() {
@@ -302,6 +391,12 @@ async function displayRules(rules) {
 function renderRuleItem(rule, group) {
   const isGroupDisabled = group && !group.enabled;
 
+  // Build action badges
+  let actionBadges = `<span class="rule-tag action-mock">Mock</span>`;
+  if (rule.delay && rule.delay > 0) {
+    actionBadges += `<span class="rule-tag delay">${rule.delay}ms</span>`;
+  }
+
   return `
     <div class="rule-item ${rule.enabled ? '' : 'disabled'} ${isGroupDisabled ? 'group-disabled-rule' : ''}" data-rule-id="${rule.id}">
       <div class="rule-header">
@@ -311,6 +406,7 @@ function renderRuleItem(rule, group) {
           </div>
           <div class="rule-pattern" title="${escapeHtml(rule.urlPattern)}">${escapeHtml(rule.urlPattern)}</div>
           <div class="rule-meta">
+            ${actionBadges}
             <span class="rule-tag type">${rule.matchType || 'wildcard'}</span>
             ${(rule.methods || ['GET']).map(m => `<span class="rule-tag method">${m}</span>`).join('')}
           </div>

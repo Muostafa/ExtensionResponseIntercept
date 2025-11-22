@@ -1611,6 +1611,45 @@ textarea.form-control {
   color: white;
 }
 
+/* Action Type Badges */
+.rule-badge.action-mock {
+  background: rgba(16, 185, 129, 0.15);
+  color: #059669;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.rule-badge.delay-badge {
+  background: rgba(139, 92, 246, 0.15);
+  color: #7c3aed;
+  border: 1px solid rgba(139, 92, 246, 0.3);
+}
+
+/* Dark mode action badges */
+[data-theme="dark"] .rule-badge.action-mock {
+  background: rgba(52, 211, 153, 0.2);
+  color: #6ee7b7;
+  border-color: rgba(52, 211, 153, 0.4);
+}
+
+[data-theme="dark"] .rule-badge.delay-badge {
+  background: rgba(167, 139, 250, 0.2);
+  color: #c4b5fd;
+  border-color: rgba(167, 139, 250, 0.4);
+}
+
+/* Action Options Containers */
+.action-options {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.request-mod-options {
+  margin-top: 12px;
+}
+
 /* Reduced Motion */
 @media (prefers-reduced-motion: reduce) {
   *,

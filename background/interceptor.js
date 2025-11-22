@@ -6,11 +6,40 @@ export class ResponseInterceptor {
     this.attachedTabs = new Map();
     this.pendingRequests = new Map();
     this.networkLogs = new Map(); // Store network logs per tab
+    this.ruleTriggeredCallbacks = []; // Callbacks for rule triggered notifications
     this.MAX_TABS = 100; // Limit to prevent memory issues
     this.MAX_LOGS_PER_TAB = 100; // Limit logs per tab
     this.isLoggingEnabled = true; // Network logging enabled by default
     this.setupDebuggerListener();
     this.startPeriodicCleanup();
+  }
+
+  /**
+   * Register a callback for when a rule is triggered
+   */
+  onRuleTriggered(callback) {
+    this.ruleTriggeredCallbacks.push(callback);
+  }
+
+  /**
+   * Notify all callbacks that a rule was triggered
+   */
+  notifyRuleTriggered(tabId, rule, url, action) {
+    const notification = {
+      tabId,
+      ruleName: rule.name,
+      ruleId: rule.id,
+      url,
+      action, // 'intercepted', 'delayed'
+      timestamp: Date.now()
+    };
+    this.ruleTriggeredCallbacks.forEach(callback => {
+      try {
+        callback(notification);
+      } catch (error) {
+        console.error('Error in rule triggered callback:', error);
+      }
+    });
   }
 
   setupDebuggerListener() {
@@ -79,6 +108,7 @@ export class ResponseInterceptor {
         url,
         method,
         headers: request.headers,
+        postData: request.postData,
         timestamp: startTime
       });
 
@@ -93,9 +123,16 @@ export class ResponseInterceptor {
         const matchingRules = this.ruleEngine.findMatchingRules(url, method);
 
         if (matchingRules.length > 0) {
-          // Block the request and return mock response immediately
           const rule = matchingRules[0];
+
+          // Handle MOCK RESPONSE
           console.log(`✓ Blocking request and returning mock response for ${url} using rule "${rule.name}"`);
+
+          // Apply delay if specified
+          if (rule.delay && rule.delay > 0) {
+            console.log(`⏱ Delaying response by ${rule.delay}ms`);
+            await this.sleep(rule.delay);
+          }
 
           // Generate mock response based on rule
           const mockBody = await this.generateMockResponse(rule, url, method);
@@ -118,6 +155,9 @@ export class ResponseInterceptor {
             );
             return;
           }
+
+          // Notify about the interception
+          this.notifyRuleTriggered(tabId, rule, url, 'intercepted');
 
           // Fulfill with mock response immediately (no server request made)
           await chrome.debugger.sendCommand(
@@ -273,6 +313,13 @@ export class ResponseInterceptor {
     } catch {
       return value;
     }
+  }
+
+  /**
+   * Sleep for a specified duration
+   */
+  sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   truncateForStorage(text, maxLength = 10000) {

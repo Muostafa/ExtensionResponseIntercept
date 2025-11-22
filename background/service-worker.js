@@ -9,6 +9,8 @@ class ServiceWorker {
     this.ruleEngine = new RuleEngine();
     this.interceptor = new ResponseInterceptor(this.ruleEngine, this.storageManager);
     this.activeTabs = new Set();
+    this.recentNotifications = []; // Store recent rule triggered notifications
+    this.MAX_NOTIFICATIONS = 50; // Limit notifications to prevent memory issues
     this.init();
   }
 
@@ -25,8 +27,52 @@ class ServiceWorker {
       this.ruleEngine.setRules(rules);
     });
 
+    // Set up rule triggered notifications
+    this.interceptor.onRuleTriggered((notification) => {
+      this.handleRuleTriggered(notification);
+    });
+
     // Set up event listeners
     this.setupListeners();
+  }
+
+  /**
+   * Handle rule triggered notification
+   */
+  handleRuleTriggered(notification) {
+    // Add to recent notifications
+    this.recentNotifications.unshift(notification);
+
+    // Limit the number of stored notifications
+    if (this.recentNotifications.length > this.MAX_NOTIFICATIONS) {
+      this.recentNotifications.pop();
+    }
+
+    // Send notification to all extension pages (popup, options)
+    this.broadcastNotification(notification);
+  }
+
+  /**
+   * Broadcast notification to extension pages
+   */
+  broadcastNotification(notification) {
+    // Send to popup and options pages
+    chrome.runtime.sendMessage({
+      action: 'ruleTriggered',
+      notification
+    }).catch(() => {
+      // Ignore errors when no listeners (popup not open)
+    });
+
+    // Also try to send to the specific tab's content
+    if (notification.tabId) {
+      chrome.tabs.sendMessage(notification.tabId, {
+        action: 'ruleTriggered',
+        notification
+      }).catch(() => {
+        // Ignore errors when content script not available
+      });
+    }
   }
 
   setupListeners() {
@@ -170,6 +216,24 @@ class ServiceWorker {
         const finalRule = { ...ruleFromRequest, ...request.modifications };
         await this.storageManager.addRule(finalRule);
         sendResponse({ success: true, rule: finalRule });
+        break;
+
+      case 'getRecentNotifications':
+        // Get recent rule triggered notifications
+        const tabNotifications = request.tabId
+          ? this.recentNotifications.filter(n => n.tabId === request.tabId)
+          : this.recentNotifications;
+        sendResponse({ notifications: tabNotifications });
+        break;
+
+      case 'clearNotifications':
+        // Clear notifications (optionally for a specific tab)
+        if (request.tabId) {
+          this.recentNotifications = this.recentNotifications.filter(n => n.tabId !== request.tabId);
+        } else {
+          this.recentNotifications = [];
+        }
+        sendResponse({ success: true });
         break;
 
       default:

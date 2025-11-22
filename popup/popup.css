@@ -1984,6 +1984,141 @@ header .subtitle {
   color: #64748b;
 }
 
+/* Action Type Tags */
+.rule-tag.action-mock {
+  background: rgba(16, 185, 129, 0.15);
+  color: #059669;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.rule-tag.delay {
+  background: rgba(139, 92, 246, 0.15);
+  color: #7c3aed;
+  border: 1px solid rgba(139, 92, 246, 0.3);
+}
+
+/* Dark mode action tags */
+[data-theme="dark"] .rule-tag.action-mock {
+  background: rgba(52, 211, 153, 0.2);
+  color: #6ee7b7;
+  border-color: rgba(52, 211, 153, 0.4);
+}
+
+[data-theme="dark"] .rule-tag.delay {
+  background: rgba(167, 139, 250, 0.2);
+  color: #c4b5fd;
+  border-color: rgba(167, 139, 250, 0.4);
+}
+
+/* Rule Toast Notifications */
+.rule-toast-container {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 320px;
+  pointer-events: none;
+}
+
+.rule-toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  padding: 10px 14px;
+  box-shadow: var(--shadow-lg);
+  opacity: 0;
+  transform: translateX(100%);
+  transition: all 0.3s ease;
+  pointer-events: auto;
+}
+
+.rule-toast.show {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.rule-toast-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--bg-secondary);
+}
+
+.rule-toast-intercepted .rule-toast-icon {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--success);
+}
+
+.rule-toast-delayed .rule-toast-icon {
+  background: rgba(139, 92, 246, 0.15);
+  color: var(--secondary);
+}
+
+.rule-toast-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rule-toast-action {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.rule-toast-rule {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rule-toast-url {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: 'SF Mono', 'Consolas', monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Dark mode for rule toasts */
+[data-theme="dark"] .rule-toast {
+  background: #1e293b;
+  border-color: #475569;
+}
+
+[data-theme="dark"] .rule-toast-icon {
+  background: #334155;
+}
+
+[data-theme="dark"] .rule-toast-intercepted .rule-toast-icon {
+  background: rgba(52, 211, 153, 0.2);
+  color: #6ee7b7;
+}
+
+[data-theme="dark"] .rule-toast-delayed .rule-toast-icon {
+  background: rgba(167, 139, 250, 0.2);
+  color: #c4b5fd;
+}
+
 /* Responsive adjustments */
 @media (prefers-reduced-motion: reduce) {
   *,

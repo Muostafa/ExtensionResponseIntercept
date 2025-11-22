@@ -335,6 +335,28 @@ function renderRuleCard(rule, group) {
     isGroupDisabled ? 'group-disabled-card' : ''
   ].filter(Boolean).join(' ');
 
+  // Determine action type label and class
+  const actionType = rule.actionType || 'mockResponse';
+  const actionLabel = getActionTypeLabel(actionType);
+  const actionClass = getActionTypeClass(actionType);
+
+  // Build meta badges
+  let metaBadges = `
+    <span class="rule-badge ${actionClass}">${actionLabel}</span>
+    <span class="rule-badge">${rule.matchType}</span>
+    <span class="rule-badge method">${methods}</span>
+  `;
+
+  // Add modification type badge for mock response
+  if (actionType === 'mockResponse' && rule.modifyType) {
+    metaBadges += `<span class="rule-badge">${getModifyTypeLabel(rule.modifyType)}</span>`;
+  }
+
+  // Add delay badge if specified
+  if (rule.delay && rule.delay > 0) {
+    metaBadges += `<span class="rule-badge delay-badge">${rule.delay}ms delay</span>`;
+  }
+
   return `
     <div class="${cardClasses}" data-rule-id="${rule.id}">
       ${isGroupDisabled ? '<div class="group-disabled-banner">Inactive - Group is disabled</div>' : ''}
@@ -352,9 +374,7 @@ function renderRuleCard(rule, group) {
       <div class="rule-card-pattern">${escapeHtml(rule.urlPattern)}</div>
 
       <div class="rule-card-meta">
-        <span class="rule-badge">${rule.matchType}</span>
-        <span class="rule-badge method">${methods}</span>
-        <span class="rule-badge">${getModifyTypeLabel(rule.modifyType)}</span>
+        ${metaBadges}
       </div>
 
       <div class="rule-card-actions">
@@ -501,6 +521,14 @@ function getModifyTypeLabel(type) {
     'regex': 'Regex'
   };
   return labels[type] || type;
+}
+
+function getActionTypeLabel(actionType) {
+  return 'Mock Response';
+}
+
+function getActionTypeClass(actionType) {
+  return 'action-mock';
 }
 
 // Setup event listeners
@@ -698,6 +726,31 @@ function collectFormData() {
   const methods = Array.from(document.querySelectorAll('input[name="methods"]:checked'))
     .map(cb => cb.value);
 
+  // Get delay value
+  const delayValue = document.getElementById('ruleDelay').value.trim();
+  const delay = delayValue ? parseInt(delayValue, 10) : null;
+
+  // Validate delay
+  if (delay !== null && (delay < 0 || delay > 30000)) {
+    showToast('Delay must be between 0 and 30000 milliseconds', 'error');
+    return null;
+  }
+
+  // Base rule data
+  const ruleData = {
+    name,
+    description,
+    urlPattern,
+    matchType,
+    methods,
+    enabled
+  };
+
+  // Add delay if specified
+  if (delay !== null && delay > 0) {
+    ruleData.delay = delay;
+  }
+
   // Get modification data based on type
   let modification = {};
 
@@ -725,10 +778,11 @@ function collectFormData() {
       break;
   }
 
+  ruleData.modifyType = modifyType;
+  ruleData.modification = modification;
+
   // Get status code modification
   const statusCode = document.getElementById('modifyStatusCode').value.trim();
-  let modifyStatusCode = null;
-
   if (statusCode) {
     const validation = validateStatusCode(statusCode);
     if (!validation.valid) {
@@ -740,36 +794,24 @@ function collectFormData() {
         return null;
       }
     }
-    modifyStatusCode = parseInt(statusCode, 10);
+    ruleData.modifyStatusCode = parseInt(statusCode, 10);
   }
 
   // Get header modifications
   const modifyHeaders = getHeaderModifications();
+  if (modifyHeaders.length > 0) {
+    ruleData.modifyHeaders = modifyHeaders;
+  }
 
   // Get group assignment (use null to explicitly remove group)
   const groupValue = document.getElementById('ruleGroup').value;
-  const groupId = groupValue ? groupValue : null;
-
-  const ruleData = {
-    name,
-    description,
-    urlPattern,
-    matchType,
-    methods,
-    modifyType,
-    modification,
-    modifyStatusCode,
-    modifyHeaders: modifyHeaders.length > 0 ? modifyHeaders : undefined,
-    enabled
-  };
-
-  // Only add groupId if it's not null
-  if (groupId !== null) {
-    ruleData.groupId = groupId;
+  if (groupValue) {
+    ruleData.groupId = groupValue;
   }
 
   return ruleData;
 }
+
 
 async function editRule(ruleId) {
   // Validate ruleId
@@ -837,7 +879,6 @@ function populateForm(rule) {
   setElementValue('ruleDescription', rule.description);
   setElementValue('urlPattern', rule.urlPattern);
   setElementValue('matchType', rule.matchType);
-  setElementValue('modifyType', rule.modifyType);
   setElementChecked('ruleEnabled', rule.enabled);
 
   // Set methods
@@ -845,7 +886,11 @@ function populateForm(rule) {
     cb.checked = rule.methods && Array.isArray(rule.methods) && rule.methods.includes(cb.value);
   });
 
-  // Update modification options
+  // Set delay
+  setElementValue('ruleDelay', rule.delay || '');
+
+  // Set response modify type
+  setElementValue('modifyType', rule.modifyType || 'replace');
   if (rule.modifyType) {
     updateModificationOptions(rule.modifyType);
   }
@@ -893,6 +938,11 @@ function resetForm() {
   document.getElementById('formTitle').textContent = 'Create New Rule';
   document.getElementById('ruleEnabled').checked = true;
   document.querySelectorAll('input[name="methods"]')[0].checked = true; // Check GET by default
+
+  // Reset delay
+  document.getElementById('ruleDelay').value = '';
+
+  // Reset response modification options
   updateModificationOptions('replace');
   document.getElementById('modifyStatusCode').value = '';
   clearHeaderModifications();

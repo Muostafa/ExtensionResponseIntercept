@@ -279,8 +279,16 @@
             </div>
           </div>
 
+          <!-- Delay Input -->
           <div class="form-group">
-            <label for="modifyType">Modification Type</label>
+            <label for="ruleDelay">Delay (ms)</label>
+            <input type="number" id="ruleDelay" class="form-control" placeholder="e.g., 1000, 2000" min="0" max="30000">
+            <small class="form-hint">Add artificial delay in milliseconds (max 30 seconds). Useful for testing loading states.</small>
+          </div>
+
+          <!-- Response Modification Options -->
+          <div class="form-group">
+            <label for="modifyType">Response Modification Type</label>
             <select id="modifyType" class="form-control">
               <option value="replace">Replace Entire Body</option>
               <option value="json-path">Modify JSON Path</option>
