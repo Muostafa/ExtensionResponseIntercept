@@ -1,10 +1,58 @@
-// Rule Engine - Matches requests against rules and applies modifications
+/**
+ * Rule Engine - Matches requests against rules and applies modifications
+ *
+ * This module is responsible for:
+ * - Storing and managing interception rules
+ * - Matching URLs against rule patterns (exact, wildcard, regex, contains)
+ * - Applying response modifications (replace, json-path, regex)
+ * - Managing HTTP header modifications
+ *
+ * @module RuleEngine
+ */
+
+/**
+ * @typedef {Object} Rule
+ * @property {string} id - Unique rule identifier
+ * @property {string} name - Human-readable rule name
+ * @property {string} urlPattern - URL pattern to match against
+ * @property {('exact'|'wildcard'|'regex'|'contains')} matchType - Type of URL matching
+ * @property {string[]} [methods] - HTTP methods to match (GET, POST, etc.)
+ * @property {boolean} enabled - Whether the rule is active
+ * @property {('replace'|'json-path'|'regex')} [modifyType] - Type of body modification
+ * @property {Object} [modification] - Modification configuration
+ * @property {HeaderModification[]} [modifyHeaders] - Header modifications
+ * @property {number} [modifyStatusCode] - Override status code
+ * @property {number} [delay] - Response delay in milliseconds
+ */
+
+/**
+ * @typedef {Object} HeaderModification
+ * @property {string} name - Header name
+ * @property {string} value - Header value
+ * @property {('add'|'set'|'remove')} action - Modification action
+ */
+
+/**
+ * @typedef {Object} ModificationResult
+ * @property {string} body - Modified response body
+ * @property {Object[]} headers - Modified headers array
+ * @property {number} statusCode - Response status code
+ * @property {string} ruleApplied - Name of the applied rule
+ * @property {string} ruleId - ID of the applied rule
+ */
+
 export class RuleEngine {
   constructor() {
+    /** @type {Rule[]} */
     this.rules = [];
+    /** @type {Map<string, RegExp>} Pre-compiled regex patterns for performance */
     this.compiledPatterns = new Map();
   }
 
+  /**
+   * Load rules into the engine
+   * @param {Rule[]} rules - Array of rules to load
+   */
   setRules(rules) {
     // Validate input is an array
     if (!Array.isArray(rules)) {
@@ -18,6 +66,10 @@ export class RuleEngine {
     console.log(`Rule engine loaded ${this.rules.length} enabled rules`);
   }
 
+  /**
+   * Pre-compile regex patterns for better performance
+   * @private
+   */
   compilePatterns() {
     this.compiledPatterns.clear();
     this.rules.forEach(rule => {
@@ -31,6 +83,13 @@ export class RuleEngine {
     });
   }
 
+  /**
+   * Check if a URL matches a given pattern
+   * @param {string} url - The URL to test
+   * @param {string} pattern - The pattern to match against
+   * @param {('exact'|'wildcard'|'regex'|'contains')} matchType - Type of matching
+   * @returns {boolean} Whether the URL matches
+   */
   matchUrl(url, pattern, matchType) {
     switch (matchType) {
       case 'exact':
@@ -56,6 +115,13 @@ export class RuleEngine {
     }
   }
 
+  /**
+   * Match URL against a wildcard pattern
+   * @param {string} url - The URL to test
+   * @param {string} pattern - Wildcard pattern (* = any except /, ** = any including /)
+   * @returns {boolean} Whether the URL matches
+   * @private
+   */
   wildcardMatch(url, pattern) {
     // Convert wildcard pattern to regex
     // * matches any characters except /
@@ -79,6 +145,12 @@ export class RuleEngine {
     }
   }
 
+  /**
+   * Find all rules that match a given URL and HTTP method
+   * @param {string} url - The request URL
+   * @param {string} [method='GET'] - The HTTP method
+   * @returns {Rule[]} Array of matching rules (first match has highest priority)
+   */
   findMatchingRules(url, method = 'GET') {
     const matchingRules = [];
 
@@ -99,6 +171,16 @@ export class RuleEngine {
     return matchingRules;
   }
 
+  /**
+   * Modify a response based on matching rules
+   * @param {string} url - The request URL
+   * @param {string} method - The HTTP method
+   * @param {string} originalBody - The original response body
+   * @param {string} contentType - The Content-Type header value
+   * @param {Object[]} originalHeaders - Original response headers
+   * @param {number} originalStatusCode - Original HTTP status code
+   * @returns {Promise<ModificationResult|null>} Modified response or null if no modification
+   */
   async modifyResponse(url, method, originalBody, contentType, originalHeaders, originalStatusCode) {
     const matchingRules = this.findMatchingRules(url, method);
 
@@ -150,6 +232,12 @@ export class RuleEngine {
     }
   }
 
+  /**
+   * Apply header modifications to a set of headers
+   * @param {Object[]} originalHeaders - Original headers array
+   * @param {HeaderModification[]} modifications - Header modifications to apply
+   * @returns {Object[]} Modified headers array
+   */
   applyHeaderModifications(originalHeaders, modifications) {
     const headersMap = new Map();
 
@@ -178,6 +266,15 @@ export class RuleEngine {
     }));
   }
 
+  /**
+   * Apply a body modification based on the modification type
+   * @param {string} originalBody - Original response body
+   * @param {Object} modification - Modification configuration
+   * @param {('replace'|'json-path'|'regex')} modifyType - Type of modification
+   * @param {string} contentType - Response Content-Type
+   * @returns {Promise<string|null>} Modified body or null on failure
+   * @private
+   */
   async applyModification(originalBody, modification, modifyType, contentType) {
     switch (modifyType) {
       case 'replace':

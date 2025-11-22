@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "API Response Interceptor",
-  "version": "2.2.0",
-  "description": "Developer tool for API testing - intercept and mock API responses, add delays, with in-page toast notifications",
+  "version": "2.3.0",
+  "description": "Developer tool for API testing - intercept and mock API responses, add delays, with in-page toast notifications and rule templates",
   "permissions": [
     "debugger",
     "storage",
