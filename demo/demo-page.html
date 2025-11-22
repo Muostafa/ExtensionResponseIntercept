@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Response Interceptor - Live Demo</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
+        .demo-card {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+
+        .card-header {
+            background: #f8f9fa;
+            padding: 20px;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .card-header h2 {
+            margin: 0;
+            color: #333;
+            font-size: 1.3rem;
+        }
+
+        .card-body {
+            padding: 25px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            padding: 14px 28px;
+            font-size: 16px;
+            font-weight: 600;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+        }
+
+        .btn-warning {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }
+
+        .btn-info {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+        }
+
+        .result-container {
+            background: #1e1e1e;
+            border-radius: 12px;
+            padding: 20px;
+            min-height: 200px;
+        }
+
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #333;
+        }
+
+        .result-title {
+            color: #4fc3f7;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status-success {
+            background: #4caf50;
+            color: white;
+        }
+
+        .status-error {
+            background: #f44336;
+            color: white;
+        }
+
+        .status-waiting {
+            background: #607d8b;
+            color: white;
+        }
+
+        #result {
+            color: #a5d6a7;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-break: break-word;
+            margin: 0;
+        }
+
+        .loading {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #90a4ae;
+        }
+
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #90a4ae;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .instructions {
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 20px;
+            color: white;
+            margin-top: 20px;
+        }
+
+        .instructions h3 {
+            margin-top: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .instructions ol {
+            margin: 0;
+            padding-left: 20px;
+        }
+
+        .instructions li {
+            margin-bottom: 8px;
+            line-height: 1.5;
+        }
+
+        .highlight {
+            background: rgba(255,255,255,0.2);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+
+        .api-info {
+            display: flex;
+            gap: 20px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+
+        .api-badge {
+            background: #e3f2fd;
+            color: #1565c0;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-family: monospace;
+        }
+
+        @media (max-width: 600px) {
+            .button-group {
+                flex-direction: column;
+            }
+            .btn {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>API Response Interceptor</h1>
+            <p>Live Demo - Watch API responses get modified in real-time</p>
+        </header>
+
+        <div class="demo-card">
+            <div class="card-header">
+                <h2>Test API Endpoints</h2>
+                <div class="api-info">
+                    <span class="api-badge">GET /users/1</span>
+                    <span class="api-badge">GET /posts?userId=1</span>
+                    <span class="api-badge">GET /todos/1</span>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="button-group">
+                    <button class="btn btn-primary" onclick="fetchUser()">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="12" cy="7" r="4"></circle>
+                        </svg>
+                        Fetch User
+                    </button>
+                    <button class="btn btn-success" onclick="fetchPosts()">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14 2 14 8 20 8"></polyline>
+                            <line x1="16" y1="13" x2="8" y2="13"></line>
+                            <line x1="16" y1="17" x2="8" y2="17"></line>
+                        </svg>
+                        Fetch Posts
+                    </button>
+                    <button class="btn btn-warning" onclick="fetchTodo()">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                            <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                        </svg>
+                        Fetch Todo
+                    </button>
+                    <button class="btn btn-info" onclick="testError()">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="12" y1="8" x2="12" y2="12"></line>
+                            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                        </svg>
+                        Test Error (404)
+                    </button>
+                </div>
+
+                <div class="result-container">
+                    <div class="result-header">
+                        <span class="result-title">API Response</span>
+                        <span id="status-badge" class="status-badge status-waiting">Waiting</span>
+                    </div>
+                    <pre id="result">Click a button above to make an API request...
+
+The response will appear here. Try creating interception rules
+to see how the data changes!</pre>
+                </div>
+            </div>
+        </div>
+
+        <div class="instructions">
+            <h3>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                </svg>
+                How to Demo
+            </h3>
+            <ol>
+                <li>Click the <strong>API Response Interceptor</strong> extension icon</li>
+                <li>Click <span class="highlight">Attach Debugger</span> to start intercepting</li>
+                <li>Create a rule with URL pattern: <span class="highlight">*://jsonplaceholder.typicode.com/*</span></li>
+                <li>Set a custom response body or modify specific JSON fields</li>
+                <li>Click any button above and watch the response change!</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'https://jsonplaceholder.typicode.com';
+
+        function setStatus(type, text) {
+            const badge = document.getElementById('status-badge');
+            badge.textContent = text;
+            badge.className = 'status-badge status-' + type;
+        }
+
+        function showLoading() {
+            document.getElementById('result').innerHTML = '<div class="loading"><div class="spinner"></div>Fetching data...</div>';
+            setStatus('waiting', 'Loading...');
+        }
+
+        function showResult(data, endpoint, statusCode = 200) {
+            const result = document.getElementById('result');
+            const statusType = statusCode >= 400 ? 'error' : 'success';
+            setStatus(statusType, `${statusCode} ${statusCode >= 400 ? 'Error' : 'OK'}`);
+
+            result.innerHTML = `<span style="color: #78909c;">// ${endpoint}</span>\n<span style="color: #78909c;">// Status: ${statusCode}</span>\n\n${JSON.stringify(data, null, 2)}`;
+        }
+
+        function showError(error, endpoint) {
+            setStatus('error', 'Error');
+            document.getElementById('result').innerHTML = `<span style="color: #ef5350;">// ${endpoint}</span>\n<span style="color: #ef5350;">// Error occurred</span>\n\n${error.message}`;
+        }
+
+        async function fetchUser() {
+            const endpoint = '/users/1';
+            showLoading();
+            try {
+                const res = await fetch(API_BASE + endpoint);
+                const data = await res.json();
+                showResult(data, 'GET ' + endpoint, res.status);
+            } catch (err) {
+                showError(err, 'GET ' + endpoint);
+            }
+        }
+
+        async function fetchPosts() {
+            const endpoint = '/posts?userId=1';
+            showLoading();
+            try {
+                const res = await fetch(API_BASE + endpoint);
+                const data = await res.json();
+                // Show only first 3 posts to keep display clean
+                const preview = data.slice(0, 3);
+                showResult({
+                    total: data.length,
+                    showing: preview.length,
+                    posts: preview
+                }, 'GET ' + endpoint, res.status);
+            } catch (err) {
+                showError(err, 'GET ' + endpoint);
+            }
+        }
+
+        async function fetchTodo() {
+            const endpoint = '/todos/1';
+            showLoading();
+            try {
+                const res = await fetch(API_BASE + endpoint);
+                const data = await res.json();
+                showResult(data, 'GET ' + endpoint, res.status);
+            } catch (err) {
+                showError(err, 'GET ' + endpoint);
+            }
+        }
+
+        async function testError() {
+            const endpoint = '/posts/999999';
+            showLoading();
+            try {
+                const res = await fetch(API_BASE + endpoint);
+                const data = await res.json();
+                // JSONPlaceholder returns empty object for non-existent resources
+                if (Object.keys(data).length === 0) {
+                    showResult({
+                        error: 'Not Found',
+                        message: 'The requested resource does not exist',
+                        tip: 'Create a rule to intercept this and return a custom error!'
+                    }, 'GET ' + endpoint, 404);
+                } else {
+                    showResult(data, 'GET ' + endpoint, res.status);
+                }
+            } catch (err) {
+                showError(err, 'GET ' + endpoint);
+            }
+        }
+    </script>
+</body>
+</html>
