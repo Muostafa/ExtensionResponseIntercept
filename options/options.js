@@ -11,6 +11,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupEventListeners();
   setupNavigation();
   setupThemeToggle();
+  setupTemplateButtons();
+  setupKeyboardShortcuts();
 });
 
 // Theme management
@@ -947,6 +949,297 @@ function resetForm() {
   document.getElementById('modifyStatusCode').value = '';
   clearHeaderModifications();
   currentEditingRuleId = null;
+}
+
+// ==================== Rule Templates ====================
+
+/**
+ * Pre-defined rule templates for common scenarios
+ */
+const RULE_TEMPLATES = {
+  'mock-success': {
+    name: 'Mock Success Response',
+    description: 'Return a successful JSON response with status 200',
+    urlPattern: '*://*/api/*',
+    matchType: 'wildcard',
+    methods: ['GET'],
+    modifyType: 'replace',
+    modifyStatusCode: 200,
+    modification: {
+      type: 'json',
+      value: JSON.stringify({
+        success: true,
+        message: 'Request completed successfully',
+        data: {}
+      }, null, 2)
+    }
+  },
+  'mock-error': {
+    name: 'Mock Server Error',
+    description: 'Simulate a 500 Internal Server Error response',
+    urlPattern: '*://*/api/*',
+    matchType: 'wildcard',
+    methods: ['GET', 'POST'],
+    modifyType: 'replace',
+    modifyStatusCode: 500,
+    modification: {
+      type: 'json',
+      value: JSON.stringify({
+        success: false,
+        error: 'Internal Server Error',
+        message: 'An unexpected error occurred'
+      }, null, 2)
+    }
+  },
+  'mock-404': {
+    name: 'Mock Not Found',
+    description: 'Simulate a 404 Not Found response',
+    urlPattern: '*://*/api/*',
+    matchType: 'wildcard',
+    methods: ['GET'],
+    modifyType: 'replace',
+    modifyStatusCode: 404,
+    modification: {
+      type: 'json',
+      value: JSON.stringify({
+        success: false,
+        error: 'Not Found',
+        message: 'The requested resource was not found'
+      }, null, 2)
+    }
+  },
+  'mock-delay': {
+    name: 'Slow Network Simulation',
+    description: 'Add 2 second delay to simulate slow network',
+    urlPattern: '*://*/api/*',
+    matchType: 'wildcard',
+    methods: ['GET', 'POST'],
+    delay: 2000,
+    modifyType: 'replace',
+    modification: {
+      type: 'json',
+      value: JSON.stringify({
+        success: true,
+        message: 'Response delayed by 2 seconds'
+      }, null, 2)
+    }
+  },
+  'cors-headers': {
+    name: 'Enable CORS Headers',
+    description: 'Add CORS headers to allow cross-origin requests',
+    urlPattern: '*://*/api/*',
+    matchType: 'wildcard',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+    modifyType: 'replace',
+    modifyHeaders: [
+      { name: 'Access-Control-Allow-Origin', value: '*', action: 'set' },
+      { name: 'Access-Control-Allow-Methods', value: 'GET, POST, PUT, DELETE, PATCH, OPTIONS', action: 'set' },
+      { name: 'Access-Control-Allow-Headers', value: 'Content-Type, Authorization', action: 'set' }
+    ],
+    modification: {
+      type: 'json',
+      value: JSON.stringify({ success: true }, null, 2)
+    }
+  },
+  'empty-array': {
+    name: 'Empty List Response',
+    description: 'Return an empty array for list endpoints',
+    urlPattern: '*://*/api/*',
+    matchType: 'wildcard',
+    methods: ['GET'],
+    modifyType: 'replace',
+    modifyStatusCode: 200,
+    modification: {
+      type: 'json',
+      value: JSON.stringify({
+        success: true,
+        data: [],
+        total: 0,
+        page: 1,
+        limit: 10
+      }, null, 2)
+    }
+  },
+  'auth-error': {
+    name: 'Authentication Error',
+    description: 'Simulate a 401 Unauthorized response',
+    urlPattern: '*://*/api/*',
+    matchType: 'wildcard',
+    methods: ['GET', 'POST'],
+    modifyType: 'replace',
+    modifyStatusCode: 401,
+    modification: {
+      type: 'json',
+      value: JSON.stringify({
+        success: false,
+        error: 'Unauthorized',
+        message: 'Authentication required. Please login to continue.'
+      }, null, 2)
+    }
+  },
+  'rate-limit': {
+    name: 'Rate Limit Error',
+    description: 'Simulate a 429 Too Many Requests response',
+    urlPattern: '*://*/api/*',
+    matchType: 'wildcard',
+    methods: ['GET', 'POST'],
+    modifyType: 'replace',
+    modifyStatusCode: 429,
+    modifyHeaders: [
+      { name: 'Retry-After', value: '60', action: 'set' },
+      { name: 'X-RateLimit-Limit', value: '100', action: 'set' },
+      { name: 'X-RateLimit-Remaining', value: '0', action: 'set' }
+    ],
+    modification: {
+      type: 'json',
+      value: JSON.stringify({
+        success: false,
+        error: 'Too Many Requests',
+        message: 'Rate limit exceeded. Please try again later.',
+        retryAfter: 60
+      }, null, 2)
+    }
+  }
+};
+
+/**
+ * Apply a template to the rule form
+ * @param {string} templateId - The template identifier
+ */
+function applyTemplate(templateId) {
+  const template = RULE_TEMPLATES[templateId];
+  if (!template) {
+    showToast('Template not found', 'error');
+    return;
+  }
+
+  // Reset form first
+  resetForm();
+
+  // Apply template values
+  document.getElementById('ruleName').value = template.name || '';
+  document.getElementById('ruleDescription').value = template.description || '';
+  document.getElementById('urlPattern').value = template.urlPattern || '';
+  document.getElementById('matchType').value = template.matchType || 'wildcard';
+
+  // Set methods
+  document.querySelectorAll('input[name="methods"]').forEach(cb => {
+    cb.checked = template.methods?.includes(cb.value) || false;
+  });
+
+  // Set delay if present
+  if (template.delay) {
+    document.getElementById('ruleDelay').value = template.delay;
+  }
+
+  // Set modification type and value
+  if (template.modifyType) {
+    document.getElementById('modifyType').value = template.modifyType;
+    updateModificationOptions(template.modifyType);
+
+    if (template.modifyType === 'replace' && template.modification?.value) {
+      document.getElementById('replaceValue').value = template.modification.value;
+    }
+  }
+
+  // Set status code
+  if (template.modifyStatusCode) {
+    document.getElementById('modifyStatusCode').value = template.modifyStatusCode;
+  }
+
+  // Set header modifications
+  if (template.modifyHeaders && template.modifyHeaders.length > 0) {
+    clearHeaderModifications();
+    template.modifyHeaders.forEach(header => {
+      addHeaderModificationRow(header.action, header.name, header.value);
+    });
+  }
+
+  showToast(`Applied "${template.name}" template`, 'success');
+}
+
+/**
+ * Setup template button click handlers
+ */
+function setupTemplateButtons() {
+  const templatesGrid = document.getElementById('templatesGrid');
+  if (!templatesGrid) return;
+
+  templatesGrid.addEventListener('click', (e) => {
+    const templateBtn = e.target.closest('.template-btn');
+    if (templateBtn) {
+      const templateId = templateBtn.dataset.template;
+      applyTemplate(templateId);
+    }
+  });
+}
+
+// ==================== Keyboard Shortcuts ====================
+
+/**
+ * Setup keyboard shortcuts for better productivity
+ */
+function setupKeyboardShortcuts() {
+  document.addEventListener('keydown', (e) => {
+    // Don't trigger shortcuts when typing in input fields
+    if (e.target.matches('input, textarea, select')) {
+      // Allow Escape to blur inputs
+      if (e.key === 'Escape') {
+        e.target.blur();
+      }
+      return;
+    }
+
+    // Ctrl/Cmd + N: New rule
+    if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+      e.preventDefault();
+      currentEditingRuleId = null;
+      resetForm();
+      switchTab('new-rule');
+      document.getElementById('ruleName')?.focus();
+      showToast('Creating new rule (Ctrl+N)', 'info');
+    }
+
+    // Ctrl/Cmd + S: Save current form (if on new-rule tab)
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      const newRuleTab = document.getElementById('new-rule-tab');
+      if (newRuleTab && newRuleTab.classList.contains('active')) {
+        e.preventDefault();
+        document.getElementById('ruleForm')?.requestSubmit();
+      }
+    }
+
+    // Escape: Go back to rules list
+    if (e.key === 'Escape') {
+      const newRuleTab = document.getElementById('new-rule-tab');
+      if (newRuleTab && newRuleTab.classList.contains('active')) {
+        switchTab('rules');
+      }
+    }
+
+    // Ctrl/Cmd + F: Focus search (if on rules tab)
+    if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+      const rulesTab = document.getElementById('rules-tab');
+      if (rulesTab && rulesTab.classList.contains('active')) {
+        // Focus the first focusable element or rules list
+        e.preventDefault();
+        showToast('Search rules with the filter options', 'info');
+      }
+    }
+
+    // 1-4: Quick tab navigation
+    if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+      const tabMap = {
+        '1': 'rules',
+        '2': 'new-rule',
+        '3': 'import-export',
+        '4': 'help'
+      };
+      if (tabMap[e.key]) {
+        switchTab(tabMap[e.key]);
+      }
+    }
+  });
 }
 
 async function toggleRule(ruleId) {

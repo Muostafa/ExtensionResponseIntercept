@@ -218,6 +218,56 @@
           <h2 id="formTitle">Create New Rule</h2>
         </div>
 
+        <!-- Rule Templates Section -->
+        <div class="card templates-card" style="margin-bottom: 20px;">
+          <div class="templates-header">
+            <h3>Quick Start Templates</h3>
+            <small class="form-hint">Select a template to pre-fill the form with common scenarios</small>
+          </div>
+          <div class="templates-grid" id="templatesGrid">
+            <button type="button" class="template-btn" data-template="mock-success" title="Return a successful JSON response">
+              <span class="template-icon">✅</span>
+              <span class="template-name">Mock Success</span>
+              <span class="template-desc">Return 200 OK</span>
+            </button>
+            <button type="button" class="template-btn" data-template="mock-error" title="Simulate a 500 server error">
+              <span class="template-icon">❌</span>
+              <span class="template-name">Mock Error</span>
+              <span class="template-desc">Return 500 Error</span>
+            </button>
+            <button type="button" class="template-btn" data-template="mock-404" title="Simulate a not found response">
+              <span class="template-icon">🔍</span>
+              <span class="template-name">Not Found</span>
+              <span class="template-desc">Return 404</span>
+            </button>
+            <button type="button" class="template-btn" data-template="mock-delay" title="Add artificial delay to simulate slow network">
+              <span class="template-icon">⏱️</span>
+              <span class="template-name">Slow Network</span>
+              <span class="template-desc">Add 2s delay</span>
+            </button>
+            <button type="button" class="template-btn" data-template="cors-headers" title="Add CORS headers to enable cross-origin requests">
+              <span class="template-icon">🌐</span>
+              <span class="template-name">CORS Headers</span>
+              <span class="template-desc">Enable CORS</span>
+            </button>
+            <button type="button" class="template-btn" data-template="empty-array" title="Return an empty array for list endpoints">
+              <span class="template-icon">📭</span>
+              <span class="template-name">Empty List</span>
+              <span class="template-desc">Return []</span>
+            </button>
+            <button type="button" class="template-btn" data-template="auth-error" title="Simulate authentication failure">
+              <span class="template-icon">🔐</span>
+              <span class="template-name">Auth Error</span>
+              <span class="template-desc">Return 401</span>
+            </button>
+            <button type="button" class="template-btn" data-template="rate-limit" title="Simulate rate limiting">
+              <span class="template-icon">🚫</span>
+              <span class="template-name">Rate Limit</span>
+              <span class="template-desc">Return 429</span>
+            </button>
+          </div>
+        </div>
+
         <form id="ruleForm" class="rule-form">
           <input type="hidden" id="ruleId" value="">
 
@@ -454,6 +504,29 @@
               <li>Check the browser console for debugging information</li>
               <li>The debugger must be attached to a tab for interception to work</li>
             </ul>
+          </section>
+
+          <section class="help-section">
+            <h3>Keyboard Shortcuts</h3>
+            <div class="shortcuts-list">
+              <div class="shortcut-item">
+                <span class="shortcut-keys"><kbd>Ctrl</kbd> + <kbd>N</kbd></span>
+                <span class="shortcut-desc">Create a new rule</span>
+              </div>
+              <div class="shortcut-item">
+                <span class="shortcut-keys"><kbd>Ctrl</kbd> + <kbd>S</kbd></span>
+                <span class="shortcut-desc">Save current rule</span>
+              </div>
+              <div class="shortcut-item">
+                <span class="shortcut-keys"><kbd>Esc</kbd></span>
+                <span class="shortcut-desc">Go back to rules list / Cancel</span>
+              </div>
+              <div class="shortcut-item">
+                <span class="shortcut-keys"><kbd>1</kbd> - <kbd>4</kbd></span>
+                <span class="shortcut-desc">Quick tab navigation</span>
+              </div>
+            </div>
+            <small class="form-hint" style="margin-top: 8px; display: block;">Use <kbd>Cmd</kbd> instead of <kbd>Ctrl</kbd> on Mac</small>
           </section>
 
           <section class="help-section support-section">

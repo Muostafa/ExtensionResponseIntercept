@@ -1660,3 +1660,156 @@ textarea.form-control {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Rule Templates Section */
+.templates-card {
+  border: 1px dashed var(--border-color);
+  background: var(--bg-secondary);
+}
+
+.templates-header {
+  margin-bottom: 16px;
+}
+
+.templates-header h3 {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.templates-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.template-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 14px 10px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-align: center;
+}
+
+.template-btn:hover {
+  border-color: var(--primary);
+  background: rgba(99, 102, 241, 0.05);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow);
+}
+
+.template-btn:active {
+  transform: translateY(0);
+}
+
+.template-icon {
+  font-size: 24px;
+  margin-bottom: 4px;
+}
+
+.template-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.template-desc {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+/* Dark mode templates */
+[data-theme="dark"] .templates-card {
+  background: var(--bg-secondary);
+  border-color: var(--border-color);
+}
+
+[data-theme="dark"] .template-btn {
+  background: var(--bg-tertiary);
+  border-color: var(--border-color);
+}
+
+[data-theme="dark"] .template-btn:hover {
+  border-color: var(--primary);
+  background: rgba(129, 140, 248, 0.1);
+}
+
+/* Keyboard shortcuts hint */
+.keyboard-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-left: 8px;
+}
+
+.kbd {
+  display: inline-block;
+  padding: 2px 6px;
+  font-size: 10px;
+  font-family: 'SF Mono', 'Consolas', monospace;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-secondary);
+}
+
+[data-theme="dark"] .kbd {
+  background: var(--bg-secondary);
+  border-color: var(--border-color);
+  color: var(--text-muted);
+}
+
+/* Keyboard Shortcuts List */
+.shortcuts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.shortcut-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 12px;
+  background: var(--bg-secondary);
+  border-radius: var(--border-radius-sm);
+}
+
+.shortcut-keys {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 120px;
+}
+
+.shortcut-keys kbd {
+  padding: 4px 8px;
+  font-size: 11px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-family: 'SF Mono', 'Consolas', monospace;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.shortcut-desc {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+[data-theme="dark"] .shortcut-item {
+  background: var(--bg-tertiary);
+}
+
+[data-theme="dark"] .shortcut-keys kbd {
+  background: var(--bg-secondary);
+  border-color: var(--border-color);
+}
