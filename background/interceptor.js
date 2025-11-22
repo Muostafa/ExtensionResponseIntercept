@@ -6,11 +6,40 @@ export class ResponseInterceptor {
     this.attachedTabs = new Map();
     this.pendingRequests = new Map();
     this.networkLogs = new Map(); // Store network logs per tab
+    this.ruleTriggeredCallbacks = []; // Callbacks for rule triggered notifications
     this.MAX_TABS = 100; // Limit to prevent memory issues
     this.MAX_LOGS_PER_TAB = 100; // Limit logs per tab
     this.isLoggingEnabled = true; // Network logging enabled by default
     this.setupDebuggerListener();
     this.startPeriodicCleanup();
+  }
+
+  /**
+   * Register a callback for when a rule is triggered
+   */
+  onRuleTriggered(callback) {
+    this.ruleTriggeredCallbacks.push(callback);
+  }
+
+  /**
+   * Notify all callbacks that a rule was triggered
+   */
+  notifyRuleTriggered(tabId, rule, url, action) {
+    const notification = {
+      tabId,
+      ruleName: rule.name,
+      ruleId: rule.id,
+      url,
+      action, // 'intercepted', 'redirected', 'modified', 'delayed'
+      timestamp: Date.now()
+    };
+    this.ruleTriggeredCallbacks.forEach(callback => {
+      try {
+        callback(notification);
+      } catch (error) {
+        console.error('Error in rule triggered callback:', error);
+      }
+    });
   }
 
   setupDebuggerListener() {
@@ -79,6 +108,7 @@ export class ResponseInterceptor {
         url,
         method,
         headers: request.headers,
+        postData: request.postData,
         timestamp: startTime
       });
 
@@ -93,9 +123,69 @@ export class ResponseInterceptor {
         const matchingRules = this.ruleEngine.findMatchingRules(url, method);
 
         if (matchingRules.length > 0) {
-          // Block the request and return mock response immediately
           const rule = matchingRules[0];
+
+          // Handle REDIRECT action
+          if (rule.actionType === 'redirect' && rule.redirectUrl) {
+            console.log(`↪ Redirecting ${url} to ${rule.redirectUrl} using rule "${rule.name}"`);
+
+            // Apply delay if specified
+            if (rule.delay && rule.delay > 0) {
+              console.log(`⏱ Delaying redirect by ${rule.delay}ms`);
+              await this.sleep(rule.delay);
+            }
+
+            // Notify about the redirect
+            this.notifyRuleTriggered(tabId, rule, url, 'redirected');
+
+            await chrome.debugger.sendCommand(
+              { tabId },
+              'Fetch.continueRequest',
+              {
+                requestId,
+                url: this.processRedirectUrl(rule.redirectUrl, url)
+              }
+            );
+            return;
+          }
+
+          // Handle REQUEST BODY MODIFICATION
+          if (rule.actionType === 'modifyRequest' && rule.requestBodyModification) {
+            console.log(`✎ Modifying request body for ${url} using rule "${rule.name}"`);
+
+            // Apply delay if specified
+            if (rule.delay && rule.delay > 0) {
+              console.log(`⏱ Delaying request by ${rule.delay}ms`);
+              await this.sleep(rule.delay);
+            }
+
+            const modifiedBody = this.applyRequestBodyModification(
+              request.postData,
+              rule.requestBodyModification
+            );
+
+            // Notify about the modification
+            this.notifyRuleTriggered(tabId, rule, url, 'modified');
+
+            await chrome.debugger.sendCommand(
+              { tabId },
+              'Fetch.continueRequest',
+              {
+                requestId,
+                postData: modifiedBody
+              }
+            );
+            return;
+          }
+
+          // Handle MOCK RESPONSE (default action)
           console.log(`✓ Blocking request and returning mock response for ${url} using rule "${rule.name}"`);
+
+          // Apply delay if specified
+          if (rule.delay && rule.delay > 0) {
+            console.log(`⏱ Delaying response by ${rule.delay}ms`);
+            await this.sleep(rule.delay);
+          }
 
           // Generate mock response based on rule
           const mockBody = await this.generateMockResponse(rule, url, method);
@@ -118,6 +208,9 @@ export class ResponseInterceptor {
             );
             return;
           }
+
+          // Notify about the interception
+          this.notifyRuleTriggered(tabId, rule, url, 'intercepted');
 
           // Fulfill with mock response immediately (no server request made)
           await chrome.debugger.sendCommand(
@@ -272,6 +365,100 @@ export class ResponseInterceptor {
       return JSON.parse(value);
     } catch {
       return value;
+    }
+  }
+
+  /**
+   * Sleep for a specified duration
+   */
+  sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Process redirect URL, supporting placeholders
+   * Supports: {url}, {protocol}, {host}, {path}, {query}, {hash}
+   */
+  processRedirectUrl(redirectUrl, originalUrl) {
+    try {
+      const parsed = new URL(originalUrl);
+
+      return redirectUrl
+        .replace(/\{url\}/g, originalUrl)
+        .replace(/\{protocol\}/g, parsed.protocol.replace(':', ''))
+        .replace(/\{host\}/g, parsed.host)
+        .replace(/\{hostname\}/g, parsed.hostname)
+        .replace(/\{port\}/g, parsed.port)
+        .replace(/\{path\}/g, parsed.pathname)
+        .replace(/\{pathname\}/g, parsed.pathname)
+        .replace(/\{query\}/g, parsed.search)
+        .replace(/\{search\}/g, parsed.search)
+        .replace(/\{hash\}/g, parsed.hash)
+        .replace(/\{origin\}/g, parsed.origin);
+    } catch (error) {
+      console.error('Failed to process redirect URL:', error);
+      return redirectUrl;
+    }
+  }
+
+  /**
+   * Apply request body modification
+   */
+  applyRequestBodyModification(originalBody, modification) {
+    if (!modification) return originalBody;
+
+    try {
+      const { type, value, jsonPath, findReplace } = modification;
+
+      switch (type) {
+        case 'replace':
+          // Replace entire body
+          return value || '';
+
+        case 'json-path':
+          // Modify specific JSON path
+          if (!originalBody) return originalBody;
+          try {
+            const jsonData = JSON.parse(originalBody);
+            if (jsonPath && value !== undefined) {
+              this.ruleEngine.setNestedProperty(jsonData, jsonPath, this.parseValue(value));
+            }
+            return JSON.stringify(jsonData);
+          } catch (parseError) {
+            console.warn('Request body is not valid JSON, cannot apply JSON path modification');
+            return originalBody;
+          }
+
+        case 'regex':
+          // Find and replace with regex
+          if (!originalBody || !findReplace) return originalBody;
+          try {
+            const { pattern, replacement, flags } = findReplace;
+            const regex = new RegExp(pattern, flags || 'g');
+            return originalBody.replace(regex, replacement || '');
+          } catch (regexError) {
+            console.error('Invalid regex pattern:', regexError);
+            return originalBody;
+          }
+
+        case 'merge':
+          // Merge JSON objects
+          if (!originalBody) return value || '';
+          try {
+            const originalJson = JSON.parse(originalBody);
+            const mergeJson = JSON.parse(value || '{}');
+            return JSON.stringify({ ...originalJson, ...mergeJson });
+          } catch (mergeError) {
+            console.warn('Failed to merge JSON:', mergeError);
+            return originalBody;
+          }
+
+        default:
+          return originalBody;
+      }
+    } catch (error) {
+      console.error('Failed to apply request body modification:', error);
+      return originalBody;
     }
   }
 

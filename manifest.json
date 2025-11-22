@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "API Response Interceptor",
-  "version": "2.0.0",
-  "description": "Developer tool for API testing - intercept and modify API responses, headers, and status codes for debugging and mocking",
+  "version": "2.1.0",
+  "description": "Developer tool for API testing - intercept and modify API responses/requests, redirect URLs, add delays, and more",
   "permissions": [
     "debugger",
     "storage",
