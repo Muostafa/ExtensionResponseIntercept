@@ -749,7 +749,7 @@ function collectFormData() {
   };
 
   // Add delay if specified
-  if (delay !== null && delay > 0) {
+  if (delay !== null) {
     ruleData.delay = delay;
   }
 
@@ -889,7 +889,7 @@ function populateForm(rule) {
   });
 
   // Set delay
-  setElementValue('ruleDelay', rule.delay || '');
+  setElementValue('ruleDelay', rule.delay !== undefined && rule.delay !== null ? rule.delay : '');
 
   // Set response modify type
   setElementValue('modifyType', rule.modifyType || 'replace');
