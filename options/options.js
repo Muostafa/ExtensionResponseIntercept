@@ -661,17 +661,42 @@ async function saveRule() {
   }
 
   try {
+    let savedRule;
     if (currentEditingRuleId) {
       await chrome.runtime.sendMessage({
         action: 'updateRule',
         ruleId: currentEditingRuleId,
         rule: ruleData
       });
+      // For updates, fetch all rules to verify
+      const rulesResult = await chrome.runtime.sendMessage({ action: 'getRules' });
+      savedRule = rulesResult?.rules?.find(r => r.id === currentEditingRuleId);
     } else {
-      await chrome.runtime.sendMessage({
+      const response = await chrome.runtime.sendMessage({
         action: 'addRule',
         rule: ruleData
       });
+      savedRule = response?.rule;
+    }
+
+    // Verify the rule was saved correctly, especially for delay=0 case
+    if (savedRule) {
+      const expectedDelay = ruleData.delay;
+      const actualDelay = savedRule.delay;
+
+      // Check if delay was saved correctly (including 0)
+      if (expectedDelay !== undefined && actualDelay !== expectedDelay) {
+        console.error(`Delay verification failed! Expected: ${expectedDelay}, Got: ${actualDelay}`);
+        showToast(`Warning: Delay value was not saved correctly. Expected ${expectedDelay}ms but got ${actualDelay}ms`, 'error');
+        return;
+      }
+
+      // Log successful save with delay info
+      if (expectedDelay !== undefined) {
+        console.log(`Rule saved successfully with delay: ${actualDelay}ms`);
+      }
+    } else {
+      console.warn('Could not verify saved rule');
     }
 
     const message = currentEditingRuleId ? 'Rule updated successfully' : 'Rule created successfully';
@@ -749,8 +774,9 @@ function collectFormData() {
   };
 
   // Add delay if specified
-  if (delay !== null && delay > 0) {
+  if (delay !== null) {
     ruleData.delay = delay;
+    console.log(`Setting delay value: ${delay}ms`);
   }
 
   // Get modification data based on type
@@ -889,7 +915,7 @@ function populateForm(rule) {
   });
 
   // Set delay
-  setElementValue('ruleDelay', rule.delay || '');
+  setElementValue('ruleDelay', rule.delay !== undefined && rule.delay !== null ? rule.delay : '');
 
   // Set response modify type
   setElementValue('modifyType', rule.modifyType || 'replace');
