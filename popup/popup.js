@@ -9,6 +9,7 @@ let networkLogs = [];
 let networkRefreshInterval = null;
 let collapsedGroups = new Set(); // Track collapsed group IDs
 let isNetworkLoggingEnabled = true; // Track network logging state
+let isDebuggerAttached = false; // Track debugger state for hints
 
 // Initialize popup
 document.addEventListener('DOMContentLoaded', async () => {
@@ -31,9 +32,163 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupCreateRuleModal();
   setupNotificationListener();
 
+  // Setup onboarding features
+  setupWelcomeModal();
+  setupHelpTooltips();
+  updateDebuggerHint();
+
   // Start network logs refresh if on network tab
   startNetworkRefresh();
 });
+
+// ==================== Onboarding & Welcome Modal ====================
+
+async function setupWelcomeModal() {
+  // Check if this is the first time the user opens the extension
+  const { onboardingComplete, dontShowWelcome } = await chrome.storage.local.get(['onboardingComplete', 'dontShowWelcome']);
+
+  // Show welcome modal if user hasn't completed onboarding and hasn't opted out
+  if (!onboardingComplete && !dontShowWelcome) {
+    showWelcomeModal();
+  }
+
+  // Setup event listeners for welcome modal
+  const welcomeGetStarted = document.getElementById('welcomeGetStarted');
+  const welcomeCreateRule = document.getElementById('welcomeCreateRule');
+  const dontShowAgain = document.getElementById('dontShowAgain');
+
+  if (welcomeGetStarted) {
+    welcomeGetStarted.addEventListener('click', async () => {
+      await closeWelcomeModal();
+    });
+  }
+
+  if (welcomeCreateRule) {
+    welcomeCreateRule.addEventListener('click', async () => {
+      await closeWelcomeModal();
+      // Open options page to create rule
+      chrome.runtime.openOptionsPage();
+    });
+  }
+}
+
+function showWelcomeModal() {
+  const welcomeModal = document.getElementById('welcomeModal');
+  if (welcomeModal) {
+    welcomeModal.style.display = 'flex';
+  }
+}
+
+async function closeWelcomeModal() {
+  const welcomeModal = document.getElementById('welcomeModal');
+  const dontShowAgain = document.getElementById('dontShowAgain');
+
+  if (welcomeModal) {
+    welcomeModal.style.display = 'none';
+  }
+
+  // Save preference
+  if (dontShowAgain && dontShowAgain.checked) {
+    await chrome.storage.local.set({ dontShowWelcome: true });
+  }
+
+  // Mark onboarding as complete
+  await chrome.storage.local.set({ onboardingComplete: true });
+}
+
+// ==================== Help Tooltips ====================
+
+function setupHelpTooltips() {
+  const helpButtons = document.querySelectorAll('.help-icon-btn');
+  const elementsWithTooltip = document.querySelectorAll('[data-tooltip]');
+  const quickTip = document.getElementById('quickTip');
+
+  if (!quickTip) return;
+
+  const showTooltip = (element, text) => {
+    const tipContent = quickTip.querySelector('.quick-tip-content');
+    if (tipContent) {
+      tipContent.textContent = text;
+    }
+
+    const rect = element.getBoundingClientRect();
+    quickTip.style.display = 'block';
+
+    // Position tooltip below the element
+    const tipRect = quickTip.getBoundingClientRect();
+    let left = rect.left + (rect.width / 2) - (tipRect.width / 2);
+    let top = rect.bottom + 8;
+
+    // Keep within viewport
+    if (left < 10) left = 10;
+    if (left + tipRect.width > window.innerWidth - 10) {
+      left = window.innerWidth - tipRect.width - 10;
+    }
+
+    quickTip.style.left = `${left}px`;
+    quickTip.style.top = `${top}px`;
+
+    // Adjust arrow position
+    const arrow = quickTip.querySelector('.quick-tip-arrow');
+    if (arrow) {
+      const arrowLeft = rect.left + (rect.width / 2) - left - 5;
+      arrow.style.left = `${Math.max(10, Math.min(arrowLeft, tipRect.width - 20))}px`;
+    }
+  };
+
+  const hideTooltip = () => {
+    quickTip.style.display = 'none';
+  };
+
+  // Add hover listeners to help buttons
+  helpButtons.forEach(btn => {
+    const tooltipText = btn.dataset.tooltip;
+    if (tooltipText) {
+      btn.addEventListener('mouseenter', () => showTooltip(btn, tooltipText));
+      btn.addEventListener('mouseleave', hideTooltip);
+      btn.addEventListener('focus', () => showTooltip(btn, tooltipText));
+      btn.addEventListener('blur', hideTooltip);
+    }
+  });
+
+  // Add hover listeners to elements with data-tooltip
+  elementsWithTooltip.forEach(el => {
+    const tooltipText = el.dataset.tooltip;
+    if (tooltipText && !el.classList.contains('help-icon-btn')) {
+      let timeout;
+      el.addEventListener('mouseenter', () => {
+        timeout = setTimeout(() => showTooltip(el, tooltipText), 500);
+      });
+      el.addEventListener('mouseleave', () => {
+        clearTimeout(timeout);
+        hideTooltip();
+      });
+    }
+  });
+}
+
+// ==================== Debugger Hint ====================
+
+function updateDebuggerHint() {
+  const debuggerHint = document.getElementById('debuggerHint');
+  if (!debuggerHint) return;
+
+  // Show hint if debugger is not attached and there are rules
+  const shouldShowHint = !isDebuggerAttached && window.currentRules && window.currentRules.length > 0;
+  debuggerHint.style.display = shouldShowHint ? 'flex' : 'none';
+}
+
+// ==================== Empty State Help Button ====================
+
+function setupEmptyStateHelp() {
+  const emptyShowHelpBtn = document.getElementById('emptyShowHelpBtn');
+  if (emptyShowHelpBtn) {
+    emptyShowHelpBtn.addEventListener('click', () => {
+      // Open options page at help tab
+      chrome.tabs.create({ url: chrome.runtime.getURL('options/options.html#help') });
+    });
+  }
+}
 
 // Setup listener for rule triggered notifications
 function setupNotificationListener() {
@@ -181,7 +336,10 @@ async function loadStatus() {
     }
 
     // Update attach button based on tab status
-    updateAttachButton(response.activeTabs.includes(currentTab?.id));
+    const tabIsAttached = response.activeTabs.includes(currentTab?.id);
+    isDebuggerAttached = tabIsAttached;
+    updateAttachButton(tabIsAttached);
+    updateDebuggerHint();
   } catch (error) {
     console.error('Failed to load status:', error);
   }
@@ -386,6 +544,9 @@ async function displayRules(rules) {
       activeEditRuleIds.delete(ruleId);
     }
   }
+
+  // Update debugger hint based on rules count
+  updateDebuggerHint();
 }
 
 function renderRuleItem(rule, group) {
@@ -673,6 +834,14 @@ function setupEventListeners() {
     });
   }
 
+  // Empty state help button
+  const emptyShowHelpBtn = document.getElementById('emptyShowHelpBtn');
+  if (emptyShowHelpBtn) {
+    emptyShowHelpBtn.addEventListener('click', () => {
+      chrome.tabs.create({ url: chrome.runtime.getURL('options/options.html#help') });
+    });
+  }
+
   // Open options buttons
   const openOptionsBtn = document.getElementById('openOptions');
   const openSettingsBtn = document.getElementById('openSettingsBtn');
@@ -709,6 +878,9 @@ function updateAttachButton(isAttached) {
   const button = document.getElementById('attachTab');
   const btnText = document.getElementById('attachBtnText');
 
+  // Update global state
+  isDebuggerAttached = isAttached;
+
   if (isAttached) {
     if (btnText) btnText.textContent = 'Detach';
     button.classList.remove('btn-primary');
@@ -732,6 +904,9 @@ function updateAttachButton(isAttached) {
       <span id="attachBtnText">Attach Debugger</span>
     `;
   }
+
+  // Update debugger hint visibility
+  updateDebuggerHint();
 }
 
 async function toggleRule(ruleId) {

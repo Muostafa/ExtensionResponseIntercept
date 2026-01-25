@@ -117,8 +117,35 @@ function setupNavigation() {
       // Update active nav item
       document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
       item.classList.add('active');
+
+      // Update URL hash without triggering page reload
+      history.replaceState(null, null, `#${tab}`);
     });
   });
+
+  // Handle initial hash navigation
+  handleHashNavigation();
+
+  // Listen for hash changes
+  window.addEventListener('hashchange', handleHashNavigation);
+}
+
+function handleHashNavigation() {
+  const hash = window.location.hash.slice(1); // Remove the # symbol
+  if (hash) {
+    const validTabs = ['rules', 'new-rule', 'import-export', 'help'];
+    if (validTabs.includes(hash)) {
+      showTab(hash);
+
+      // Update nav active state
+      document.querySelectorAll('.nav-item').forEach(nav => {
+        nav.classList.remove('active');
+        if (nav.dataset.tab === hash) {
+          nav.classList.add('active');
+        }
+      });
+    }
+  }
 }
 
 function showTab(tabName) {
