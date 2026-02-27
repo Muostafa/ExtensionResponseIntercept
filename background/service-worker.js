@@ -127,8 +127,8 @@ class ServiceWorker {
         break;
 
       case 'addRule':
-        await this.storageManager.addRule(request.rule);
-        sendResponse({ success: true });
+        const newRule = await this.storageManager.addRule(request.rule);
+        sendResponse({ success: true, ruleId: newRule.id, rule: newRule });
         break;
 
       case 'updateRule':
