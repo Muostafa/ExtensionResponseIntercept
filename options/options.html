@@ -357,6 +357,37 @@
           </div>
         </div>
 
+        <!-- Fullscreen JSON Editor Modal -->
+        <div id="jsonEditorModal" class="modal" style="display: none">
+          <div class="modal-content json-editor-modal-content">
+            <div class="json-editor-toolbar">
+              <h3 id="jsonEditorTitle">Edit Response Body</h3>
+              <div class="json-editor-toolbar-actions">
+                <span id="jsonEditorStatus" class="json-editor-status"></span>
+                <button type="button" id="jsonEditorPrettify" class="btn btn-secondary btn-small">
+                  Prettify
+                </button>
+                <button type="button" id="jsonEditorMinify" class="btn btn-secondary btn-small">
+                  Minify
+                </button>
+                <button type="button" id="jsonEditorClose" class="modal-close">&times;</button>
+              </div>
+            </div>
+            <div class="json-editor-body">
+              <div class="json-editor-line-numbers" id="jsonEditorLineNumbers"></div>
+              <textarea id="jsonEditorTextarea" class="json-editor-fullscreen-textarea"
+                        spellcheck="false" wrap="off" placeholder="Enter JSON here..."></textarea>
+            </div>
+            <div class="json-editor-footer">
+              <span id="jsonEditorInfo" class="json-editor-info">Line 1, Col 1</span>
+              <div>
+                <button type="button" id="jsonEditorCancel" class="btn btn-secondary">Cancel</button>
+                <button type="button" id="jsonEditorApply" class="btn btn-primary">Apply</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- New Rule Tab -->
         <div id="new-rule-tab" class="tab-content">
           <div class="header">
@@ -576,7 +607,7 @@
                   rows="10"
                   placeholder='{"message": "Modified response"}'
                 ></textarea>
-                <div style="display: flex; gap: 10px; margin-top: 8px">
+                <div style="display: flex; gap: 10px; margin-top: 8px; flex-wrap: wrap">
                   <button
                     type="button"
                     id="prettifyJsonBtn"
@@ -584,8 +615,15 @@
                   >
                     ✨ Prettify JSON
                   </button>
+                  <button
+                    type="button"
+                    id="expandJsonEditorBtn"
+                    class="btn btn-secondary btn-small"
+                  >
+                    ⛶ Expand Editor
+                  </button>
                   <small class="form-hint" style="margin: 0; align-self: center"
-                    >Format the JSON with proper indentation</small
+                    >Format or expand the JSON editor</small
                   >
                 </div>
               </div>

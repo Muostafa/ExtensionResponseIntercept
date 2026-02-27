@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupThemeToggle();
   setupTemplateButtons();
   setupKeyboardShortcuts();
+  setupJsonEditorListeners();
 });
 
 // Theme management
@@ -157,11 +158,6 @@ async function loadRules() {
     window.currentRules = rules;
 
     displayRules(rules);
-
-    // Refresh group display to update rule counts
-    if (currentGroups.length > 0) {
-      displayGroups(currentGroups);
-    }
   } catch (error) {
     console.error('Failed to load rules:', error);
   }
@@ -272,6 +268,7 @@ function displayRules(rules) {
           ${groupRules.length === 0 ? `
             <div class="options-group-empty">
               <span>No rules in this group</span>
+              <span class="drop-hint">Drop a rule here to add it</span>
               <button class="btn btn-secondary btn-small add-rule-to-group-btn" data-group-id="${group.id}">+ Add Rule</button>
             </div>
           ` : `
@@ -308,6 +305,7 @@ function displayRules(rules) {
         ${ungroupedRules.length === 0 ? `
           <div class="options-group-empty">
             <span>No ungrouped rules</span>
+            <span class="drop-hint">Drop a rule here to ungroup it</span>
           </div>
         ` : `
           <div class="options-rules-grid">
@@ -319,6 +317,13 @@ function displayRules(rules) {
   `;
 
   groupedRulesList.innerHTML = html;
+
+  // Set max-height for non-collapsed groups so animation works
+  document.querySelectorAll('.options-group-rules').forEach(container => {
+    if (!container.classList.contains('collapsed')) {
+      container.style.maxHeight = 'none';
+    }
+  });
 
   // Add event listeners
   attachRuleEventListeners();
@@ -360,12 +365,17 @@ function renderRuleCard(rule, group) {
   }
 
   return `
-    <div class="${cardClasses}" data-rule-id="${rule.id}">
+    <div class="${cardClasses}" data-rule-id="${rule.id}" draggable="true">
       ${isGroupDisabled ? '<div class="group-disabled-banner">Inactive - Group is disabled</div>' : ''}
       <div class="rule-card-header">
         <div class="rule-card-title-wrapper">
-          <span class="rule-card-title">${escapeHtml(rule.name)}</span>
-          ${rule.description ? `<div class="rule-card-description">${escapeHtml(rule.description)}</div>` : ''}
+          <span class="drag-handle" title="Drag to move between groups">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/></svg>
+          </span>
+          <div class="rule-card-title-content">
+            <span class="rule-card-title">${escapeHtml(rule.name)}</span>
+            ${rule.description ? `<div class="rule-card-description">${escapeHtml(rule.description)}</div>` : ''}
+          </div>
         </div>
         <div class="toggle-switch-small">
           <input type="checkbox" id="toggle-${rule.id}" ${rule.enabled ? 'checked' : ''} ${isGroupDisabled ? 'disabled' : ''} data-rule-id="${rule.id}">
@@ -446,6 +456,14 @@ function attachGroupEventListeners() {
       addRuleToGroup(groupId);
     });
   });
+
+  // Drag & Drop targets on group containers
+  document.querySelectorAll('.options-group-container').forEach(container => {
+    container.addEventListener('dragover', handleGroupDragOver);
+    container.addEventListener('dragenter', handleGroupDragEnter);
+    container.addEventListener('dragleave', handleGroupDragLeave);
+    container.addEventListener('drop', handleGroupDrop);
+  });
 }
 
 function toggleGroupCollapse(groupId) {
@@ -455,11 +473,24 @@ function toggleGroupCollapse(groupId) {
   if (collapsedGroups.has(groupId)) {
     collapsedGroups.delete(groupId);
     btn?.classList.remove('collapsed');
-    rulesContainer?.classList.remove('collapsed');
+    if (rulesContainer) {
+      rulesContainer.classList.remove('collapsed');
+      // Set max-height for smooth expand
+      rulesContainer.style.maxHeight = rulesContainer.scrollHeight + 'px';
+      setTimeout(() => {
+        rulesContainer.style.maxHeight = 'none';
+      }, 310);
+    }
   } else {
     collapsedGroups.add(groupId);
     btn?.classList.add('collapsed');
-    rulesContainer?.classList.add('collapsed');
+    if (rulesContainer) {
+      // Set current height first so transition works
+      rulesContainer.style.maxHeight = rulesContainer.scrollHeight + 'px';
+      // Force reflow
+      rulesContainer.offsetHeight;
+      rulesContainer.classList.add('collapsed');
+    }
   }
 }
 
@@ -514,6 +545,114 @@ function attachRuleEventListeners() {
       deleteRule(ruleId);
     });
   });
+
+  // Drag & Drop on rule cards
+  document.querySelectorAll('.rule-card[draggable="true"]').forEach(card => {
+    card.addEventListener('dragstart', handleDragStart);
+    card.addEventListener('dragend', handleDragEnd);
+  });
+}
+
+// ======================================
+// Drag & Drop
+// ======================================
+
+let dragAutoExpandTimeout = null;
+
+function handleDragStart(e) {
+  const ruleId = e.currentTarget.dataset.ruleId;
+  e.dataTransfer.setData('text/plain', ruleId);
+  e.dataTransfer.effectAllowed = 'move';
+  e.currentTarget.classList.add('dragging');
+}
+
+function handleDragEnd(e) {
+  e.currentTarget.classList.remove('dragging');
+  // Clean up all drop target highlights
+  document.querySelectorAll('.drop-target-hover').forEach(el => {
+    el.classList.remove('drop-target-hover');
+  });
+  if (dragAutoExpandTimeout) {
+    clearTimeout(dragAutoExpandTimeout);
+    dragAutoExpandTimeout = null;
+  }
+}
+
+function handleGroupDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+}
+
+function handleGroupDragEnter(e) {
+  e.preventDefault();
+  const container = e.currentTarget;
+  container.classList.add('drop-target-hover');
+
+  // Auto-expand collapsed groups after 500ms hover
+  const groupId = container.dataset.groupId;
+  if (groupId && collapsedGroups.has(groupId)) {
+    if (dragAutoExpandTimeout) clearTimeout(dragAutoExpandTimeout);
+    dragAutoExpandTimeout = setTimeout(() => {
+      toggleGroupCollapse(groupId);
+    }, 500);
+  }
+}
+
+function handleGroupDragLeave(e) {
+  const container = e.currentTarget;
+  // Only remove highlight if we're actually leaving the container
+  if (!container.contains(e.relatedTarget)) {
+    container.classList.remove('drop-target-hover');
+    if (dragAutoExpandTimeout) {
+      clearTimeout(dragAutoExpandTimeout);
+      dragAutoExpandTimeout = null;
+    }
+  }
+}
+
+async function handleGroupDrop(e) {
+  e.preventDefault();
+  const container = e.currentTarget;
+  container.classList.remove('drop-target-hover');
+
+  const ruleId = e.dataTransfer.getData('text/plain');
+  if (!ruleId) return;
+
+  const targetGroupId = container.dataset.groupId;
+  // "ungrouped" means null groupId
+  const newGroupId = targetGroupId === 'ungrouped' ? null : targetGroupId;
+
+  // Check if rule is already in this group
+  const rule = (window.currentRules || []).find(r => r.id === ruleId);
+  if (!rule) return;
+  const currentGroupId = rule.groupId || null;
+  if (currentGroupId === newGroupId) return;
+
+  try {
+    await chrome.runtime.sendMessage({
+      action: 'assignRuleToGroup',
+      ruleId: ruleId,
+      groupId: newGroupId
+    });
+    await loadRules();
+
+    // Add pulse animation to the moved card
+    setTimeout(() => {
+      const movedCard = document.querySelector(`.rule-card[data-rule-id="${ruleId}"]`);
+      if (movedCard) {
+        movedCard.classList.add('just-moved');
+        setTimeout(() => movedCard.classList.remove('just-moved'), 700);
+      }
+    }, 50);
+
+    const targetName = newGroupId
+      ? (currentGroups.find(g => g.id === newGroupId)?.name || 'group')
+      : 'Ungrouped';
+    showToast(`Rule moved to ${targetName}`, 'success');
+  } catch (error) {
+    console.error('Failed to move rule:', error);
+    showToast('Failed to move rule', 'error');
+  }
 }
 
 function getModifyTypeLabel(type) {
@@ -867,6 +1006,10 @@ async function editRule(ruleId) {
     }
 
     currentEditingRuleId = ruleId;
+
+    // Ensure group selectors are up to date before populating
+    await loadGroups();
+
     populateForm(rule);
     showTab('new-rule');
 
@@ -1766,6 +1909,163 @@ function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
+}
+
+// ======================================
+// Fullscreen JSON Editor Modal
+// ======================================
+
+let jsonEditorSourceTextarea = null;
+
+function openJsonEditorModal(sourceTextareaId) {
+  const source = document.getElementById(sourceTextareaId);
+  if (!source) return;
+
+  jsonEditorSourceTextarea = source;
+  const modal = document.getElementById('jsonEditorModal');
+  const textarea = document.getElementById('jsonEditorTextarea');
+
+  textarea.value = source.value;
+  modal.style.display = 'flex';
+  textarea.focus();
+
+  updateJsonEditorLineNumbers();
+  updateJsonEditorCursorPosition();
+  validateJsonEditorContent();
+}
+
+function closeJsonEditorModal(apply) {
+  const modal = document.getElementById('jsonEditorModal');
+  const textarea = document.getElementById('jsonEditorTextarea');
+
+  if (apply && jsonEditorSourceTextarea) {
+    jsonEditorSourceTextarea.value = textarea.value;
+    jsonEditorSourceTextarea.dispatchEvent(new Event('input'));
+  }
+
+  modal.style.display = 'none';
+  jsonEditorSourceTextarea = null;
+}
+
+function updateJsonEditorLineNumbers() {
+  const textarea = document.getElementById('jsonEditorTextarea');
+  const lineNumbers = document.getElementById('jsonEditorLineNumbers');
+  const lines = textarea.value.split('\n').length;
+
+  lineNumbers.innerHTML = Array.from({ length: lines }, (_, i) =>
+    `<div class="line-number">${i + 1}</div>`
+  ).join('');
+}
+
+function updateJsonEditorCursorPosition() {
+  const textarea = document.getElementById('jsonEditorTextarea');
+  const info = document.getElementById('jsonEditorInfo');
+  const text = textarea.value.substring(0, textarea.selectionStart);
+  const line = text.split('\n').length;
+  const col = text.split('\n').pop().length + 1;
+  info.textContent = `Line ${line}, Col ${col}`;
+}
+
+let jsonValidateTimer = null;
+function validateJsonEditorContent() {
+  clearTimeout(jsonValidateTimer);
+  jsonValidateTimer = setTimeout(() => {
+    const textarea = document.getElementById('jsonEditorTextarea');
+    const status = document.getElementById('jsonEditorStatus');
+    const content = textarea.value.trim();
+
+    if (!content) {
+      status.textContent = '';
+      status.className = 'json-editor-status';
+      return;
+    }
+
+    try {
+      JSON.parse(content);
+      status.textContent = 'Valid JSON';
+      status.className = 'json-editor-status valid';
+    } catch (e) {
+      status.textContent = 'Invalid JSON';
+      status.className = 'json-editor-status invalid';
+    }
+  }, 300);
+}
+
+function setupJsonEditorListeners() {
+  // Expand editor button
+  document.getElementById('expandJsonEditorBtn')?.addEventListener('click', () => {
+    openJsonEditorModal('replaceValue');
+  });
+
+  // Modal buttons
+  document.getElementById('jsonEditorApply')?.addEventListener('click', () => closeJsonEditorModal(true));
+  document.getElementById('jsonEditorCancel')?.addEventListener('click', () => closeJsonEditorModal(false));
+  document.getElementById('jsonEditorClose')?.addEventListener('click', () => closeJsonEditorModal(false));
+
+  const jsonEditorTextarea = document.getElementById('jsonEditorTextarea');
+  if (jsonEditorTextarea) {
+    jsonEditorTextarea.addEventListener('input', () => {
+      updateJsonEditorLineNumbers();
+      validateJsonEditorContent();
+    });
+
+    // Sync scroll between line numbers and textarea
+    jsonEditorTextarea.addEventListener('scroll', () => {
+      const lineNumbers = document.getElementById('jsonEditorLineNumbers');
+      lineNumbers.scrollTop = jsonEditorTextarea.scrollTop;
+    });
+
+    jsonEditorTextarea.addEventListener('click', updateJsonEditorCursorPosition);
+    jsonEditorTextarea.addEventListener('keyup', updateJsonEditorCursorPosition);
+
+    // Tab key inserts 2 spaces instead of changing focus
+    jsonEditorTextarea.addEventListener('keydown', (e) => {
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        const start = jsonEditorTextarea.selectionStart;
+        const end = jsonEditorTextarea.selectionEnd;
+        jsonEditorTextarea.value = jsonEditorTextarea.value.substring(0, start) + '  ' + jsonEditorTextarea.value.substring(end);
+        jsonEditorTextarea.selectionStart = jsonEditorTextarea.selectionEnd = start + 2;
+        updateJsonEditorLineNumbers();
+        validateJsonEditorContent();
+      }
+      // Escape to close
+      if (e.key === 'Escape') {
+        closeJsonEditorModal(false);
+      }
+    });
+  }
+
+  // Prettify in modal
+  document.getElementById('jsonEditorPrettify')?.addEventListener('click', () => {
+    const ta = document.getElementById('jsonEditorTextarea');
+    try {
+      ta.value = JSON.stringify(JSON.parse(ta.value), null, 2);
+      updateJsonEditorLineNumbers();
+      validateJsonEditorContent();
+    } catch (e) {
+      showToast('Invalid JSON: ' + e.message, 'error');
+    }
+  });
+
+  // Minify in modal
+  document.getElementById('jsonEditorMinify')?.addEventListener('click', () => {
+    const ta = document.getElementById('jsonEditorTextarea');
+    try {
+      ta.value = JSON.stringify(JSON.parse(ta.value));
+      updateJsonEditorLineNumbers();
+      validateJsonEditorContent();
+    } catch (e) {
+      showToast('Invalid JSON: ' + e.message, 'error');
+    }
+  });
+
+  // Close modal on backdrop click
+  document.getElementById('jsonEditorModal')?.addEventListener('click', (e) => {
+    if (e.target.id === 'jsonEditorModal') {
+      closeJsonEditorModal(false);
+    }
+  });
 }
 
 // Make showTab available globally for help section
