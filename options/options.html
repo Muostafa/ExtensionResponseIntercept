@@ -1,572 +1,944 @@
 <!DOCTYPE html>
 <html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>API Response Interceptor - Settings</title>
-  <link rel="stylesheet" href="options.css">
-</head>
-<body>
-  <div class="container">
-    <aside class="sidebar">
-      <div class="logo">
-        <h1>
-          <img src="../icons/icon48.png" alt="API Interceptor" width="32" height="32" style="border-radius: 6px; vertical-align: middle;">
-          API Interceptor
-        </h1>
-      </div>
-      <nav class="nav">
-        <a href="#" class="nav-item active" data-tab="rules">
-          <span>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-              <line x1="16" y1="13" x2="8" y2="13"/>
-              <line x1="16" y1="17" x2="8" y2="17"/>
-            </svg>
-            Rules & Groups
-          </span>
-        </a>
-        <a href="#" class="nav-item" data-tab="new-rule">
-          <span>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/>
-              <line x1="12" y1="8" x2="12" y2="16"/>
-              <line x1="8" y1="12" x2="16" y2="12"/>
-            </svg>
-            New Rule
-          </span>
-        </a>
-        <a href="#" class="nav-item" data-tab="import-export">
-          <span>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-              <polyline points="17 8 12 3 7 8"/>
-              <line x1="12" y1="3" x2="12" y2="15"/>
-            </svg>
-            Import/Export
-          </span>
-        </a>
-        <a href="#" class="nav-item" data-tab="help">
-          <span>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <circle cx="12" cy="12" r="10"/>
-              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
-              <line x1="12" y1="17" x2="12.01" y2="17"/>
-            </svg>
-            Help
-          </span>
-        </a>
-      </nav>
-      <div class="theme-toggle-wrapper">
-        <button id="themeToggle" class="theme-toggle-btn">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-          </svg>
-          <span id="themeText">Dark Mode</span>
-        </button>
-      </div>
-      <div class="sidebar-footer">
-        <div class="developer-info">
-          <div class="footer-title">Created by</div>
-          <a href="https://mustafaomran.vercel.app/" target="_blank" class="developer-link">
-            <span class="developer-name">Mustafa Omran</span>
-            <span class="developer-subtitle">Software Developer</span>
-          </a>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>API Response Interceptor - Settings</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <div class="container">
+      <aside class="sidebar">
+        <div class="logo">
+          <h1>
+            <img
+              src="../icons/icon48.png"
+              alt="API Interceptor"
+              width="32"
+              height="32"
+              style="border-radius: 6px; vertical-align: middle"
+            />
+            API Interceptor
+          </h1>
         </div>
-        <div class="footer-divider"></div>
-        <div class="footer-title">Support This Project</div>
-        <div class="support-links">
-          <a href="https://buymeacoffee.com/MustafaOmran" target="_blank" class="support-link">
-            <img src="../public/buymeacoffee.png" alt="Buy Me a Coffee" class="support-icon">
-            <span>International</span>
+        <nav class="nav">
+          <a href="#" class="nav-item active" data-tab="rules">
+            <span>
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+                />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="16" y1="13" x2="8" y2="13" />
+                <line x1="16" y1="17" x2="8" y2="17" />
+              </svg>
+              Rules & Groups
+            </span>
           </a>
-          <a href="https://ipn.eg/S/mustafaomran2000/instapay/0MTHXn" target="_blank" class="support-link">
-            <img src="../public/instapay.png" alt="InstaPay" class="support-icon">
-            <span>Egypt</span>
+          <a href="#" class="nav-item" data-tab="new-rule">
+            <span>
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="16" />
+                <line x1="8" y1="12" x2="16" y2="12" />
+              </svg>
+              New Rule
+            </span>
           </a>
+          <a href="#" class="nav-item" data-tab="import-export">
+            <span>
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
+              </svg>
+              Import/Export
+            </span>
+          </a>
+          <a href="#" class="nav-item" data-tab="help">
+            <span>
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+              Help
+            </span>
+          </a>
+        </nav>
+        <div class="theme-toggle-wrapper">
+          <button id="themeToggle" class="theme-toggle-btn">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+            </svg>
+            <span id="themeText">Dark Mode</span>
+          </button>
         </div>
-      </div>
-    </aside>
-
-    <main class="main-content">
-      <!-- Rules & Groups Tab -->
-      <div id="rules-tab" class="tab-content active">
-        <div class="header">
-          <h2>Rules & Groups</h2>
-          <div class="header-actions">
-            <button id="addNewGroupBtn" class="btn btn-secondary">+ New Group</button>
-            <button id="addNewRuleBtn" class="btn btn-primary">+ New Rule</button>
+        <div class="sidebar-footer">
+          <div class="developer-info">
+            <div class="footer-title">Created by</div>
+            <a
+              href="https://mustafaomran.vercel.app/"
+              target="_blank"
+              class="developer-link"
+            >
+              <span class="developer-name">Mustafa Omran</span>
+              <span class="developer-subtitle">Software Developer</span>
+            </a>
+          </div>
+          <div class="footer-divider"></div>
+          <div class="footer-title">Support This Project</div>
+          <div class="support-links">
+            <a
+              href="https://buymeacoffee.com/MustafaOmran"
+              target="_blank"
+              class="support-link"
+            >
+              <img
+                src="../public/buymeacoffee.png"
+                alt="Buy Me a Coffee"
+                class="support-icon"
+              />
+              <span>International</span>
+            </a>
           </div>
         </div>
+      </aside>
 
-        <div class="card options-toolbar" style="margin-bottom: 20px;">
-          <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
-            <div>
-              <label for="ruleSortBy" style="font-weight: 500; margin-right: 8px;">Sort rules:</label>
-              <select id="ruleSortBy" class="form-control" style="display: inline-block; width: auto;">
-                <option value="modified">Last Modified</option>
-                <option value="created" selected>Date Created</option>
-                <option value="name">Name</option>
-              </select>
-            </div>
-            <div>
-              <label for="ruleSortOrder" style="font-weight: 500; margin-right: 8px;">Order:</label>
-              <select id="ruleSortOrder" class="form-control" style="display: inline-block; width: auto;">
-                <option value="desc">Newest First</option>
-                <option value="asc">Oldest First</option>
-              </select>
-            </div>
-            <div>
-              <label class="checkbox-label">
-                <input type="checkbox" id="enabledRulesFirst"> Enabled rules first
-              </label>
-            </div>
-            <div style="margin-left: auto;">
-              <button id="collapseAllBtn" class="btn btn-secondary btn-small">Collapse All</button>
-              <button id="expandAllBtn" class="btn btn-secondary btn-small">Expand All</button>
+      <main class="main-content">
+        <!-- Rules & Groups Tab -->
+        <div id="rules-tab" class="tab-content active">
+          <div class="header">
+            <h2>Rules & Groups</h2>
+            <div class="header-actions">
+              <button id="addNewGroupBtn" class="btn btn-secondary">
+                + New Group
+              </button>
+              <button id="addNewRuleBtn" class="btn btn-primary">
+                + New Rule
+              </button>
             </div>
           </div>
-        </div>
 
-        <div id="groupedRulesList" class="grouped-rules-container">
-          <!-- Groups with rules will be populated here -->
-        </div>
-
-        <div id="emptyState" class="empty-state" style="display: none;">
-          <div class="empty-icon">📭</div>
-          <h3>No Rules Yet</h3>
-          <p>Create your first rule to start intercepting and modifying API responses</p>
-          <button id="emptyStateCreateRuleBtn" class="btn btn-primary">Create Rule</button>
-        </div>
-
-        <!-- Add/Edit Group Modal -->
-        <div id="groupModal" class="modal" style="display: none;">
-          <div class="modal-content">
-            <div class="modal-header">
-              <h3 id="groupModalTitle">Add New Group</h3>
-              <button class="modal-close" id="closeGroupModal">&times;</button>
+          <div class="card options-toolbar" style="margin-bottom: 20px">
+            <div
+              style="
+                display: flex;
+                gap: 15px;
+                align-items: center;
+                flex-wrap: wrap;
+              "
+            >
+              <div>
+                <label
+                  for="ruleSortBy"
+                  style="font-weight: 500; margin-right: 8px"
+                  >Sort rules:</label
+                >
+                <select
+                  id="ruleSortBy"
+                  class="form-control"
+                  style="display: inline-block; width: auto"
+                >
+                  <option value="modified">Last Modified</option>
+                  <option value="created" selected>Date Created</option>
+                  <option value="name">Name</option>
+                </select>
+              </div>
+              <div>
+                <label
+                  for="ruleSortOrder"
+                  style="font-weight: 500; margin-right: 8px"
+                  >Order:</label
+                >
+                <select
+                  id="ruleSortOrder"
+                  class="form-control"
+                  style="display: inline-block; width: auto"
+                >
+                  <option value="desc">Newest First</option>
+                  <option value="asc">Oldest First</option>
+                </select>
+              </div>
+              <div>
+                <label class="checkbox-label">
+                  <input type="checkbox" id="enabledRulesFirst" /> Enabled rules
+                  first
+                </label>
+              </div>
+              <div style="margin-left: auto">
+                <button id="collapseAllBtn" class="btn btn-secondary btn-small">
+                  Collapse All
+                </button>
+                <button id="expandAllBtn" class="btn btn-secondary btn-small">
+                  Expand All
+                </button>
+              </div>
             </div>
-            <form id="groupForm">
-              <input type="hidden" id="editGroupId" value="">
+          </div>
 
-              <div class="form-group">
-                <label for="groupName">Group Name</label>
-                <input type="text" id="groupName" class="form-control" placeholder="e.g., Development, Testing" required>
+          <div id="groupedRulesList" class="grouped-rules-container">
+            <!-- Groups with rules will be populated here -->
+          </div>
+
+          <div id="emptyState" class="empty-state" style="display: none">
+            <div class="empty-icon">📭</div>
+            <h3>No Rules Yet</h3>
+            <p>
+              Create your first rule to start intercepting and modifying API
+              responses
+            </p>
+            <button id="emptyStateCreateRuleBtn" class="btn btn-primary">
+              Create Rule
+            </button>
+          </div>
+
+          <!-- Add/Edit Group Modal -->
+          <div id="groupModal" class="modal" style="display: none">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h3 id="groupModalTitle">Add New Group</h3>
+                <button class="modal-close" id="closeGroupModal">
+                  &times;
+                </button>
               </div>
+              <form id="groupForm">
+                <input type="hidden" id="editGroupId" value="" />
 
-              <div class="form-group">
-                <label for="groupDescription">Description (optional)</label>
-                <textarea id="groupDescription" class="form-control" rows="2" placeholder="What is this group for?"></textarea>
+                <div class="form-group">
+                  <label for="groupName">Group Name</label>
+                  <input
+                    type="text"
+                    id="groupName"
+                    class="form-control"
+                    placeholder="e.g., Development, Testing"
+                    required
+                  />
+                </div>
+
+                <div class="form-group">
+                  <label for="groupDescription">Description (optional)</label>
+                  <textarea
+                    id="groupDescription"
+                    class="form-control"
+                    rows="2"
+                    placeholder="What is this group for?"
+                  ></textarea>
+                </div>
+
+                <div class="form-group">
+                  <label for="groupColor">Color</label>
+                  <div class="color-picker">
+                    <input
+                      type="color"
+                      id="groupColor"
+                      class="form-control"
+                      value="#4CAF50"
+                    />
+                    <small class="form-hint"
+                      >Choose a color to identify this group</small
+                    >
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label class="checkbox-label">
+                    <input type="checkbox" id="groupEnabled" checked /> Enable
+                    this group
+                  </label>
+                </div>
+
+                <div class="form-actions">
+                  <button type="submit" class="btn btn-primary">
+                    Save Group
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-secondary"
+                    id="cancelGroupBtn"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+
+          <!-- Delete Group Confirmation Modal -->
+          <div id="deleteGroupModal" class="modal" style="display: none">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h3>Delete Group</h3>
+                <button class="modal-close" id="closeDeleteGroupModal">
+                  &times;
+                </button>
               </div>
+              <div class="modal-body">
+                <p id="deleteGroupMessage">
+                  Are you sure you want to delete this group?
+                </p>
+                <input type="hidden" id="deleteGroupId" value="" />
 
-              <div class="form-group">
-                <label for="groupColor">Color</label>
-                <div class="color-picker">
-                  <input type="color" id="groupColor" class="form-control" value="#4CAF50">
-                  <small class="form-hint">Choose a color to identify this group</small>
+                <div id="deleteGroupOptions" class="delete-options">
+                  <label class="radio-label">
+                    <input
+                      type="radio"
+                      name="deleteGroupAction"
+                      value="keep"
+                      checked
+                    />
+                    <span>Keep rules (they will become ungrouped)</span>
+                  </label>
+                  <label class="radio-label">
+                    <input
+                      type="radio"
+                      name="deleteGroupAction"
+                      value="delete"
+                    />
+                    <span>Delete all rules in this group</span>
+                  </label>
                 </div>
               </div>
+              <div
+                class="form-actions"
+                style="margin: 0 24px 20px; padding-top: 16px"
+              >
+                <button
+                  type="button"
+                  class="btn btn-danger"
+                  id="confirmDeleteGroupBtn"
+                >
+                  Delete Group
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-secondary"
+                  id="cancelDeleteGroupBtn"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- New Rule Tab -->
+        <div id="new-rule-tab" class="tab-content">
+          <div class="header">
+            <h2 id="formTitle">Create New Rule</h2>
+          </div>
+
+          <!-- Rule Templates Section -->
+          <div class="card templates-card" style="margin-bottom: 20px">
+            <div class="templates-header">
+              <h3>Quick Start Templates</h3>
+              <small class="form-hint"
+                >Select a template to pre-fill the form with common
+                scenarios</small
+              >
+            </div>
+            <div class="templates-grid" id="templatesGrid">
+              <button
+                type="button"
+                class="template-btn"
+                data-template="mock-success"
+                title="Return a successful JSON response"
+              >
+                <span class="template-icon">✅</span>
+                <span class="template-name">Mock Success</span>
+                <span class="template-desc">Return 200 OK</span>
+              </button>
+              <button
+                type="button"
+                class="template-btn"
+                data-template="mock-error"
+                title="Simulate a 500 server error"
+              >
+                <span class="template-icon">❌</span>
+                <span class="template-name">Mock Error</span>
+                <span class="template-desc">Return 500 Error</span>
+              </button>
+              <button
+                type="button"
+                class="template-btn"
+                data-template="mock-404"
+                title="Simulate a not found response"
+              >
+                <span class="template-icon">🔍</span>
+                <span class="template-name">Not Found</span>
+                <span class="template-desc">Return 404</span>
+              </button>
+              <button
+                type="button"
+                class="template-btn"
+                data-template="mock-delay"
+                title="Add artificial delay to simulate slow network"
+              >
+                <span class="template-icon">⏱️</span>
+                <span class="template-name">Slow Network</span>
+                <span class="template-desc">Add 2s delay</span>
+              </button>
+              <button
+                type="button"
+                class="template-btn"
+                data-template="cors-headers"
+                title="Add CORS headers to enable cross-origin requests"
+              >
+                <span class="template-icon">🌐</span>
+                <span class="template-name">CORS Headers</span>
+                <span class="template-desc">Enable CORS</span>
+              </button>
+              <button
+                type="button"
+                class="template-btn"
+                data-template="empty-array"
+                title="Return an empty array for list endpoints"
+              >
+                <span class="template-icon">📭</span>
+                <span class="template-name">Empty List</span>
+                <span class="template-desc">Return []</span>
+              </button>
+              <button
+                type="button"
+                class="template-btn"
+                data-template="auth-error"
+                title="Simulate authentication failure"
+              >
+                <span class="template-icon">🔐</span>
+                <span class="template-name">Auth Error</span>
+                <span class="template-desc">Return 401</span>
+              </button>
+              <button
+                type="button"
+                class="template-btn"
+                data-template="rate-limit"
+                title="Simulate rate limiting"
+              >
+                <span class="template-icon">🚫</span>
+                <span class="template-name">Rate Limit</span>
+                <span class="template-desc">Return 429</span>
+              </button>
+            </div>
+          </div>
+
+          <form id="ruleForm" class="rule-form">
+            <input type="hidden" id="ruleId" value="" />
+
+            <div class="form-group">
+              <label for="ruleName">Rule Name</label>
+              <input
+                type="text"
+                id="ruleName"
+                class="form-control"
+                placeholder="My API Rule"
+                required
+              />
+            </div>
+
+            <div class="form-group">
+              <label for="ruleDescription">Description (optional)</label>
+              <textarea
+                id="ruleDescription"
+                class="form-control"
+                rows="2"
+                placeholder="What does this rule do?"
+              ></textarea>
+            </div>
+
+            <div class="form-group">
+              <label for="ruleGroup">Group (optional)</label>
+              <select id="ruleGroup" class="form-control">
+                <option value="">No Group</option>
+                <!-- Groups will be populated here -->
+              </select>
+              <small class="form-hint"
+                >Assign this rule to a group for easier management</small
+              >
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="urlPattern">URL Pattern</label>
+                <input
+                  type="text"
+                  id="urlPattern"
+                  class="form-control"
+                  placeholder="*://*/api/*"
+                  required
+                />
+                <small class="form-hint"
+                  >Use * for wildcards, ** for any path</small
+                >
+              </div>
 
               <div class="form-group">
+                <label for="matchType">Match Type</label>
+                <select id="matchType" class="form-control">
+                  <option value="wildcard">Wildcard</option>
+                  <option value="regex">Regex</option>
+                  <option value="exact">Exact</option>
+                  <option value="contains">Contains</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>HTTP Methods</label>
+              <div class="checkbox-group">
                 <label class="checkbox-label">
-                  <input type="checkbox" id="groupEnabled" checked> Enable this group
+                  <input type="checkbox" name="methods" value="GET" checked />
+                  GET
                 </label>
-              </div>
-
-              <div class="form-actions">
-                <button type="submit" class="btn btn-primary">Save Group</button>
-                <button type="button" class="btn btn-secondary" id="cancelGroupBtn">Cancel</button>
-              </div>
-            </form>
-          </div>
-        </div>
-
-        <!-- Delete Group Confirmation Modal -->
-        <div id="deleteGroupModal" class="modal" style="display: none;">
-          <div class="modal-content">
-            <div class="modal-header">
-              <h3>Delete Group</h3>
-              <button class="modal-close" id="closeDeleteGroupModal">&times;</button>
-            </div>
-            <div class="modal-body">
-              <p id="deleteGroupMessage">Are you sure you want to delete this group?</p>
-              <input type="hidden" id="deleteGroupId" value="">
-
-              <div id="deleteGroupOptions" class="delete-options">
-                <label class="radio-label">
-                  <input type="radio" name="deleteGroupAction" value="keep" checked>
-                  <span>Keep rules (they will become ungrouped)</span>
+                <label class="checkbox-label">
+                  <input type="checkbox" name="methods" value="POST" /> POST
                 </label>
-                <label class="radio-label">
-                  <input type="radio" name="deleteGroupAction" value="delete">
-                  <span>Delete all rules in this group</span>
+                <label class="checkbox-label">
+                  <input type="checkbox" name="methods" value="PUT" /> PUT
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" name="methods" value="DELETE" /> DELETE
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" name="methods" value="PATCH" /> PATCH
                 </label>
               </div>
             </div>
-            <div class="form-actions" style="margin: 0 24px 20px; padding-top: 16px;">
-              <button type="button" class="btn btn-danger" id="confirmDeleteGroupBtn">Delete Group</button>
-              <button type="button" class="btn btn-secondary" id="cancelDeleteGroupBtn">Cancel</button>
-            </div>
-          </div>
-        </div>
-      </div>
 
-      <!-- New Rule Tab -->
-      <div id="new-rule-tab" class="tab-content">
-        <div class="header">
-          <h2 id="formTitle">Create New Rule</h2>
-        </div>
-
-        <!-- Rule Templates Section -->
-        <div class="card templates-card" style="margin-bottom: 20px;">
-          <div class="templates-header">
-            <h3>Quick Start Templates</h3>
-            <small class="form-hint">Select a template to pre-fill the form with common scenarios</small>
-          </div>
-          <div class="templates-grid" id="templatesGrid">
-            <button type="button" class="template-btn" data-template="mock-success" title="Return a successful JSON response">
-              <span class="template-icon">✅</span>
-              <span class="template-name">Mock Success</span>
-              <span class="template-desc">Return 200 OK</span>
-            </button>
-            <button type="button" class="template-btn" data-template="mock-error" title="Simulate a 500 server error">
-              <span class="template-icon">❌</span>
-              <span class="template-name">Mock Error</span>
-              <span class="template-desc">Return 500 Error</span>
-            </button>
-            <button type="button" class="template-btn" data-template="mock-404" title="Simulate a not found response">
-              <span class="template-icon">🔍</span>
-              <span class="template-name">Not Found</span>
-              <span class="template-desc">Return 404</span>
-            </button>
-            <button type="button" class="template-btn" data-template="mock-delay" title="Add artificial delay to simulate slow network">
-              <span class="template-icon">⏱️</span>
-              <span class="template-name">Slow Network</span>
-              <span class="template-desc">Add 2s delay</span>
-            </button>
-            <button type="button" class="template-btn" data-template="cors-headers" title="Add CORS headers to enable cross-origin requests">
-              <span class="template-icon">🌐</span>
-              <span class="template-name">CORS Headers</span>
-              <span class="template-desc">Enable CORS</span>
-            </button>
-            <button type="button" class="template-btn" data-template="empty-array" title="Return an empty array for list endpoints">
-              <span class="template-icon">📭</span>
-              <span class="template-name">Empty List</span>
-              <span class="template-desc">Return []</span>
-            </button>
-            <button type="button" class="template-btn" data-template="auth-error" title="Simulate authentication failure">
-              <span class="template-icon">🔐</span>
-              <span class="template-name">Auth Error</span>
-              <span class="template-desc">Return 401</span>
-            </button>
-            <button type="button" class="template-btn" data-template="rate-limit" title="Simulate rate limiting">
-              <span class="template-icon">🚫</span>
-              <span class="template-name">Rate Limit</span>
-              <span class="template-desc">Return 429</span>
-            </button>
-          </div>
-        </div>
-
-        <form id="ruleForm" class="rule-form">
-          <input type="hidden" id="ruleId" value="">
-
-          <div class="form-group">
-            <label for="ruleName">Rule Name</label>
-            <input type="text" id="ruleName" class="form-control" placeholder="My API Rule" required>
-          </div>
-
-          <div class="form-group">
-            <label for="ruleDescription">Description (optional)</label>
-            <textarea id="ruleDescription" class="form-control" rows="2" placeholder="What does this rule do?"></textarea>
-          </div>
-
-          <div class="form-group">
-            <label for="ruleGroup">Group (optional)</label>
-            <select id="ruleGroup" class="form-control">
-              <option value="">No Group</option>
-              <!-- Groups will be populated here -->
-            </select>
-            <small class="form-hint">Assign this rule to a group for easier management</small>
-          </div>
-
-          <div class="form-row">
+            <!-- Delay Input -->
             <div class="form-group">
-              <label for="urlPattern">URL Pattern</label>
-              <input type="text" id="urlPattern" class="form-control" placeholder="*://*/api/*" required>
-              <small class="form-hint">Use * for wildcards, ** for any path</small>
+              <label for="ruleDelay">Delay (ms)</label>
+              <input
+                type="number"
+                id="ruleDelay"
+                class="form-control"
+                placeholder="e.g., 1000, 2000"
+                min="0"
+                max="30000"
+              />
+              <small class="form-hint"
+                >Add artificial delay in milliseconds (max 30 seconds). Useful
+                for testing loading states.</small
+              >
             </div>
 
+            <!-- Response Modification Options -->
             <div class="form-group">
-              <label for="matchType">Match Type</label>
-              <select id="matchType" class="form-control">
-                <option value="wildcard">Wildcard</option>
-                <option value="regex">Regex</option>
-                <option value="exact">Exact</option>
-                <option value="contains">Contains</option>
+              <label for="modifyType">Response Modification Type</label>
+              <select id="modifyType" class="form-control">
+                <option value="replace">Replace Entire Body</option>
+                <option value="json-path">Modify JSON Path</option>
+                <option value="regex">Regex Find & Replace</option>
               </select>
             </div>
-          </div>
 
-          <div class="form-group">
-            <label>HTTP Methods</label>
-            <div class="checkbox-group">
-              <label class="checkbox-label">
-                <input type="checkbox" name="methods" value="GET" checked> GET
-              </label>
-              <label class="checkbox-label">
-                <input type="checkbox" name="methods" value="POST"> POST
-              </label>
-              <label class="checkbox-label">
-                <input type="checkbox" name="methods" value="PUT"> PUT
-              </label>
-              <label class="checkbox-label">
-                <input type="checkbox" name="methods" value="DELETE"> DELETE
-              </label>
-              <label class="checkbox-label">
-                <input type="checkbox" name="methods" value="PATCH"> PATCH
-              </label>
-            </div>
-          </div>
-
-          <!-- Delay Input -->
-          <div class="form-group">
-            <label for="ruleDelay">Delay (ms)</label>
-            <input type="number" id="ruleDelay" class="form-control" placeholder="e.g., 1000, 2000" min="0" max="30000">
-            <small class="form-hint">Add artificial delay in milliseconds (max 30 seconds). Useful for testing loading states.</small>
-          </div>
-
-          <!-- Response Modification Options -->
-          <div class="form-group">
-            <label for="modifyType">Response Modification Type</label>
-            <select id="modifyType" class="form-control">
-              <option value="replace">Replace Entire Body</option>
-              <option value="json-path">Modify JSON Path</option>
-              <option value="regex">Regex Find & Replace</option>
-            </select>
-          </div>
-
-          <!-- Replace Body -->
-          <div id="replaceOptions" class="modification-options">
-            <div class="form-group">
-              <label for="replaceValue">New Response Body</label>
-              <textarea id="replaceValue" class="form-control code-editor" rows="10" placeholder='{"message": "Modified response"}'></textarea>
-              <div style="display: flex; gap: 10px; margin-top: 8px;">
-                <button type="button" id="prettifyJsonBtn" class="btn btn-secondary btn-small">✨ Prettify JSON</button>
-                <small class="form-hint" style="margin: 0; align-self: center;">Format the JSON with proper indentation</small>
+            <!-- Replace Body -->
+            <div id="replaceOptions" class="modification-options">
+              <div class="form-group">
+                <label for="replaceValue">New Response Body</label>
+                <textarea
+                  id="replaceValue"
+                  class="form-control code-editor"
+                  rows="10"
+                  placeholder='{"message": "Modified response"}'
+                ></textarea>
+                <div style="display: flex; gap: 10px; margin-top: 8px">
+                  <button
+                    type="button"
+                    id="prettifyJsonBtn"
+                    class="btn btn-secondary btn-small"
+                  >
+                    ✨ Prettify JSON
+                  </button>
+                  <small class="form-hint" style="margin: 0; align-self: center"
+                    >Format the JSON with proper indentation</small
+                  >
+                </div>
               </div>
             </div>
-          </div>
 
-          <!-- JSON Path -->
-          <div id="jsonPathOptions" class="modification-options" style="display: none;">
+            <!-- JSON Path -->
+            <div
+              id="jsonPathOptions"
+              class="modification-options"
+              style="display: none"
+            >
+              <div class="form-group">
+                <label for="jsonPath">JSON Path</label>
+                <input
+                  type="text"
+                  id="jsonPath"
+                  class="form-control"
+                  placeholder="data.status"
+                />
+                <small class="form-hint"
+                  >Use dot notation: data.user.name</small
+                >
+              </div>
+              <div class="form-group">
+                <label for="jsonValue">New Value</label>
+                <input
+                  type="text"
+                  id="jsonValue"
+                  class="form-control"
+                  placeholder='"success"'
+                />
+                <small class="form-hint"
+                  >Enter JSON value (strings need quotes)</small
+                >
+              </div>
+            </div>
+
+            <!-- Regex Replace -->
+            <div
+              id="regexOptions"
+              class="modification-options"
+              style="display: none"
+            >
+              <div class="form-group">
+                <label for="regexPattern">Regex Pattern</label>
+                <input
+                  type="text"
+                  id="regexPattern"
+                  class="form-control"
+                  placeholder="error"
+                />
+                <small class="form-hint">Pattern to search for</small>
+              </div>
+              <div class="form-group">
+                <label for="regexReplacement">Replacement</label>
+                <input
+                  type="text"
+                  id="regexReplacement"
+                  class="form-control"
+                  placeholder="success"
+                />
+                <small class="form-hint">Text to replace matches with</small>
+              </div>
+              <div class="form-group">
+                <label for="regexFlags">Flags (optional)</label>
+                <input
+                  type="text"
+                  id="regexFlags"
+                  class="form-control"
+                  placeholder="gi"
+                  value="g"
+                />
+                <small class="form-hint"
+                  >g=global, i=case-insensitive, m=multiline</small
+                >
+              </div>
+            </div>
+
+            <!-- Status Code Modification -->
             <div class="form-group">
-              <label for="jsonPath">JSON Path</label>
-              <input type="text" id="jsonPath" class="form-control" placeholder="data.status">
-              <small class="form-hint">Use dot notation: data.user.name</small>
+              <label for="modifyStatusCode"
+                >Modify Status Code (optional)</label
+              >
+              <input
+                type="number"
+                id="modifyStatusCode"
+                class="form-control"
+                placeholder="e.g., 200, 404, 500"
+                min="100"
+                max="599"
+              />
+              <small class="form-hint"
+                >Leave empty to keep original status code</small
+              >
             </div>
+
+            <!-- Header Modifications -->
             <div class="form-group">
-              <label for="jsonValue">New Value</label>
-              <input type="text" id="jsonValue" class="form-control" placeholder='"success"'>
-              <small class="form-hint">Enter JSON value (strings need quotes)</small>
+              <label>Modify Response Headers (optional)</label>
+              <div id="headerModifications">
+                <!-- Header modification rows will be added here -->
+              </div>
+              <div style="display: flex; gap: 10px">
+                <button
+                  type="button"
+                  id="addHeaderBtn"
+                  class="btn btn-secondary btn-small"
+                >
+                  + Add Header Modification
+                </button>
+                <button
+                  type="button"
+                  id="clearHeadersBtn"
+                  class="btn btn-danger btn-small"
+                >
+                  Clear All Headers
+                </button>
+              </div>
             </div>
-          </div>
 
-          <!-- Regex Replace -->
-          <div id="regexOptions" class="modification-options" style="display: none;">
             <div class="form-group">
-              <label for="regexPattern">Regex Pattern</label>
-              <input type="text" id="regexPattern" class="form-control" placeholder="error">
-              <small class="form-hint">Pattern to search for</small>
+              <label class="checkbox-label">
+                <input type="checkbox" id="ruleEnabled" checked /> Enable this
+                rule
+              </label>
             </div>
-            <div class="form-group">
-              <label for="regexReplacement">Replacement</label>
-              <input type="text" id="regexReplacement" class="form-control" placeholder="success">
-              <small class="form-hint">Text to replace matches with</small>
+
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary">Save Rule</button>
+              <button type="button" id="cancelBtn" class="btn btn-secondary">
+                Cancel
+              </button>
             </div>
-            <div class="form-group">
-              <label for="regexFlags">Flags (optional)</label>
-              <input type="text" id="regexFlags" class="form-control" placeholder="gi" value="g">
-              <small class="form-hint">g=global, i=case-insensitive, m=multiline</small>
-            </div>
-          </div>
-
-          <!-- Status Code Modification -->
-          <div class="form-group">
-            <label for="modifyStatusCode">Modify Status Code (optional)</label>
-            <input type="number" id="modifyStatusCode" class="form-control" placeholder="e.g., 200, 404, 500" min="100" max="599">
-            <small class="form-hint">Leave empty to keep original status code</small>
-          </div>
-
-          <!-- Header Modifications -->
-          <div class="form-group">
-            <label>Modify Response Headers (optional)</label>
-            <div id="headerModifications">
-              <!-- Header modification rows will be added here -->
-            </div>
-            <div style="display: flex; gap: 10px;">
-              <button type="button" id="addHeaderBtn" class="btn btn-secondary btn-small">+ Add Header Modification</button>
-              <button type="button" id="clearHeadersBtn" class="btn btn-danger btn-small">Clear All Headers</button>
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label class="checkbox-label">
-              <input type="checkbox" id="ruleEnabled" checked> Enable this rule
-            </label>
-          </div>
-
-          <div class="form-actions">
-            <button type="submit" class="btn btn-primary">Save Rule</button>
-            <button type="button" id="cancelBtn" class="btn btn-secondary">Cancel</button>
-          </div>
-        </form>
-      </div>
-
-      <!-- Import/Export Tab -->
-      <div id="import-export-tab" class="tab-content">
-        <div class="header">
-          <h2>Import/Export Rules</h2>
+          </form>
         </div>
 
-        <div class="card">
-          <h3>Export Rules</h3>
-          <p>Download all your rules as a JSON file to back up or share</p>
-          <button id="exportBtn" class="btn btn-primary">Export All Rules</button>
-        </div>
-
-        <div class="card">
-          <h3>Import Rules</h3>
-          <p>Import rules from a JSON file. This will add to your existing rules.</p>
-          <div class="security-warning" style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 12px 16px; margin: 12px 0;">
-            <div style="display: flex; align-items: flex-start; gap: 10px;">
-              <span style="font-size: 18px;">⚠️</span>
-              <div>
-                <strong style="color: #92400e;">Security Warning</strong>
-                <p style="margin: 4px 0 0 0; color: #78350f; font-size: 13px;">
-                  Only import rules from sources you trust. Imported rules may contain custom JavaScript code that will execute in your browser.
-                </p>
-              </div>
-            </div>
+        <!-- Import/Export Tab -->
+        <div id="import-export-tab" class="tab-content">
+          <div class="header">
+            <h2>Import/Export Rules</h2>
           </div>
-          <input type="file" id="importFile" accept=".json" style="display: none;">
-          <button id="importBtn" class="btn btn-secondary">Import Rules</button>
-        </div>
 
-        <div class="card danger">
-          <h3>Clear All Rules</h3>
-          <p>⚠️ This will permanently delete all your rules. This action cannot be undone.</p>
-          <button id="clearAllBtn" class="btn btn-danger">Clear All Rules</button>
-        </div>
-      </div>
+          <div class="card">
+            <h3>Export Rules</h3>
+            <p>Download all your rules as a JSON file to back up or share</p>
+            <button id="exportBtn" class="btn btn-primary">
+              Export All Rules
+            </button>
+          </div>
 
-      <!-- Help Tab -->
-      <div id="help-tab" class="tab-content">
-        <div class="header">
-          <h2>Help & Documentation</h2>
-        </div>
-
-        <div class="help-content">
-          <section class="help-section">
-            <h3>Getting Started</h3>
-            <ol>
-              <li>Create a new rule with a URL pattern to match</li>
-              <li>Choose how you want to modify the response</li>
-              <li>Click the extension icon and attach the debugger to a tab</li>
-              <li>Navigate to URLs matching your pattern to see modifications</li>
-            </ol>
-          </section>
-
-          <section class="help-section">
-            <h3>URL Pattern Examples</h3>
-            <div class="code-block">
-              <code>*://*/api/*</code> - Matches all API endpoints<br>
-              <code>https://example.com/*</code> - Matches all URLs on example.com<br>
-              <code>*/users/*</code> - Matches any URL containing /users/<br>
-              <code>https://api.example.com/v1/.*</code> - Regex pattern
-            </div>
-          </section>
-
-          <section class="help-section">
-            <h3>Modification Types</h3>
-            <ul>
-              <li><strong>Replace Entire Body:</strong> Replace the complete response with your custom content</li>
-              <li><strong>Modify JSON Path:</strong> Change specific fields in JSON responses</li>
-              <li><strong>Regex Find & Replace:</strong> Use regex to find and replace text patterns</li>
-              <li><strong>Custom Function:</strong> Write JavaScript to transform the response</li>
-            </ul>
-          </section>
-
-          <section class="help-section">
-            <h3>Tips</h3>
-            <ul>
-              <li>Test your patterns on a single tab first before enabling globally</li>
-              <li>Check the browser console for debugging information</li>
-              <li>The debugger must be attached to a tab for interception to work</li>
-            </ul>
-          </section>
-
-          <section class="help-section">
-            <h3>Keyboard Shortcuts</h3>
-            <div class="shortcuts-list">
-              <div class="shortcut-item">
-                <span class="shortcut-keys"><kbd>Ctrl</kbd> + <kbd>N</kbd></span>
-                <span class="shortcut-desc">Create a new rule</span>
-              </div>
-              <div class="shortcut-item">
-                <span class="shortcut-keys"><kbd>Ctrl</kbd> + <kbd>S</kbd></span>
-                <span class="shortcut-desc">Save current rule</span>
-              </div>
-              <div class="shortcut-item">
-                <span class="shortcut-keys"><kbd>Esc</kbd></span>
-                <span class="shortcut-desc">Go back to rules list / Cancel</span>
-              </div>
-              <div class="shortcut-item">
-                <span class="shortcut-keys"><kbd>1</kbd> - <kbd>4</kbd></span>
-                <span class="shortcut-desc">Quick tab navigation</span>
-              </div>
-            </div>
-            <small class="form-hint" style="margin-top: 8px; display: block;">Use <kbd>Cmd</kbd> instead of <kbd>Ctrl</kbd> on Mac</small>
-          </section>
-
-          <section class="help-section support-section">
-            <h3>Support This Project</h3>
-            <p>If you find this extension useful, consider supporting its development. Your support helps maintain and improve this tool!</p>
-            <div class="support-options">
-              <a href="https://buymeacoffee.com/MustafaOmran" target="_blank" class="support-option">
-                <img src="../public/buymeacoffee.png" alt="Buy Me a Coffee">
-                <small>International supporters</small>
-              </a>
-              <a href="https://ipn.eg/S/mustafaomran2000/instapay/0MTHXn" target="_blank" class="support-option">
-                <img src="../public/instapay.png" alt="InstaPay QR Code">
-                <small>For supporters in Egypt</small>
-              </a>
-            </div>
-          </section>
-
-          <section class="help-section about-section">
-            <h3>About This Extension</h3>
+          <div class="card">
+            <h3>Import Rules</h3>
             <p>
-              <strong>API Response Interceptor</strong> is created and maintained by
-              <a href="https://mustafaomran.vercel.app/" target="_blank" class="portfolio-link">Mustafa Omran</a>,
-              a passionate software developer dedicated to building tools that enhance developer productivity and streamline workflows.
+              Import rules from a JSON file. This will add to your existing
+              rules.
             </p>
-            <p>
-              This extension is part of a suite of developer tools designed to make web development easier and more efficient.
-              Check out my portfolio for more projects and tools!
-            </p>
-            <div style="text-align: center; margin-top: 20px;">
-              <a href="https://mustafaomran.vercel.app/" target="_blank" class="btn btn-primary">
-                Visit Portfolio
-              </a>
+            <div
+              class="security-warning"
+              style="
+                background: #fef3c7;
+                border: 1px solid #f59e0b;
+                border-radius: 8px;
+                padding: 12px 16px;
+                margin: 12px 0;
+              "
+            >
+              <div style="display: flex; align-items: flex-start; gap: 10px">
+                <span style="font-size: 18px">⚠️</span>
+                <div>
+                  <strong style="color: #92400e">Security Warning</strong>
+                  <p style="margin: 4px 0 0 0; color: #78350f; font-size: 13px">
+                    Only import rules from sources you trust. Imported rules may
+                    contain custom JavaScript code that will execute in your
+                    browser.
+                  </p>
+                </div>
+              </div>
             </div>
-          </section>
-        </div>
-      </div>
-    </main>
-  </div>
+            <input
+              type="file"
+              id="importFile"
+              accept=".json"
+              style="display: none"
+            />
+            <button id="importBtn" class="btn btn-secondary">
+              Import Rules
+            </button>
+          </div>
 
-  <div id="toast" class="toast"></div>
-  <script src="options.js"></script>
-</body>
+          <div class="card danger">
+            <h3>Clear All Rules</h3>
+            <p>
+              ⚠️ This will permanently delete all your rules. This action cannot
+              be undone.
+            </p>
+            <button id="clearAllBtn" class="btn btn-danger">
+              Clear All Rules
+            </button>
+          </div>
+        </div>
+
+        <!-- Help Tab -->
+        <div id="help-tab" class="tab-content">
+          <div class="header">
+            <h2>Help & Documentation</h2>
+          </div>
+
+          <div class="help-content">
+            <section class="help-section">
+              <h3>Getting Started</h3>
+              <ol>
+                <li>Create a new rule with a URL pattern to match</li>
+                <li>Choose how you want to modify the response</li>
+                <li>
+                  Click the extension icon and attach the debugger to a tab
+                </li>
+                <li>
+                  Navigate to URLs matching your pattern to see modifications
+                </li>
+              </ol>
+            </section>
+
+            <section class="help-section">
+              <h3>URL Pattern Examples</h3>
+              <div class="code-block">
+                <code>*://*/api/*</code> - Matches all API endpoints<br />
+                <code>https://example.com/*</code> - Matches all URLs on
+                example.com<br />
+                <code>*/users/*</code> - Matches any URL containing /users/<br />
+                <code>https://api.example.com/v1/.*</code> - Regex pattern
+              </div>
+            </section>
+
+            <section class="help-section">
+              <h3>Modification Types</h3>
+              <ul>
+                <li>
+                  <strong>Replace Entire Body:</strong> Replace the complete
+                  response with your custom content
+                </li>
+                <li>
+                  <strong>Modify JSON Path:</strong> Change specific fields in
+                  JSON responses
+                </li>
+                <li>
+                  <strong>Regex Find & Replace:</strong> Use regex to find and
+                  replace text patterns
+                </li>
+                <li>
+                  <strong>Custom Function:</strong> Write JavaScript to
+                  transform the response
+                </li>
+              </ul>
+            </section>
+
+            <section class="help-section">
+              <h3>Tips</h3>
+              <ul>
+                <li>
+                  Test your patterns on a single tab first before enabling
+                  globally
+                </li>
+                <li>Check the browser console for debugging information</li>
+                <li>
+                  The debugger must be attached to a tab for interception to
+                  work
+                </li>
+              </ul>
+            </section>
+
+            <section class="help-section">
+              <h3>Keyboard Shortcuts</h3>
+              <div class="shortcuts-list">
+                <div class="shortcut-item">
+                  <span class="shortcut-keys"
+                    ><kbd>Ctrl</kbd> + <kbd>N</kbd></span
+                  >
+                  <span class="shortcut-desc">Create a new rule</span>
+                </div>
+                <div class="shortcut-item">
+                  <span class="shortcut-keys"
+                    ><kbd>Ctrl</kbd> + <kbd>S</kbd></span
+                  >
+                  <span class="shortcut-desc">Save current rule</span>
+                </div>
+                <div class="shortcut-item">
+                  <span class="shortcut-keys"><kbd>Esc</kbd></span>
+                  <span class="shortcut-desc"
+                    >Go back to rules list / Cancel</span
+                  >
+                </div>
+                <div class="shortcut-item">
+                  <span class="shortcut-keys"><kbd>1</kbd> - <kbd>4</kbd></span>
+                  <span class="shortcut-desc">Quick tab navigation</span>
+                </div>
+              </div>
+              <small class="form-hint" style="margin-top: 8px; display: block"
+                >Use <kbd>Cmd</kbd> instead of <kbd>Ctrl</kbd> on Mac</small
+              >
+            </section>
+
+            <section class="help-section support-section">
+              <h3>Support This Project</h3>
+              <p>
+                If you find this extension useful, consider supporting its
+                development. Your support helps maintain and improve this tool!
+              </p>
+              <div class="support-options">
+                <a
+                  href="https://buymeacoffee.com/MustafaOmran"
+                  target="_blank"
+                  class="support-option"
+                >
+                  <img src="../public/buymeacoffee.png" alt="Buy Me a Coffee" />
+                  <small>International supporters</small>
+                </a>
+              </div>
+            </section>
+
+            <section class="help-section about-section">
+              <h3>About This Extension</h3>
+              <p>
+                <strong>API Response Interceptor</strong> is created and
+                maintained by
+                <a
+                  href="https://mustafaomran.vercel.app/"
+                  target="_blank"
+                  class="portfolio-link"
+                  >Mustafa Omran</a
+                >, a passionate software developer dedicated to building tools
+                that enhance developer productivity and streamline workflows.
+              </p>
+              <p>
+                This extension is part of a suite of developer tools designed to
+                make web development easier and more efficient. Check out my
+                portfolio for more projects and tools!
+              </p>
+              <div style="text-align: center; margin-top: 20px">
+                <a
+                  href="https://mustafaomran.vercel.app/"
+                  target="_blank"
+                  class="btn btn-primary"
+                >
+                  Visit Portfolio
+                </a>
+              </div>
+            </section>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <div id="toast" class="toast"></div>
+    <script src="options.js"></script>
+  </body>
 </html>

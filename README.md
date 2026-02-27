@@ -5,6 +5,7 @@ A Chrome extension that enables you to intercept and modify API response bodies 
 ## Features
 
 ### Core Interception
+
 - **Real-time Response Interception**: Intercept HTTP responses before they reach your application
 - **Multiple Modification Types**:
   - Replace entire response body
@@ -15,11 +16,13 @@ A Chrome extension that enables you to intercept and modify API response bodies 
 - **HTTP Method Filtering**: Target specific methods (GET, POST, PUT, DELETE, PATCH)
 
 ### Advanced Modifications
+
 - **Response Header Modification**: Add, modify, or remove response headers (e.g., CORS headers)
 - **Status Code Modification**: Change HTTP status codes (e.g., turn 404s into 200s)
 - **Multi-layer Modifications**: Combine body, header, and status code changes in a single rule
 
 ### User Experience
+
 - **User-Friendly Interface**: Intuitive popup and options page for managing rules
 - **Import/Export**: Save and share your rule configurations
 
@@ -63,6 +66,7 @@ A Chrome extension that enables you to intercept and modify API response bodies 
 #### Modification Types
 
 **1. Replace Entire Body**
+
 ```json
 {
   "status": "success",
@@ -71,15 +75,18 @@ A Chrome extension that enables you to intercept and modify API response bodies 
 ```
 
 **2. Modify JSON Path**
+
 - Path: `data.status`
 - Value: `"modified"`
 
 **3. Regex Find & Replace**
+
 - Pattern: `"error"`
 - Replacement: `"success"`
 - Flags: `g` (global)
 
 **4. Custom JavaScript Function**
+
 ```javascript
 // The 'body' parameter contains the original response
 const data = JSON.parse(body);
@@ -92,10 +99,12 @@ return JSON.stringify(data);
 #### Modifying Response Headers
 
 Add header modifications to your rules:
+
 - **Set/Add**: Create or update a header value
 - **Remove**: Delete a specific header
 
 Common use cases:
+
 ```
 Action: Set
 Header: Access-Control-Allow-Origin
@@ -108,6 +117,7 @@ Header: X-Frame-Options
 #### Changing Status Codes
 
 Override the response status code:
+
 - Change 404 to 200 for testing
 - Simulate error conditions (500, 503)
 - Mock successful responses
@@ -115,9 +125,11 @@ Override the response status code:
 ### Example Rules
 
 **Example 1: Mock API Response**
+
 - URL Pattern: `*://jsonplaceholder.typicode.com/todos/*`
 - Match Type: Wildcard
 - Modification: Replace Body
+
 ```json
 {
   "id": 1,
@@ -128,6 +140,7 @@ Override the response status code:
 ```
 
 **Example 2: Change Status Field**
+
 - URL Pattern: `*/api/status`
 - Match Type: Contains
 - Modification: JSON Path
@@ -135,9 +148,11 @@ Override the response status code:
 - Value: `"online"`
 
 **Example 3: Transform Response**
+
 - URL Pattern: `https://api.example.com/.*`
 - Match Type: Regex
 - Modification: Function
+
 ```javascript
 const data = JSON.parse(body);
 data.intercepted = true;
@@ -146,6 +161,7 @@ return JSON.stringify(data, null, 2);
 ```
 
 **Example 4: CORS Bypass with Headers**
+
 - URL Pattern: `*://external-api.com/*`
 - Match Type: Wildcard
 - Status Code: Keep original
@@ -155,10 +171,12 @@ return JSON.stringify(data, null, 2);
   - Set `Access-Control-Allow-Headers` = `*`
 
 **Example 5: Convert Error to Success**
+
 - URL Pattern: `*/api/flaky-endpoint`
 - Match Type: Contains
 - Status Code: 200
 - Modification: Replace Body
+
 ```json
 {
   "success": true,
@@ -253,17 +271,20 @@ No build process required - this is a pure JavaScript extension. Simply load it 
 ## Troubleshooting
 
 **Extension not intercepting requests:**
+
 - Make sure the debugger is attached (click "Attach Debugger" in popup)
 - Check that your rule is enabled
 - Verify the URL pattern matches the request URL
 - Refresh the page after attaching the debugger
 
 **Debugger won't attach:**
+
 - Close Chrome DevTools if open on that tab
 - Ensure no other extension is using the debugger
 - Try detaching and reattaching
 
 **Rule not applying:**
+
 - Check the browser console for errors
 - Verify the URL pattern and match type
 - Ensure the modification is valid (valid JSON, regex, etc.)
@@ -284,14 +305,15 @@ If you find this extension useful and it's helping you in your development workf
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Support-yellow?style=for-the-badge&logo=buy-me-a-coffee)](https://buymeacoffee.com/MustafaOmran)
 
 Your support helps:
+
 - Keep the extension maintained and up-to-date
 - Add new features and improvements
 - Fix bugs and address issues
 - Provide better documentation and support
 
 **Support via:**
+
 - [Buy Me a Coffee](https://buymeacoffee.com/MustafaOmran) - One-time or recurring support (International)
-- [InstaPay](https://ipn.eg/S/mustafaomran2000/instapay/0MTHXn) - For supporters in Egypt (QR code also available in the extension's Help section)
 
 Every contribution, no matter how small, is greatly appreciated and motivates continued development!
 
@@ -300,6 +322,7 @@ Every contribution, no matter how small, is greatly appreciated and motivates co
 This extension is created and maintained by **Mustafa Omran**, a passionate software developer dedicated to building tools that enhance developer productivity and streamline workflows.
 
 ### Connect with Me
+
 - 🌐 **Portfolio**: [mustafaomran.vercel.app](https://mustafaomran.vercel.app/)
 - ☕ **Support**: [Buy Me a Coffee](https://buymeacoffee.com/MustafaOmran)
 
@@ -316,6 +339,7 @@ Contributions are welcome! Please feel free to submit issues or pull requests.
 ## Changelog
 
 ### Version 2.0.0 (Current)
+
 - **NEW**: Response header modification (add, set, remove headers)
 - **NEW**: HTTP status code modification
 - **IMPROVED**: Rule engine now supports multi-layer modifications
@@ -323,6 +347,7 @@ Contributions are welcome! Please feel free to submit issues or pull requests.
 - **IMPROVED**: Enhanced UI
 
 ### Version 1.0.0
+
 - Initial release
 - Basic response interception and modification
 - Support for replace, JSON path, regex, and function modifications
