@@ -1,14 +1,17 @@
 // Utility: Debounce function to prevent excessive saves
 function debounce(func, wait) {
   let timeout;
-  return function executedFunction(...args) {
-    const later = () => {
-      clearTimeout(timeout);
-      func(...args);
-    };
+  let lastArgs;
+  function executedFunction(...args) {
+    lastArgs = args;
+    const later = () => { clearTimeout(timeout); timeout = null; func(...args); };
     clearTimeout(timeout);
     timeout = setTimeout(later, wait);
+  }
+  executedFunction.flush = function() {
+    if (timeout) { clearTimeout(timeout); timeout = null; func(...(lastArgs || [])); }
   };
+  return executedFunction;
 }
 
 // Storage Manager - Handles all storage operations
@@ -273,6 +276,11 @@ export class StorageManager {
   notifyListeners() {
     // Pass only enabled rules (respecting both rule and group enabled status)
     this.listeners.forEach(callback => callback(this.getEnabledRules()));
+  }
+
+  flushPendingSaves() {
+    this.saveRulesDebounced.flush();
+    this.saveGroupsDebounced.flush();
   }
 
   generateId() {

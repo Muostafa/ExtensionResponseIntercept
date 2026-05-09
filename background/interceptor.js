@@ -207,10 +207,9 @@ export class ResponseInterceptor {
       if (isJsonOrText) {
         // Get the response body
         try {
-          const bodyResponse = await chrome.debugger.sendCommand(
-            { tabId },
-            'Fetch.getResponseBody',
-            { requestId }
+          const bodyResponse = await this.withTimeout(
+            chrome.debugger.sendCommand({ tabId }, 'Fetch.getResponseBody', { requestId }),
+            5000
           );
 
           if (bodyResponse && bodyResponse.body) {
@@ -320,6 +319,18 @@ export class ResponseInterceptor {
    */
   sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Race a promise against a timeout — rejects with an error if ms elapses first
+   */
+  withTimeout(promise, ms) {
+    return Promise.race([
+      promise,
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error(`Timed out after ${ms}ms`)), ms)
+      )
+    ]);
   }
 
   truncateForStorage(text, maxLength = 10000) {

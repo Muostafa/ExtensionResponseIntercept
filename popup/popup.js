@@ -1,4 +1,12 @@
 // Popup script
+function debounce(func, wait) {
+  let timeout;
+  return function(...args) {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func(...args), wait);
+  };
+}
+
 let currentTab = null;
 let activeEditRuleIds = new Set();
 let searchQuery = '';
@@ -566,10 +574,11 @@ function setupEventListeners() {
   // Search input
   const searchInput = document.getElementById('searchInput');
   if (searchInput) {
+    const debouncedDisplayRules = debounce((rules) => displayRules(rules), 150);
     searchInput.addEventListener('input', (e) => {
       searchQuery = e.target.value;
       if (window.currentRules) {
-        displayRules(window.currentRules);
+        debouncedDisplayRules(window.currentRules);
       }
     });
 

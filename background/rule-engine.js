@@ -79,6 +79,17 @@ export class RuleEngine {
         } catch (error) {
           console.error(`Failed to compile regex for rule ${rule.id}:`, error);
         }
+      } else if (rule.matchType === 'wildcard') {
+        try {
+          const regexStr = rule.urlPattern
+            .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+            .replace(/\*\*/g, '<!DW!>')
+            .replace(/\*/g, '[^/]*')
+            .replace(/<!DW!>/g, '.*');
+          this.compiledPatterns.set(rule.id, new RegExp(`^${regexStr}$`));
+        } catch (error) {
+          console.error(`Failed to compile wildcard for rule ${rule.id}:`, error);
+        }
       }
     });
   }
@@ -146,6 +157,22 @@ export class RuleEngine {
   }
 
   /**
+   * Match URL against a rule using pre-compiled patterns where available
+   * @param {string} url - The URL to test
+   * @param {Rule} rule - The rule to match against
+   * @returns {boolean} Whether the URL matches
+   * @private
+   */
+  matchUrlForRule(url, rule) {
+    const compiled = this.compiledPatterns.get(rule.id);
+    if (compiled) {
+      return compiled.test(url);
+    }
+    // Fallback for exact/contains (no pre-compilation needed)
+    return this.matchUrl(url, rule.urlPattern, rule.matchType);
+  }
+
+  /**
    * Find all rules that match a given URL and HTTP method
    * @param {string} url - The request URL
    * @param {string} [method='GET'] - The HTTP method
@@ -163,7 +190,7 @@ export class RuleEngine {
       }
 
       // Check if URL matches
-      if (this.matchUrl(url, rule.urlPattern, rule.matchType)) {
+      if (this.matchUrlForRule(url, rule)) {
         matchingRules.push(rule);
       }
     }

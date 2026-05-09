@@ -9,6 +9,7 @@ class ServiceWorker {
     this.ruleEngine = new RuleEngine();
     this.interceptor = new ResponseInterceptor(this.ruleEngine, this.storageManager);
     this.activeTabs = new Set();
+    this.tabsToReattach = new Set(); // Tabs that need re-attach after navigation
     this.recentNotifications = []; // Store recent rule triggered notifications
     this.MAX_NOTIFICATIONS = 50; // Limit notifications to prevent memory issues
     this.init();
@@ -81,159 +82,216 @@ class ServiceWorker {
       this.toggleInterception(tab);
     });
 
-    // Handle tab updates (navigation)
+    // Handle tab updates (navigation) — re-attach on 'complete' for previously-attached tabs
     chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-      if (changeInfo.status === 'loading' && this.storageManager.isGlobalEnabled()) {
-        this.attachDebuggerToTab(tabId);
+      if (changeInfo.status === 'complete' && this.tabsToReattach.has(tabId)) {
+        this.tabsToReattach.delete(tabId);
+        if (this.storageManager.isGlobalEnabled()) {
+          this.attachDebuggerToTab(tabId);
+        }
       }
     });
 
     // Handle tab removal
     chrome.tabs.onRemoved.addListener((tabId) => {
+      this.tabsToReattach.delete(tabId);
       this.detachDebuggerFromTab(tabId);
     });
 
     // Handle messages from popup/options
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-      // Properly handle async message handler to prevent race conditions
-      this.handleMessage(request, sender, sendResponse)
-        .catch(error => {
-          console.error('Error handling message:', error);
-          sendResponse({ error: error.message || 'Unknown error occurred' });
-        });
+      this.handleMessage(request, sender, sendResponse);
       return true; // Keep channel open for async response
     });
 
-    // Handle debugger detach
+    // Flush debounced saves before the service worker is suspended
+    chrome.runtime.onSuspend.addListener(() => {
+      this.storageManager.flushPendingSaves();
+    });
+
+    // Handle debugger detach — queue re-attach unless user explicitly detached
     chrome.debugger.onDetach.addListener((source, reason) => {
       console.log(`Debugger detached from tab ${source.tabId}: ${reason}`);
       this.activeTabs.delete(source.tabId);
+      if (reason !== 'canceled_by_user') {
+        this.tabsToReattach.add(source.tabId);
+      }
     });
+  }
+
+  async safeHandle(sendResponse, fn) {
+    try {
+      await fn();
+    } catch (error) {
+      console.error('handleMessage error:', error);
+      sendResponse({ success: false, error: error.message });
+    }
   }
 
   async handleMessage(request, sender, sendResponse) {
     switch (request.action) {
       case 'getStatus':
-        sendResponse({
-          enabled: this.storageManager.isGlobalEnabled(),
-          activeTabs: Array.from(this.activeTabs),
-          rules: this.storageManager.getRules()
+        await this.safeHandle(sendResponse, async () => {
+          sendResponse({
+            enabled: this.storageManager.isGlobalEnabled(),
+            activeTabs: Array.from(this.activeTabs),
+            rules: this.storageManager.getRules()
+          });
         });
         break;
 
       case 'toggleGlobal':
-        await this.storageManager.toggleGlobalEnabled();
-        sendResponse({ enabled: this.storageManager.isGlobalEnabled() });
+        await this.safeHandle(sendResponse, async () => {
+          await this.storageManager.toggleGlobalEnabled();
+          sendResponse({ enabled: this.storageManager.isGlobalEnabled() });
+        });
         break;
 
       case 'addRule':
-        const newRule = await this.storageManager.addRule(request.rule);
-        sendResponse({ success: true, ruleId: newRule.id, rule: newRule });
+        await this.safeHandle(sendResponse, async () => {
+          const newRule = await this.storageManager.addRule(request.rule);
+          sendResponse({ success: true, ruleId: newRule.id, rule: newRule });
+        });
         break;
 
       case 'updateRule':
-        await this.storageManager.updateRule(request.ruleId, request.rule);
-        sendResponse({ success: true });
+        await this.safeHandle(sendResponse, async () => {
+          await this.storageManager.updateRule(request.ruleId, request.rule);
+          sendResponse({ success: true });
+        });
         break;
 
       case 'deleteRule':
-        await this.storageManager.deleteRule(request.ruleId);
-        sendResponse({ success: true });
+        await this.safeHandle(sendResponse, async () => {
+          await this.storageManager.deleteRule(request.ruleId);
+          sendResponse({ success: true });
+        });
         break;
 
       case 'getRules':
-        sendResponse({ rules: this.storageManager.getRules() });
+        await this.safeHandle(sendResponse, async () => {
+          sendResponse({ rules: this.storageManager.getRules() });
+        });
         break;
 
       case 'attachDebugger':
-        await this.attachDebuggerToTab(request.tabId);
-        sendResponse({ success: true });
+        await this.safeHandle(sendResponse, async () => {
+          await this.attachDebuggerToTab(request.tabId);
+          sendResponse({ success: true });
+        });
         break;
 
       case 'detachDebugger':
-        await this.detachDebuggerFromTab(request.tabId);
-        sendResponse({ success: true });
+        await this.safeHandle(sendResponse, async () => {
+          await this.detachDebuggerFromTab(request.tabId);
+          sendResponse({ success: true });
+        });
         break;
 
       case 'getGroups':
-        sendResponse({ groups: this.storageManager.getGroups() });
+        await this.safeHandle(sendResponse, async () => {
+          sendResponse({ groups: this.storageManager.getGroups() });
+        });
         break;
 
       case 'addGroup':
-        const newGroup = await this.storageManager.addGroup(request.group);
-        sendResponse({ success: true, group: newGroup });
+        await this.safeHandle(sendResponse, async () => {
+          const newGroup = await this.storageManager.addGroup(request.group);
+          sendResponse({ success: true, group: newGroup });
+        });
         break;
 
       case 'updateGroup':
-        await this.storageManager.updateGroup(request.groupId, request.group);
-        sendResponse({ success: true });
+        await this.safeHandle(sendResponse, async () => {
+          await this.storageManager.updateGroup(request.groupId, request.group);
+          sendResponse({ success: true });
+        });
         break;
 
       case 'deleteGroup':
-        await this.storageManager.deleteGroup(request.groupId, request.deleteRules);
-        sendResponse({ success: true });
+        await this.safeHandle(sendResponse, async () => {
+          await this.storageManager.deleteGroup(request.groupId, request.deleteRules);
+          sendResponse({ success: true });
+        });
         break;
 
       case 'toggleGroup':
-        const groupEnabled = await this.storageManager.toggleGroupEnabled(request.groupId);
-        sendResponse({ success: true, enabled: groupEnabled });
+        await this.safeHandle(sendResponse, async () => {
+          const groupEnabled = await this.storageManager.toggleGroupEnabled(request.groupId);
+          sendResponse({ success: true, enabled: groupEnabled });
+        });
         break;
 
       case 'assignRuleToGroup':
-        await this.storageManager.assignRuleToGroup(request.ruleId, request.groupId);
-        sendResponse({ success: true });
+        await this.safeHandle(sendResponse, async () => {
+          await this.storageManager.assignRuleToGroup(request.ruleId, request.groupId);
+          sendResponse({ success: true });
+        });
         break;
 
       case 'getNetworkLogs':
-        const logs = request.tabId
-          ? this.interceptor.getNetworkLogs(request.tabId)
-          : this.interceptor.getAllNetworkLogs();
-        sendResponse({ logs });
+        await this.safeHandle(sendResponse, async () => {
+          const logs = request.tabId
+            ? this.interceptor.getNetworkLogs(request.tabId)
+            : this.interceptor.getAllNetworkLogs();
+          sendResponse({ logs });
+        });
         break;
 
       case 'clearNetworkLogs':
-        this.interceptor.clearNetworkLogs(request.tabId);
-        sendResponse({ success: true });
+        await this.safeHandle(sendResponse, async () => {
+          this.interceptor.clearNetworkLogs(request.tabId);
+          sendResponse({ success: true });
+        });
         break;
 
       case 'getNetworkLoggingStatus':
-        sendResponse({ enabled: this.interceptor.isNetworkLoggingEnabled() });
+        await this.safeHandle(sendResponse, async () => {
+          sendResponse({ enabled: this.interceptor.isNetworkLoggingEnabled() });
+        });
         break;
 
       case 'setNetworkLogging':
-        this.interceptor.setNetworkLogging(request.enabled);
-        sendResponse({ success: true, enabled: request.enabled });
+        await this.safeHandle(sendResponse, async () => {
+          this.interceptor.setNetworkLogging(request.enabled);
+          sendResponse({ success: true, enabled: request.enabled });
+        });
         break;
 
       case 'generateRuleFromRequest':
-        const suggestedRule = this.interceptor.generateRuleFromRequest(request.logEntry);
-        sendResponse({ rule: suggestedRule });
+        await this.safeHandle(sendResponse, async () => {
+          const suggestedRule = this.interceptor.generateRuleFromRequest(request.logEntry);
+          sendResponse({ rule: suggestedRule });
+        });
         break;
 
       case 'createRuleFromRequest':
-        const ruleFromRequest = this.interceptor.generateRuleFromRequest(request.logEntry);
-        // Merge with any user modifications
-        const finalRule = { ...ruleFromRequest, ...request.modifications };
-        await this.storageManager.addRule(finalRule);
-        sendResponse({ success: true, rule: finalRule });
+        await this.safeHandle(sendResponse, async () => {
+          const ruleFromRequest = this.interceptor.generateRuleFromRequest(request.logEntry);
+          const finalRule = { ...ruleFromRequest, ...request.modifications };
+          await this.storageManager.addRule(finalRule);
+          sendResponse({ success: true, rule: finalRule });
+        });
         break;
 
       case 'getRecentNotifications':
-        // Get recent rule triggered notifications
-        const tabNotifications = request.tabId
-          ? this.recentNotifications.filter(n => n.tabId === request.tabId)
-          : this.recentNotifications;
-        sendResponse({ notifications: tabNotifications });
+        await this.safeHandle(sendResponse, async () => {
+          const tabNotifications = request.tabId
+            ? this.recentNotifications.filter(n => n.tabId === request.tabId)
+            : this.recentNotifications;
+          sendResponse({ notifications: tabNotifications });
+        });
         break;
 
       case 'clearNotifications':
-        // Clear notifications (optionally for a specific tab)
-        if (request.tabId) {
-          this.recentNotifications = this.recentNotifications.filter(n => n.tabId !== request.tabId);
-        } else {
-          this.recentNotifications = [];
-        }
-        sendResponse({ success: true });
+        await this.safeHandle(sendResponse, async () => {
+          if (request.tabId) {
+            this.recentNotifications = this.recentNotifications.filter(n => n.tabId !== request.tabId);
+          } else {
+            this.recentNotifications = [];
+          }
+          sendResponse({ success: true });
+        });
         break;
 
       default:
@@ -245,6 +303,12 @@ class ServiceWorker {
     try {
       if (this.activeTabs.has(tabId)) {
         console.log(`Debugger already attached to tab ${tabId}`);
+        return;
+      }
+
+      // Skip protected URLs that reject debugger attachment
+      const tab = await chrome.tabs.get(tabId).catch(() => null);
+      if (!tab || tab.url?.startsWith('chrome://') || tab.url?.startsWith('chrome-extension://')) {
         return;
       }
 
