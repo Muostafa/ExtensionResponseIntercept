@@ -40,7 +40,16 @@
       <div class="status-grid">
         <div class="status-card">
           <div class="status-card-header">
-            <span class="status-card-label">Interception</span>
+            <span class="status-card-label">
+              Interception
+              <button class="help-icon-btn" data-tooltip="When enabled, rules will intercept matching API requests and modify their responses.">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+                  <line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+              </button>
+            </span>
             <div id="globalStatusIndicator" class="status-indicator"></div>
           </div>
           <div class="status-card-value">
@@ -52,7 +61,16 @@
         </div>
         <div class="status-card">
           <div class="status-card-header">
-            <span class="status-card-label">Active Rules</span>
+            <span class="status-card-label">
+              Active Rules
+              <button class="help-icon-btn" data-tooltip="Number of rules currently enabled. Only enabled rules will intercept matching requests.">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+                  <line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+              </button>
+            </span>
             <span id="rulesCount" class="badge">0</span>
           </div>
           <div class="status-card-value" id="enabledRulesText">0 enabled</div>
@@ -61,20 +79,29 @@
     </section>
 
     <section class="quick-actions">
-      <button id="attachTab" class="btn btn-primary">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-          <polyline points="15 3 21 3 21 9"/>
-          <line x1="10" y1="14" x2="21" y2="3"/>
+      <div class="quick-actions-wrapper">
+        <button id="attachTab" class="btn btn-primary" data-tooltip="Connect to this tab to start intercepting API requests. Required for rules to work.">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+            <polyline points="15 3 21 3 21 9"/>
+            <line x1="10" y1="14" x2="21" y2="3"/>
+          </svg>
+          <span id="attachBtnText">Attach Debugger</span>
+        </button>
+        <button id="addRuleBtn" class="btn btn-secondary" title="Create a new interception rule" data-tooltip="Create a new rule to intercept and modify API responses.">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="5" x2="12" y2="19"/>
+            <line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+        </button>
+      </div>
+      <div id="debuggerHint" class="debugger-hint" style="display: none;">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M12 16v-4M12 8h.01"/>
         </svg>
-        <span id="attachBtnText">Attach Debugger</span>
-      </button>
-      <button id="addRuleBtn" class="btn btn-secondary" title="Add new rule">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="12" y1="5" x2="12" y2="19"/>
-          <line x1="5" y1="12" x2="19" y2="12"/>
-        </svg>
-      </button>
+        <span>Attach debugger to this tab to start intercepting requests</span>
+      </div>
     </section>
 
     <section class="view-tabs">
@@ -144,18 +171,63 @@
         <!-- Rules will be populated here -->
       </div>
 
-      <div id="emptyState" class="empty-state" style="display: none;">
-        <div class="empty-icon">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.5">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-            <polyline points="14 2 14 8 20 8"/>
-            <line x1="12" y1="18" x2="12" y2="12"/>
-            <line x1="9" y1="15" x2="15" y2="15"/>
-          </svg>
+      <div id="emptyState" class="empty-state enhanced-empty-state" style="display: none;">
+        <div class="empty-illustration">
+          <div class="empty-icon-wrapper">
+            <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="12" y1="18" x2="12" y2="12"/>
+              <line x1="9" y1="15" x2="15" y2="15"/>
+            </svg>
+          </div>
+          <div class="empty-decoration empty-decoration-1"></div>
+          <div class="empty-decoration empty-decoration-2"></div>
         </div>
         <h3>No Rules Yet</h3>
-        <p>Create your first rule to start intercepting API responses</p>
-        <button id="emptyAddRuleBtn" class="btn btn-primary" style="margin-top: 8px;">Create Rule</button>
+        <p>Create your first rule to start intercepting and mocking API responses</p>
+
+        <div class="quick-start-guide">
+          <div class="guide-title">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M12 16v-4M12 8h.01"/>
+            </svg>
+            Quick Start
+          </div>
+          <div class="guide-steps">
+            <div class="guide-step">
+              <span class="guide-step-icon">📝</span>
+              <span>Create a rule with URL pattern like <code>*://*/api/*</code></span>
+            </div>
+            <div class="guide-step">
+              <span class="guide-step-icon">🔗</span>
+              <span>Click "Attach Debugger" above</span>
+            </div>
+            <div class="guide-step">
+              <span class="guide-step-icon">✨</span>
+              <span>See your mock responses!</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="empty-actions">
+          <button id="emptyAddRuleBtn" class="btn btn-primary">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="12" y1="5" x2="12" y2="19"/>
+              <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            Create First Rule
+          </button>
+          <button id="emptyShowHelpBtn" class="btn btn-secondary btn-small">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            Learn More
+          </button>
+        </div>
       </div>
 
       <div id="noSearchResults" class="empty-state" style="display: none;">
@@ -208,16 +280,43 @@
         <!-- Network logs will be populated here -->
       </div>
 
-      <div id="networkEmptyState" class="empty-state">
-        <div class="empty-icon">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.5">
-            <circle cx="12" cy="12" r="10"/>
-            <line x1="2" y1="12" x2="22" y2="12"/>
-            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
-          </svg>
+      <div id="networkEmptyState" class="empty-state enhanced-empty-state">
+        <div class="empty-illustration">
+          <div class="empty-icon-wrapper network-icon">
+            <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="2" y1="12" x2="22" y2="12"/>
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+            </svg>
+          </div>
+          <div class="empty-decoration empty-decoration-1"></div>
+          <div class="empty-decoration empty-decoration-2"></div>
         </div>
         <h3>No Network Requests</h3>
         <p>Attach debugger to start capturing network requests</p>
+
+        <div class="network-guide">
+          <div class="guide-title">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+            </svg>
+            How it works
+          </div>
+          <div class="guide-steps">
+            <div class="guide-step">
+              <span class="guide-step-num">1</span>
+              <span>Click "Attach Debugger" in the Quick Actions</span>
+            </div>
+            <div class="guide-step">
+              <span class="guide-step-num">2</span>
+              <span>Navigate to any page making API calls</span>
+            </div>
+            <div class="guide-step">
+              <span class="guide-step-num">3</span>
+              <span>See requests here, click "Rule" to create mocks</span>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -313,6 +412,76 @@
   </div>
 
   <div id="toast" class="toast"></div>
+
+  <!-- Welcome/Onboarding Modal for First-Time Users -->
+  <div id="welcomeModal" class="welcome-modal" style="display: none;">
+    <div class="welcome-modal-overlay"></div>
+    <div class="welcome-modal-content">
+      <div class="welcome-header">
+        <div class="welcome-icon">
+          <img src="../icons/icon48.png" alt="API Interceptor" width="48" height="48" style="border-radius: 10px;">
+        </div>
+        <h2>Welcome to API Interceptor!</h2>
+        <p class="welcome-subtitle">Your powerful tool for testing and debugging API responses</p>
+      </div>
+
+      <div class="welcome-steps">
+        <div class="welcome-step">
+          <div class="step-number">1</div>
+          <div class="step-content">
+            <h4>Create a Rule</h4>
+            <p>Define URL patterns and mock responses for any API endpoint</p>
+          </div>
+        </div>
+        <div class="welcome-step">
+          <div class="step-number">2</div>
+          <div class="step-content">
+            <h4>Attach Debugger</h4>
+            <p>Click "Attach Debugger" to start intercepting requests on the current tab</p>
+          </div>
+        </div>
+        <div class="welcome-step">
+          <div class="step-number">3</div>
+          <div class="step-content">
+            <h4>Test Your App</h4>
+            <p>Navigate to your app and see your mock responses in action</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="welcome-tips">
+        <div class="tip-item">
+          <span class="tip-icon">💡</span>
+          <span>Use the <strong>Network</strong> tab to capture real requests and create rules from them</span>
+        </div>
+      </div>
+
+      <div class="welcome-actions">
+        <button id="welcomeGetStarted" class="btn btn-primary welcome-btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M5 12h14M12 5l7 7-7 7"/>
+          </svg>
+          Get Started
+        </button>
+        <button id="welcomeCreateRule" class="btn btn-secondary welcome-btn-secondary">
+          Create Your First Rule
+        </button>
+      </div>
+
+      <div class="welcome-footer">
+        <label class="welcome-checkbox">
+          <input type="checkbox" id="dontShowAgain">
+          <span>Don't show this again</span>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick Tips Tooltip -->
+  <div id="quickTip" class="quick-tip" style="display: none;">
+    <div class="quick-tip-content"></div>
+    <div class="quick-tip-arrow"></div>
+  </div>
 
   <script src="popup.js"></script>
 </body>
