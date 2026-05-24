@@ -1,7 +1,70 @@
 // Options page script
+
+import { CONTENT_TYPE_PRESETS, isBinaryContentType } from '../shared/content-types.js';
+import { debounce } from '../shared/debounce.js';
+import { safeCompileRegex } from '../shared/regex.js';
+import { MESSAGES } from '../shared/messages.js';
+
+const BODY_PLACEHOLDERS = {
+  'application/json': '{"message": "Modified response"}',
+  'text/html': '<!DOCTYPE html>\n<html>\n<body>\n  <h1>Hello</h1>\n</body>\n</html>',
+  'text/plain': 'Hello, world!',
+  'application/xml': '<?xml version="1.0"?>\n<root>\n  <item>value</item>\n</root>',
+  'text/csv': 'id,name,value\n1,foo,bar',
+  'application/javascript': 'console.log("intercepted");',
+  'image/svg+xml': '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"></svg>',
+};
+
+function updateResponseTypeUI(contentType) {
+  const isBinary = isBinaryContentType(contentType);
+  const isCustom = contentType === '__custom__';
+
+  document.getElementById('customContentTypeRow').style.display = isCustom ? 'block' : 'none';
+  document.getElementById('textBodyPanel').style.display = (!isBinary || isCustom) ? 'block' : 'none';
+  document.getElementById('binaryBodyPanel').style.display = (isBinary && !isCustom) ? 'block' : 'none';
+  document.getElementById('customBinaryToggle').style.display = isCustom ? 'block' : 'none';
+
+  const label = document.getElementById('replaceValueLabel');
+  const prettifyBtn = document.getElementById('prettifyJsonBtn');
+  const ta = document.getElementById('replaceValue');
+  if (label) label.textContent = contentType === 'application/json' ? 'Response Body (JSON)' : 'Response Body';
+  if (prettifyBtn) prettifyBtn.style.display = contentType === 'application/json' ? '' : 'none';
+  if (ta) ta.placeholder = BODY_PLACEHOLDERS[contentType] || 'Enter response body...';
+
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => resolve(e.target.result.split(',')[1]);
+    reader.onerror = () => reject(new Error('Failed to read file'));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function fetchUrlAsBase64(url) {
+  const response = await chrome.runtime.sendMessage({ action: MESSAGES.FETCH_URL_AS_BASE64, url });
+  if (!response.success) throw new Error(response.error || 'Fetch failed');
+  return response.base64;
+}
+
+function updateBinaryPreview(base64, contentType) {
+  const preview = document.getElementById('binaryPreview');
+  const content = document.getElementById('binaryPreviewContent');
+  if (!preview || !content) return;
+  preview.style.display = 'block';
+  if (contentType && contentType.startsWith('image/')) {
+    content.innerHTML = `<img src="data:${contentType};base64,${base64}" style="max-width:200px; max-height:150px; border:1px solid var(--border);" />`;
+  } else {
+    const kb = Math.round((base64.length * 3 / 4) / 1024);
+    content.innerHTML = `<span style="font-size:12px;">${kb} KB of binary data encoded</span>`;
+  }
+}
+
 let currentEditingRuleId = null;
 let headerModificationCounter = 0;
 let collapsedGroups = new Set(); // Track collapsed group IDs
+let optionsSearchQuery = '';
 
 // Initialize options page
 document.addEventListener('DOMContentLoaded', async () => {
@@ -141,8 +204,9 @@ function showTab(tabName) {
     }
   });
 
-  // Reset form if switching to new-rule tab
-  if (tabName === 'new-rule' && !currentEditingRuleId) {
+  // Always reset form when navigating to new-rule tab
+  if (tabName === 'new-rule') {
+    currentEditingRuleId = null;
     resetForm();
   }
 }
@@ -150,7 +214,7 @@ function showTab(tabName) {
 // Load and display rules
 async function loadRules() {
   try {
-    const response = await chrome.runtime.sendMessage({ action: 'getRules' });
+    const response = await chrome.runtime.sendMessage({ action: MESSAGES.GET_RULES });
     const rules = response.rules || [];
 
     // Store rules globally for group stats
@@ -281,7 +345,15 @@ function displayRules(rules) {
               <button class="btn btn-secondary btn-small add-rule-to-group-btn" data-group-id="${group.id}">+ Add Rule</button>
             </div>
           ` : `
-            <div class="options-rules-grid">
+            <div class="options-rules-table">
+              <div class="ort-header">
+                <div class="ort-th">Name</div>
+                <div class="ort-th">URL Pattern</div>
+                <div class="ort-th">Methods</div>
+                <div class="ort-th">Status Code</div>
+                <div class="ort-th ort-th-center">On/Off</div>
+                <div class="ort-th">Actions</div>
+              </div>
               ${groupRules.map(rule => renderRuleCard(rule, group)).join('')}
             </div>
           `}
@@ -317,7 +389,15 @@ function displayRules(rules) {
             <span class="drop-hint">Drop a rule here to ungroup it</span>
           </div>
         ` : `
-          <div class="options-rules-grid">
+          <div class="options-rules-table">
+            <div class="ort-header">
+              <div class="ort-th">Name</div>
+              <div class="ort-th">URL Pattern</div>
+              <div class="ort-th">Methods</div>
+              <div class="ort-th">Status Code</div>
+              <div class="ort-th ort-th-center">On/Off</div>
+              <div class="ort-th">Actions</div>
+            </div>
             ${ungroupedRules.map(rule => renderRuleCard(rule, null)).join('')}
           </div>
         `}
@@ -337,68 +417,57 @@ function displayRules(rules) {
   // Add event listeners
   attachRuleEventListeners();
   attachGroupEventListeners();
+
+  // Re-apply search filter after re-render
+  if (optionsSearchQuery) filterOptionsRules(optionsSearchQuery);
 }
 
 function renderRuleCard(rule, group) {
   const isGroupDisabled = group && !group.enabled;
-  const methods = rule.methods && rule.methods.length > 0
-    ? rule.methods.join(', ')
-    : 'All Methods';
 
-  const cardClasses = [
+  const rowClasses = [
     'rule-card',
+    'ort-row',
     rule.enabled ? '' : 'disabled',
     isGroupDisabled ? 'group-disabled-card' : ''
   ].filter(Boolean).join(' ');
 
-  // Determine action type label and class
   const actionType = rule.actionType || 'mockResponse';
   const actionLabel = getActionTypeLabel(actionType);
   const actionClass = getActionTypeClass(actionType);
 
-  // Build meta badges
-  let metaBadges = `
-    <span class="rule-badge ${actionClass}">${actionLabel}</span>
-    <span class="rule-badge">${rule.matchType}</span>
-    <span class="rule-badge method">${methods}</span>
-  `;
-
-  // Add modification type badge for mock response
-  if (actionType === 'mockResponse' && rule.modifyType) {
-    metaBadges += `<span class="rule-badge">${getModifyTypeLabel(rule.modifyType)}</span>`;
-  }
-
-  // Add delay badge if specified
-  if (rule.delay && rule.delay > 0) {
-    metaBadges += `<span class="rule-badge delay-badge">${rule.delay}ms delay</span>`;
-  }
+  // Method badges
+  const methodBadges = (rule.methods && rule.methods.length > 0 ? rule.methods : ['*'])
+    .map(m => `<span class="rule-badge method">${m}</span>`)
+    .join('');
 
   return `
-    <div class="${cardClasses}" data-rule-id="${rule.id}" draggable="true">
-      ${isGroupDisabled ? '<div class="group-disabled-banner">Inactive - Group is disabled</div>' : ''}
-      <div class="rule-card-header">
-        <div class="rule-card-title-wrapper">
-          <span class="drag-handle" title="Drag to move between groups">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/></svg>
-          </span>
-          <div class="rule-card-title-content">
-            <span class="rule-card-title">${escapeHtml(rule.name)}</span>
-            ${rule.description ? `<div class="rule-card-description">${escapeHtml(rule.description)}</div>` : ''}
-          </div>
+    <div class="${rowClasses}" data-rule-id="${rule.id}" draggable="true">
+      <div class="ort-td ort-td-name">
+        <span class="drag-handle" title="Drag to move between groups">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/></svg>
+        </span>
+        <div class="ort-name-info">
+          <span class="rule-card-title">${escapeHtml(rule.name)}</span>
+          ${rule.description ? `<span class="rule-card-description">${escapeHtml(rule.description)}</span>` : ''}
         </div>
+      </div>
+      <div class="ort-td ort-td-pattern">
+        <span class="rule-card-pattern">${escapeHtml(rule.urlPattern)}</span>
+      </div>
+      <div class="ort-td ort-td-methods">${methodBadges}</div>
+      <div class="ort-td ort-td-code">
+        <input type="number" class="ort-status-input" data-rule-id="${rule.id}"
+          value="${rule.modifyStatusCode || ''}" placeholder="—"
+          min="100" max="599" ${isGroupDisabled ? 'disabled' : ''}>
+      </div>
+      <div class="ort-td ort-td-toggle">
         <div class="toggle-switch-small">
           <input type="checkbox" id="toggle-${rule.id}" ${rule.enabled ? 'checked' : ''} ${isGroupDisabled ? 'disabled' : ''} data-rule-id="${rule.id}">
           <label for="toggle-${rule.id}" ${isGroupDisabled ? 'class="toggle-disabled"' : ''}></label>
         </div>
       </div>
-
-      <div class="rule-card-pattern">${escapeHtml(rule.urlPattern)}</div>
-
-      <div class="rule-card-meta">
-        ${metaBadges}
-      </div>
-
-      <div class="rule-card-actions">
+      <div class="ort-td ort-td-actions">
         <button class="btn btn-secondary btn-small edit-btn" data-rule-id="${rule.id}">Edit</button>
         <button class="btn btn-secondary btn-small duplicate-btn" data-rule-id="${rule.id}">Duplicate</button>
         <button class="btn btn-danger btn-small delete-btn" data-rule-id="${rule.id}">Delete</button>
@@ -555,6 +624,48 @@ function attachRuleEventListeners() {
     });
   });
 
+  // Inline status code quick-edit
+  document.querySelectorAll('.ort-status-input').forEach(input => {
+    const save = async (e) => {
+      const ruleId = e.target.dataset.ruleId;
+      const raw = e.target.value.trim();
+      const rule = (window.currentRules || []).find(r => r.id === ruleId);
+      if (!rule) return;
+
+      const updated = { ...rule };
+      if (!raw) {
+        delete updated.modifyStatusCode;
+      } else {
+        const code = parseInt(raw, 10);
+        if (isNaN(code) || code < 100 || code > 599) {
+          e.target.value = rule.modifyStatusCode || '';
+          showToast('Status code must be 100–599', 'error');
+          return;
+        }
+        updated.modifyStatusCode = code;
+      }
+
+      try {
+        await chrome.runtime.sendMessage({ action: MESSAGES.UPDATE_RULE, ruleId, rule: updated });
+        const idx = (window.currentRules || []).findIndex(r => r.id === ruleId);
+        if (idx !== -1) window.currentRules[idx] = updated;
+        showToast('Status code saved', 'success');
+      } catch (err) {
+        showToast('Failed to save status code', 'error');
+      }
+    };
+
+    input.addEventListener('change', save);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.target.blur(); }
+      if (e.key === 'Escape') {
+        const rule = (window.currentRules || []).find(r => r.id === e.target.dataset.ruleId);
+        e.target.value = rule?.modifyStatusCode || '';
+        e.target.blur();
+      }
+    });
+  });
+
   // Drag & Drop on rule cards
   document.querySelectorAll('.rule-card[draggable="true"]').forEach(card => {
     card.addEventListener('dragstart', handleDragStart);
@@ -639,7 +750,7 @@ async function handleGroupDrop(e) {
 
   try {
     await chrome.runtime.sendMessage({
-      action: 'assignRuleToGroup',
+      action: MESSAGES.ASSIGN_RULE_TO_GROUP,
       ruleId: ruleId,
       groupId: newGroupId
     });
@@ -681,7 +792,87 @@ function getActionTypeClass(actionType) {
   return 'action-mock';
 }
 
-// Setup event listeners
+// Algorithm mirrors rule-engine.js wildcardMatch — keep in sync if engine changes
+function testUrlPattern(url, pattern, matchType) {
+  if (!url || !pattern) return null;
+  switch (matchType) {
+    case 'exact': return url === pattern;
+    case 'contains': return url.includes(pattern);
+    case 'regex': {
+      const compiled = safeCompileRegex(pattern);
+      return compiled ? compiled.test(url) : false;
+    }
+    case 'wildcard':
+    default: {
+      const r = pattern
+        .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+        .replace(/\*\*/g, '<!DW!>')
+        .replace(/\*/g, '[^/]*')
+        .replace(/<!DW!>/g, '.*');
+      const compiled = safeCompileRegex(`^${r}$`);
+      return compiled ? compiled.test(url) : false;
+    }
+  }
+}
+
+function filterOptionsRules(query) {
+  const q = query.trim().toLowerCase();
+  document.querySelectorAll('.rule-card').forEach(card => {
+    const ruleId = card.dataset.ruleId;
+    const rule = (window.currentRules || []).find(r => r.id === ruleId);
+    if (!rule) return;
+    const matches = !q ||
+      rule.name.toLowerCase().includes(q) ||
+      rule.urlPattern.toLowerCase().includes(q) ||
+      (rule.description && rule.description.toLowerCase().includes(q));
+    card.style.display = matches ? '' : 'none';
+  });
+
+  document.querySelectorAll('.options-group-container').forEach(container => {
+    if (!q) {
+      container.style.display = '';
+      return;
+    }
+    const visibleCards = container.querySelectorAll('.rule-card:not([style*="display: none"])');
+    container.style.display = visibleCards.length === 0 ? 'none' : '';
+  });
+
+  const clearBtn = document.getElementById('optionsClearSearch');
+  if (clearBtn) clearBtn.style.display = q ? 'inline-flex' : 'none';
+}
+
+const MATCH_TYPE_HINTS = {
+  wildcard: {
+    title: 'Wildcard',
+    desc: 'Use <code>*</code> to match any single path segment and <code>**</code> to match any number of segments.',
+    example: '<code>*://*/api/**</code> matches any domain and any path under <code>/api/</code>'
+  },
+  regex: {
+    title: 'Regular Expression',
+    desc: 'Full JavaScript regex matched against the URL. Do not include leading/trailing slashes.',
+    example: '<code>api\\.example\\.com/users/\\d+</code> matches <code>/users/123</code> but not <code>/users/abc</code>'
+  },
+  exact: {
+    title: 'Exact Match',
+    desc: 'The URL must match the pattern character-for-character, including protocol and query string.',
+    example: '<code>https://api.example.com/users</code> only matches that exact URL'
+  },
+  contains: {
+    title: 'Contains',
+    desc: 'Matches any URL that contains the pattern as a substring anywhere.',
+    example: '<code>/api/users</code> matches <code>https://dev.example.com/api/users/list</code>'
+  }
+};
+
+function updateMatchTypeHint() {
+  const type = document.getElementById('matchType')?.value;
+  const hintEl = document.getElementById('matchTypeHint');
+  if (!hintEl || !type) return;
+  const h = MATCH_TYPE_HINTS[type];
+  if (!h) { hintEl.innerHTML = ''; return; }
+  hintEl.innerHTML = `<strong>${h.title}</strong>${h.desc} <span style="display:block;margin-top:4px;color:var(--text-muted);">e.g. ${h.example}</span>`;
+}
+
 function setupEventListeners() {
   // Rule sorting and filtering controls
   const ruleSortBy = document.getElementById('ruleSortBy');
@@ -698,6 +889,150 @@ function setupEventListeners() {
     }
   });
 
+  // Options search bar
+  const optionsSearchInput = document.getElementById('optionsSearch');
+  const optionsClearSearchBtn = document.getElementById('optionsClearSearch');
+  if (optionsSearchInput) {
+    const debouncedFilter = debounce((q) => filterOptionsRules(q), 150);
+    optionsSearchInput.addEventListener('input', (e) => {
+      optionsSearchQuery = e.target.value;
+      debouncedFilter(optionsSearchQuery);
+    });
+    optionsSearchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        optionsSearchInput.value = '';
+        optionsSearchQuery = '';
+        filterOptionsRules('');
+      }
+    });
+  }
+  if (optionsClearSearchBtn) {
+    optionsClearSearchBtn.addEventListener('click', () => {
+      const input = document.getElementById('optionsSearch');
+      if (input) input.value = '';
+      optionsSearchQuery = '';
+      filterOptionsRules('');
+    });
+  }
+
+  // Status code presets — rule form
+  const ruleFormStatusPresets = document.getElementById('ruleFormStatusPresets');
+  if (ruleFormStatusPresets) {
+    ruleFormStatusPresets.querySelectorAll('.status-preset').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const input = document.getElementById('modifyStatusCode');
+        if (input) {
+          input.value = btn.dataset.code;
+          ruleFormStatusPresets.querySelectorAll('.status-preset').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+        }
+      });
+    });
+    document.getElementById('modifyStatusCode')?.addEventListener('input', (e) => {
+      const val = e.target.value.trim();
+      ruleFormStatusPresets.querySelectorAll('.status-preset').forEach(b => {
+        b.classList.toggle('active', b.dataset.code === val);
+      });
+    });
+  }
+
+  // Response content type selector
+  document.getElementById('responseContentType')?.addEventListener('change', (e) => {
+    updateResponseTypeUI(e.target.value);
+  });
+
+  document.getElementById('customIsBinary')?.addEventListener('change', () => {
+    const isBin = document.getElementById('customIsBinary')?.checked;
+    document.getElementById('textBodyPanel').style.display = isBin ? 'none' : 'block';
+    document.getElementById('binaryBodyPanel').style.display = isBin ? 'block' : 'none';
+  });
+
+  // Binary input tabs
+  document.querySelectorAll('.binary-tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.binary-tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.binary-input-panel').forEach(p => p.style.display = 'none');
+      btn.classList.add('active');
+      const tabId = `binary${btn.dataset.tab.charAt(0).toUpperCase() + btn.dataset.tab.slice(1)}Tab`;
+      const tabEl = document.getElementById(tabId);
+      if (tabEl) tabEl.style.display = 'block';
+    });
+  });
+
+  // File upload → base64
+  document.getElementById('binaryFileInput')?.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const info = document.getElementById('binaryFileInfo');
+    if (info) info.textContent = `Loading ${file.name} (${(file.size / 1024).toFixed(1)} KB)...`;
+    try {
+      const base64 = await fileToBase64(file);
+      const b64El = document.getElementById('binaryBase64Value');
+      if (b64El) b64El.value = base64;
+      document.querySelector('.binary-tab-btn[data-tab="paste"]')?.click();
+      if (info) info.textContent = `Loaded: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+      const ct = document.getElementById('responseContentType')?.value || file.type;
+      updateBinaryPreview(base64, ct);
+    } catch (err) {
+      if (info) info.textContent = `Error: ${err.message}`;
+    }
+  });
+
+  // Fetch URL → base64
+  document.getElementById('binaryFetchBtn')?.addEventListener('click', async () => {
+    const url = document.getElementById('binaryFetchUrl')?.value.trim();
+    const status = document.getElementById('binaryFetchStatus');
+    if (!url) return;
+    if (status) { status.textContent = 'Fetching...'; status.style.color = 'var(--text-secondary)'; }
+    try {
+      const base64 = await fetchUrlAsBase64(url);
+      const b64El = document.getElementById('binaryBase64Value');
+      if (b64El) b64El.value = base64;
+      document.querySelector('.binary-tab-btn[data-tab="paste"]')?.click();
+      if (status) { status.textContent = 'Fetched and encoded successfully'; status.style.color = 'var(--color-success, green)'; }
+      const ct = document.getElementById('responseContentType')?.value;
+      updateBinaryPreview(base64, ct);
+    } catch (err) {
+      if (status) { status.textContent = `Error: ${err.message}`; status.style.color = 'var(--color-error, red)'; }
+    }
+  });
+
+  // URL pattern tester
+  document.getElementById('toggleUrlTester')?.addEventListener('click', () => {
+    const panel = document.getElementById('urlTesterPanel');
+    const btn = document.getElementById('toggleUrlTester');
+    if (!panel) return;
+    const isHidden = panel.style.display === 'none';
+    panel.style.display = isHidden ? 'block' : 'none';
+    btn.classList.toggle('open', isHidden);
+    const textEl = btn.querySelector('.rf-trigger-text');
+    if (textEl) textEl.textContent = isHidden ? 'Hide Tester' : 'Test Pattern';
+  });
+
+  function runUrlTest() {
+    const testUrl = document.getElementById('testUrlInput')?.value.trim();
+    const pattern = document.getElementById('urlPattern')?.value.trim();
+    const matchType = document.getElementById('matchType')?.value || 'wildcard';
+    const resultEl = document.getElementById('urlTestResult');
+    if (!resultEl) return;
+
+    if (!testUrl || !pattern) {
+      resultEl.textContent = 'Enter both a URL pattern and a test URL.';
+      resultEl.className = 'url-test-result warn';
+      resultEl.style.display = 'block';
+      return;
+    }
+    const matched = testUrlPattern(testUrl, pattern, matchType);
+    resultEl.textContent = matched ? '✓ Match' : '✗ No match';
+    resultEl.className = `url-test-result ${matched ? 'match' : 'no-match'}`;
+    resultEl.style.display = 'block';
+  }
+
+  document.getElementById('testUrlBtn')?.addEventListener('click', runUrlTest);
+  document.getElementById('testUrlInput')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); runUrlTest(); }
+  });
+
   // Add new rule button
   document.getElementById('addNewRuleBtn').addEventListener('click', () => {
     currentEditingRuleId = null;
@@ -710,6 +1045,11 @@ function setupEventListeners() {
     currentEditingRuleId = null;
     resetForm();
     showTab('new-rule');
+  });
+
+  // Empty state import button
+  document.getElementById('emptyStateImportBtn')?.addEventListener('click', () => {
+    document.getElementById('importFile').click();
   });
 
   // Collapse/Expand all buttons
@@ -729,20 +1069,26 @@ function setupEventListeners() {
     showTab('rules');
   });
 
-  // Modify type change
-  document.getElementById('modifyType').addEventListener('change', (e) => {
-    updateModificationOptions(e.target.value);
-  });
+  document.getElementById('matchType')?.addEventListener('change', updateMatchTypeHint);
+  updateMatchTypeHint();
 
   // Prettify JSON button
   document.getElementById('prettifyJsonBtn').addEventListener('click', prettifyJsonInTextarea);
 
   // Import/Export buttons
   document.getElementById('exportBtn').addEventListener('click', exportRules);
+  document.getElementById('copyExportBtn').addEventListener('click', copyExport);
   document.getElementById('importBtn').addEventListener('click', () => {
     document.getElementById('importFile').click();
   });
   document.getElementById('importFile').addEventListener('change', importRules);
+  document.getElementById('pasteImportBtn').addEventListener('click', openPasteImportModal);
+  document.getElementById('closePasteImportModal').addEventListener('click', closePasteImportModal);
+  document.getElementById('cancelPasteImportBtn').addEventListener('click', closePasteImportModal);
+  document.getElementById('confirmPasteImportBtn').addEventListener('click', confirmPasteImport);
+  document.getElementById('pasteImportModal').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('pasteImportModal')) closePasteImportModal();
+  });
   document.getElementById('clearAllBtn').addEventListener('click', clearAllRules);
 
   // Header modification buttons
@@ -779,25 +1125,63 @@ function setupEventListeners() {
       closeDeleteGroupModal();
     }
   });
-}
 
-function updateModificationOptions(type) {
-  // Hide all options
-  document.querySelectorAll('.modification-options').forEach(el => {
-    el.style.display = 'none';
+  // Method chips — toggle hidden checkboxes
+  document.querySelectorAll('.rf-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const method = chip.dataset.method;
+      const checkbox = document.querySelector(`input.rf-chip-input[value="${method}"]`);
+      if (!checkbox) return;
+      checkbox.checked = !checkbox.checked;
+      chip.classList.toggle('rf-chip-active', checkbox.checked);
+    });
   });
 
-  // Show selected option
-  const optionMap = {
-    'replace': 'replaceOptions',
-    'json-path': 'jsonPathOptions',
-    'regex': 'regexOptions'
-  };
 
-  const selectedOption = document.getElementById(optionMap[type]);
-  if (selectedOption) {
-    selectedOption.style.display = 'block';
+  // Status stepper +/−
+  document.getElementById('statusDecBtn')?.addEventListener('click', () => {
+    const input = document.getElementById('modifyStatusCode');
+    if (!input) return;
+    const val = parseInt(input.value) || 200;
+    input.value = Math.max(100, val - 1);
+    input.dispatchEvent(new Event('input'));
+  });
+  document.getElementById('statusIncBtn')?.addEventListener('click', () => {
+    const input = document.getElementById('modifyStatusCode');
+    if (!input) return;
+    const val = parseInt(input.value) || 199;
+    input.value = Math.min(599, val + 1);
+    input.dispatchEvent(new Event('input'));
+  });
+
+  // Delay slider readout
+  const delaySlider = document.getElementById('ruleDelay');
+  const delayReadout = document.getElementById('delayReadout');
+  if (delaySlider && delayReadout) {
+    const updateDelayReadout = () => {
+      const v = parseInt(delaySlider.value) || 0;
+      delayReadout.textContent = v === 0 ? 'off' : `${v} ms`;
+    };
+    delaySlider.addEventListener('input', updateDelayReadout);
+    updateDelayReadout();
   }
+
+  // Collapsible description and headers
+  [['toggleDescription', 'descriptionBody'], ['toggleHeadersSection', 'headersBody']].forEach(([triggerId, bodyId]) => {
+    document.getElementById(triggerId)?.addEventListener('click', () => {
+      const body = document.getElementById(bodyId);
+      const trigger = document.getElementById(triggerId);
+      if (!body || !trigger) return;
+      const isOpen = body.style.display !== 'none';
+      body.style.display = isOpen ? 'none' : 'block';
+      trigger.classList.toggle('open', !isOpen);
+    });
+  });
+}
+
+function updateModificationOptions() {
+  const replaceOptions = document.getElementById('replaceOptions');
+  if (replaceOptions) replaceOptions.style.display = 'block';
 }
 
 async function saveRule() {
@@ -812,16 +1196,16 @@ async function saveRule() {
     let savedRule;
     if (currentEditingRuleId) {
       await chrome.runtime.sendMessage({
-        action: 'updateRule',
+        action: MESSAGES.UPDATE_RULE,
         ruleId: currentEditingRuleId,
         rule: ruleData
       });
       // For updates, fetch all rules to verify
-      const rulesResult = await chrome.runtime.sendMessage({ action: 'getRules' });
+      const rulesResult = await chrome.runtime.sendMessage({ action: MESSAGES.GET_RULES });
       savedRule = rulesResult?.rules?.find(r => r.id === currentEditingRuleId);
     } else {
       const response = await chrome.runtime.sendMessage({
-        action: 'addRule',
+        action: MESSAGES.ADD_RULE,
         rule: ruleData
       });
       savedRule = response?.rule;
@@ -890,7 +1274,7 @@ function collectFormData() {
   const description = document.getElementById('ruleDescription').value.trim();
   const urlPattern = document.getElementById('urlPattern').value.trim();
   const matchType = document.getElementById('matchType').value;
-  const modifyType = document.getElementById('modifyType').value;
+  const modifyType = 'replace';
   const enabled = document.getElementById('ruleEnabled').checked;
 
   if (!name || !urlPattern) {
@@ -927,32 +1311,22 @@ function collectFormData() {
     console.log(`Setting delay value: ${delay}ms`);
   }
 
-  // Get modification data based on type
-  let modification = {};
-
-  switch (modifyType) {
-    case 'replace':
-      modification = {
-        type: 'text',
-        value: document.getElementById('replaceValue').value
-      };
-      break;
-
-    case 'json-path':
-      modification = {
-        path: document.getElementById('jsonPath').value,
-        value: document.getElementById('jsonValue').value
-      };
-      break;
-
-    case 'regex':
-      modification = {
-        pattern: document.getElementById('regexPattern').value,
-        replacement: document.getElementById('regexReplacement').value,
-        flags: document.getElementById('regexFlags').value
-      };
-      break;
+  // Get content type
+  const contentTypeEl = document.getElementById('responseContentType');
+  const contentType = contentTypeEl?.value || 'application/json';
+  ruleData.contentType = contentType;
+  if (contentType === '__custom__') {
+    ruleData.customContentType = document.getElementById('customContentType')?.value.trim() || 'application/octet-stream';
   }
+
+  // Determine if body is binary
+  const isCustomBinary = contentType === '__custom__' && document.getElementById('customIsBinary')?.checked;
+  const effectiveBinary = (isBinaryContentType(contentType) && contentType !== '__custom__') || isCustomBinary;
+
+  // Get modification data
+  const modification = effectiveBinary
+    ? { type: 'binary', isBinary: true, value: document.getElementById('binaryBase64Value')?.value.trim() || '' }
+    : { type: 'text', value: document.getElementById('replaceValue').value };
 
   ruleData.modifyType = modifyType;
   ruleData.modification = modification;
@@ -998,7 +1372,7 @@ async function editRule(ruleId) {
   }
 
   try {
-    const response = await chrome.runtime.sendMessage({ action: 'getRules' });
+    const response = await chrome.runtime.sendMessage({ action: MESSAGES.GET_RULES });
 
     if (!response || !response.rules) {
       console.error('Failed to get rules: Invalid response');
@@ -1014,13 +1388,13 @@ async function editRule(ruleId) {
       return;
     }
 
-    currentEditingRuleId = ruleId;
-
     // Ensure group selectors are up to date before populating
     await loadGroups();
 
-    populateForm(rule);
+    // showTab resets form and clears currentEditingRuleId, so set it after
     showTab('new-rule');
+    currentEditingRuleId = ruleId;
+    populateForm(rule);
 
     const formTitle = document.getElementById('formTitle');
     if (formTitle) {
@@ -1069,34 +1443,36 @@ function populateForm(rule) {
   // Set delay
   setElementValue('ruleDelay', rule.delay !== undefined && rule.delay !== null ? rule.delay : '');
 
-  // Set response modify type
-  setElementValue('modifyType', rule.modifyType || 'replace');
-  if (rule.modifyType) {
-    updateModificationOptions(rule.modifyType);
+  // Set content type
+  const ruleContentType = rule.contentType || 'application/json';
+  setElementValue('responseContentType', ruleContentType);
+  if (ruleContentType === '__custom__') {
+    setElementValue('customContentType', rule.customContentType || '');
   }
+  updateResponseTypeUI(ruleContentType);
 
   // Populate modification fields
   if (rule.modification) {
-    switch (rule.modifyType) {
-      case 'replace':
-        setElementValue('replaceValue', rule.modification.value);
-        break;
-
-      case 'json-path':
-        setElementValue('jsonPath', rule.modification.path);
-        setElementValue('jsonValue', rule.modification.value);
-        break;
-
-      case 'regex':
-        setElementValue('regexPattern', rule.modification.pattern);
-        setElementValue('regexReplacement', rule.modification.replacement);
-        setElementValue('regexFlags', rule.modification.flags || 'g');
-        break;
+    if (rule.modification.isBinary) {
+      setElementValue('binaryBase64Value', rule.modification.value || '');
+      if (rule.modification.value) {
+        updateBinaryPreview(rule.modification.value, ruleContentType === '__custom__' ? rule.customContentType : ruleContentType);
+      }
+      if (ruleContentType === '__custom__') {
+        const cbEl = document.getElementById('customIsBinary');
+        if (cbEl) cbEl.checked = true;
+      }
+    } else {
+      setElementValue('replaceValue', rule.modification.value);
     }
   }
 
   // Populate status code
   setElementValue('modifyStatusCode', rule.modifyStatusCode);
+  const scVal = rule.modifyStatusCode != null ? String(rule.modifyStatusCode) : '';
+  document.getElementById('ruleFormStatusPresets')?.querySelectorAll('.status-preset').forEach(b => {
+    b.classList.toggle('active', b.dataset.code === scVal);
+  });
 
   // Populate header modifications
   clearHeaderModifications();
@@ -1110,6 +1486,39 @@ function populateForm(rule) {
 
   // Populate group selection
   setElementValue('ruleGroup', rule.groupId || '');
+
+  // Sync rf-v2 controls after populating
+  document.querySelectorAll('.rf-chip').forEach(chip => {
+    const checkbox = document.querySelector(`input.rf-chip-input[value="${chip.dataset.method}"]`);
+    chip.classList.toggle('rf-chip-active', !!checkbox?.checked);
+  });
+  const dSlider = document.getElementById('ruleDelay');
+  const dReadout = document.getElementById('delayReadout');
+  if (dSlider && dReadout) {
+    const v = parseInt(dSlider.value) || 0;
+    dReadout.textContent = v === 0 ? 'off' : `${v} ms`;
+  }
+  // Auto-expand description if it has a value
+  const descVal = document.getElementById('ruleDescription')?.value;
+  if (descVal) {
+    const descBody = document.getElementById('descriptionBody');
+    const descTrigger = document.getElementById('toggleDescription');
+    if (descBody) descBody.style.display = 'block';
+    if (descTrigger) descTrigger.classList.add('open');
+  }
+  // Auto-expand headers section if headers were loaded
+  setTimeout(() => {
+    const headerRows = document.querySelectorAll('#headerModifications .header-mod-row').length;
+    if (headerRows > 0) {
+      const headersBody = document.getElementById('headersBody');
+      const headersTrigger = document.getElementById('toggleHeadersSection');
+      if (headersBody) headersBody.style.display = 'block';
+      if (headersTrigger) headersTrigger.classList.add('open');
+      const countEl = document.getElementById('headerCount');
+      if (countEl) { countEl.textContent = headerRows; countEl.classList.add('visible'); }
+    }
+    updateMatchTypeHint?.();
+  }, 0);
 }
 
 function resetForm() {
@@ -1122,11 +1531,58 @@ function resetForm() {
   // Reset delay
   document.getElementById('ruleDelay').value = '';
 
-  // Reset response modification options
-  updateModificationOptions('replace');
+  // Reset URL tester panel
+  const urlTesterPanel = document.getElementById('urlTesterPanel');
+  if (urlTesterPanel) urlTesterPanel.style.display = 'none';
+  const urlTestResult = document.getElementById('urlTestResult');
+  if (urlTestResult) { urlTestResult.style.display = 'none'; urlTestResult.textContent = ''; }
+  const testUrlInput = document.getElementById('testUrlInput');
+  if (testUrlInput) testUrlInput.value = '';
+  const toggleUrlTesterBtn = document.getElementById('toggleUrlTester');
+  if (toggleUrlTesterBtn) {
+    toggleUrlTesterBtn.classList.remove('open');
+    const textEl = toggleUrlTesterBtn.querySelector('.rf-trigger-text');
+    if (textEl) textEl.textContent = 'Test Pattern';
+  }
+
+
+  // Reset content type
+  const ctEl = document.getElementById('responseContentType');
+  if (ctEl) ctEl.value = 'application/json';
+  const customRow = document.getElementById('customContentTypeRow');
+  if (customRow) customRow.style.display = 'none';
+  const customCtEl = document.getElementById('customContentType');
+  if (customCtEl) customCtEl.value = '';
+  const binaryBase64El = document.getElementById('binaryBase64Value');
+  if (binaryBase64El) binaryBase64El.value = '';
+  const binaryPreviewEl = document.getElementById('binaryPreview');
+  if (binaryPreviewEl) binaryPreviewEl.style.display = 'none';
+  const customIsBinaryEl = document.getElementById('customIsBinary');
+  if (customIsBinaryEl) customIsBinaryEl.checked = false;
+  updateResponseTypeUI('application/json');
+
   document.getElementById('modifyStatusCode').value = '';
+  document.getElementById('ruleFormStatusPresets')?.querySelectorAll('.status-preset').forEach(b => b.classList.remove('active'));
   clearHeaderModifications();
   currentEditingRuleId = null;
+
+  // Sync rf-v2 controls
+  document.querySelectorAll('.rf-chip').forEach(chip => {
+    chip.classList.toggle('rf-chip-active', chip.dataset.method === 'GET');
+  });
+  const dReadout = document.getElementById('delayReadout');
+  if (dReadout) dReadout.textContent = 'off';
+  const dSlider = document.getElementById('ruleDelay');
+  if (dSlider) dSlider.value = '0';
+  ['descriptionBody', 'headersBody'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+  document.getElementById('toggleDescription')?.classList.remove('open');
+  document.getElementById('toggleHeadersSection')?.classList.remove('open');
+  const countEl = document.getElementById('headerCount');
+  if (countEl) { countEl.textContent = ''; countEl.classList.remove('visible'); }
+  updateMatchTypeHint?.();
 }
 
 // ==================== Keyboard Shortcuts ====================
@@ -1150,7 +1606,7 @@ function setupKeyboardShortcuts() {
       e.preventDefault();
       currentEditingRuleId = null;
       resetForm();
-      switchTab('new-rule');
+      showTab('new-rule');
       document.getElementById('ruleName')?.focus();
       showToast('Creating new rule (Ctrl+N)', 'info');
     }
@@ -1168,7 +1624,7 @@ function setupKeyboardShortcuts() {
     if (e.key === 'Escape') {
       const newRuleTab = document.getElementById('new-rule-tab');
       if (newRuleTab && newRuleTab.classList.contains('active')) {
-        switchTab('rules');
+        showTab('rules');
       }
     }
 
@@ -1191,7 +1647,7 @@ function setupKeyboardShortcuts() {
         '4': 'help'
       };
       if (tabMap[e.key]) {
-        switchTab(tabMap[e.key]);
+        showTab(tabMap[e.key]);
       }
     }
   });
@@ -1199,14 +1655,14 @@ function setupKeyboardShortcuts() {
 
 async function toggleRule(ruleId) {
   try {
-    const response = await chrome.runtime.sendMessage({ action: 'getRules' });
+    const response = await chrome.runtime.sendMessage({ action: MESSAGES.GET_RULES });
     const rules = response.rules || [];
     const rule = rules.find(r => r.id === ruleId);
 
     if (rule) {
       rule.enabled = !rule.enabled;
       await chrome.runtime.sendMessage({
-        action: 'updateRule',
+        action: MESSAGES.UPDATE_RULE,
         ruleId: ruleId,
         rule: rule
       });
@@ -1236,7 +1692,7 @@ async function deleteRule(ruleId) {
 
     // Delete the rule
     await chrome.runtime.sendMessage({
-      action: 'deleteRule',
+      action: MESSAGES.DELETE_RULE,
       ruleId: ruleId
     });
 
@@ -1275,7 +1731,7 @@ async function undoDeleteRule() {
     delete ruleData.modifiedAt;
 
     await chrome.runtime.sendMessage({
-      action: 'addRule',
+      action: MESSAGES.ADD_RULE,
       rule: ruleData
     });
 
@@ -1291,7 +1747,7 @@ async function undoDeleteRule() {
 async function duplicateRule(ruleId) {
   try {
     // Find the rule to duplicate
-    const ruleToDuplicate = window.currentRules.find(r => r.id === ruleId);
+    const ruleToDuplicate = (window.currentRules || []).find(r => r.id === ruleId);
 
     if (!ruleToDuplicate) {
       showToast('Rule not found', 'error');
@@ -1312,7 +1768,7 @@ async function duplicateRule(ruleId) {
 
     // Add the duplicated rule
     await chrome.runtime.sendMessage({
-      action: 'addRule',
+      action: MESSAGES.ADD_RULE,
       rule: duplicatedRule
     });
 
@@ -1328,12 +1784,15 @@ async function duplicateRule(ruleId) {
 // Import/Export functions
 async function exportRules() {
   try {
-    const response = await chrome.runtime.sendMessage({ action: 'getRules' });
-    const rules = response.rules || [];
+    const rulesResponse = await chrome.runtime.sendMessage({ action: MESSAGES.GET_RULES });
+    const groupsResponse = await chrome.runtime.sendMessage({ action: MESSAGES.GET_GROUPS });
+    const rules = rulesResponse.rules || [];
+    const groups = groupsResponse.groups || [];
 
     const exportData = {
-      version: '1.0',
+      version: '2.0',
       exportDate: new Date().toISOString(),
+      groups: groups,
       rules: rules
     };
 
@@ -1344,9 +1803,65 @@ async function exportRules() {
     a.download = `api-interceptor-rules-${Date.now()}.json`;
     a.click();
     URL.revokeObjectURL(url);
+    showToast(`Exported ${groups.length} group(s) and ${rules.length} rule(s)`, 'success');
   } catch (error) {
     console.error('Failed to export rules:', error);
     showToast('Failed to export rules', 'error');
+  }
+}
+
+async function copyExport() {
+  try {
+    const rulesResponse = await chrome.runtime.sendMessage({ action: MESSAGES.GET_RULES });
+    const groupsResponse = await chrome.runtime.sendMessage({ action: MESSAGES.GET_GROUPS });
+    const exportData = {
+      version: '2.0',
+      exportDate: new Date().toISOString(),
+      groups: groupsResponse.groups || [],
+      rules: rulesResponse.rules || []
+    };
+    await navigator.clipboard.writeText(JSON.stringify(exportData, null, 2));
+    showToast(`Copied ${exportData.groups.length} group(s) and ${exportData.rules.length} rule(s) to clipboard`, 'success');
+  } catch (error) {
+    console.error('Failed to copy to clipboard:', error);
+    showToast('Failed to copy to clipboard', 'error');
+  }
+}
+
+function openPasteImportModal() {
+  document.getElementById('pasteImportText').value = '';
+  document.getElementById('pasteImportModal').style.display = 'flex';
+}
+
+function closePasteImportModal() {
+  document.getElementById('pasteImportModal').style.display = 'none';
+}
+
+async function confirmPasteImport() {
+  const text = document.getElementById('pasteImportText').value.trim();
+  if (!text) {
+    showToast('Please paste JSON content first', 'error');
+    return;
+  }
+  try {
+    const data = JSON.parse(text);
+    if ((!data.rules || !Array.isArray(data.rules)) && (!data.groups || !Array.isArray(data.groups))) {
+      showToast('Invalid format. JSON must contain rules or groups.', 'error');
+      return;
+    }
+    const response = await chrome.runtime.sendMessage({ action: MESSAGES.IMPORT_DATA, data });
+    if (response.success) {
+      closePasteImportModal();
+      await loadGroups();
+      await loadRules();
+      const groupCount = response.groupsImported || 0;
+      const ruleCount = response.rulesImported || 0;
+      showToast(`Successfully imported ${groupCount} group(s) and ${ruleCount} rule(s)`, 'success');
+    } else {
+      showToast(response.error || 'Failed to import data', 'error');
+    }
+  } catch (error) {
+    showToast('Invalid JSON: ' + error.message, 'error');
   }
 }
 
@@ -1358,25 +1873,31 @@ async function importRules(e) {
     const text = await file.text();
     const data = JSON.parse(text);
 
-    if (!data.rules || !Array.isArray(data.rules)) {
-      showToast('Invalid file format', 'error');
+    // Validate file has either rules or groups
+    if ((!data.rules || !Array.isArray(data.rules)) && (!data.groups || !Array.isArray(data.groups))) {
+      showToast('Invalid file format. File must contain rules or groups.', 'error');
       return;
     }
 
-    // Import each rule
-    for (const rule of data.rules) {
-      await chrome.runtime.sendMessage({
-        action: 'addRule',
-        rule: rule
-      });
-    }
+    // Use importData action to properly handle groups and rules together
+    const response = await chrome.runtime.sendMessage({
+      action: MESSAGES.IMPORT_DATA,
+      data: data
+    });
 
-    await loadRules();
-    showToast(`Successfully imported ${data.rules.length} rules`, "success");
+    if (response.success) {
+      await loadGroups();
+      await loadRules();
+      const groupCount = response.groupsImported || 0;
+      const ruleCount = response.rulesImported || 0;
+      showToast(`Successfully imported ${groupCount} group(s) and ${ruleCount} rule(s)`, 'success');
+    } else {
+      showToast(response.error || 'Failed to import data', 'error');
+    }
     e.target.value = ''; // Reset file input
   } catch (error) {
     console.error('Failed to import rules:', error);
-    showToast('Failed to import rules', 'error');
+    showToast('Failed to import rules: ' + error.message, 'error');
   }
 }
 
@@ -1390,12 +1911,12 @@ async function clearAllRules() {
   }
 
   try {
-    const response = await chrome.runtime.sendMessage({ action: 'getRules' });
+    const response = await chrome.runtime.sendMessage({ action: MESSAGES.GET_RULES });
     const rules = response.rules || [];
 
     for (const rule of rules) {
       await chrome.runtime.sendMessage({
-        action: 'deleteRule',
+        action: MESSAGES.DELETE_RULE,
         ruleId: rule.id
       });
     }
@@ -1443,7 +1964,18 @@ function addHeaderModification(name = '', value = '', action = 'set') {
   // Add event listener for remove button
   headerRow.querySelector('.remove-header-btn').addEventListener('click', () => {
     headerRow.remove();
+    updateHeaderCountBadge();
   });
+
+  updateHeaderCountBadge();
+}
+
+function updateHeaderCountBadge() {
+  const count = document.querySelectorAll('#headerModifications .header-mod-row').length;
+  const countEl = document.getElementById('headerCount');
+  if (!countEl) return;
+  countEl.textContent = count > 0 ? count : '';
+  countEl.classList.toggle('visible', count > 0);
 }
 
 function getHeaderModifications() {
@@ -1466,6 +1998,7 @@ function getHeaderModifications() {
 function clearHeaderModifications() {
   document.getElementById('headerModifications').innerHTML = '';
   headerModificationCounter = 0;
+  updateHeaderCountBadge();
 }
 
 // Groups Management
@@ -1473,7 +2006,7 @@ let currentGroups = [];
 
 async function loadGroups() {
   try {
-    const response = await chrome.runtime.sendMessage({ action: 'getGroups' });
+    const response = await chrome.runtime.sendMessage({ action: MESSAGES.GET_GROUPS });
     currentGroups = response.groups || [];
     updateGroupSelectors();
   } catch (error) {
@@ -1503,7 +2036,7 @@ function getEnabledRuleCountForGroup(groupId) {
 async function toggleGroup(groupId) {
   try {
     await chrome.runtime.sendMessage({
-      action: 'toggleGroup',
+      action: MESSAGES.TOGGLE_GROUP,
       groupId: groupId
     });
     await loadGroups();
@@ -1561,7 +2094,7 @@ async function confirmDeleteGroup() {
 
   try {
     await chrome.runtime.sendMessage({
-      action: 'deleteGroup',
+      action: MESSAGES.DELETE_GROUP,
       groupId: groupId,
       deleteRules: deleteRules
     });
@@ -1604,14 +2137,14 @@ async function saveGroup(e) {
     if (groupId) {
       // Update existing group
       await chrome.runtime.sendMessage({
-        action: 'updateGroup',
+        action: MESSAGES.UPDATE_GROUP,
         groupId: groupId,
         group: groupData
       });
     } else {
       // Add new group
       await chrome.runtime.sendMessage({
-        action: 'addGroup',
+        action: MESSAGES.ADD_GROUP,
         group: groupData
       });
     }
@@ -1759,6 +2292,7 @@ function validateJsonEditorContent() {
     const textarea = document.getElementById('jsonEditorTextarea');
     const status = document.getElementById('jsonEditorStatus');
     const content = textarea.value.trim();
+    const ct = document.getElementById('responseContentType')?.value || 'application/json';
 
     if (!content) {
       status.textContent = '';
@@ -1766,13 +2300,23 @@ function validateJsonEditorContent() {
       return;
     }
 
-    try {
-      JSON.parse(content);
-      status.textContent = 'Valid JSON';
-      status.className = 'json-editor-status valid';
-    } catch (e) {
-      status.textContent = 'Invalid JSON';
-      status.className = 'json-editor-status invalid';
+    if (ct === 'application/json') {
+      try {
+        JSON.parse(content);
+        status.textContent = 'Valid JSON';
+        status.className = 'json-editor-status valid';
+      } catch (e) {
+        status.textContent = 'Invalid JSON';
+        status.className = 'json-editor-status invalid';
+      }
+    } else if (ct === 'application/xml' || ct === 'text/xml') {
+      const doc = new DOMParser().parseFromString(content, 'application/xml');
+      const hasError = doc.querySelector('parsererror');
+      status.textContent = hasError ? 'Invalid XML' : 'Valid XML';
+      status.className = `json-editor-status ${hasError ? 'invalid' : 'valid'}`;
+    } else {
+      status.textContent = `${content.length} chars`;
+      status.className = 'json-editor-status';
     }
   }, 300);
 }

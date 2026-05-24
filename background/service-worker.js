@@ -2,6 +2,9 @@
 import { StorageManager } from './storage-manager.js';
 import { RuleEngine } from './rule-engine.js';
 import { ResponseInterceptor } from './interceptor.js';
+import { MESSAGES } from '../shared/messages.js';
+
+const MAX_FETCH_URL_BYTES = 10 * 1024 * 1024; // 10 MB cap for fetchUrlAsBase64
 
 class ServiceWorker {
   constructor() {
@@ -59,7 +62,7 @@ class ServiceWorker {
   broadcastNotification(notification) {
     // Send to popup and options pages
     chrome.runtime.sendMessage({
-      action: 'ruleTriggered',
+      action: MESSAGES.RULE_TRIGGERED,
       notification
     }).catch(() => {
       // Ignore errors when no listeners (popup not open)
@@ -68,7 +71,7 @@ class ServiceWorker {
     // Also try to send to the specific tab's content
     if (notification.tabId) {
       chrome.tabs.sendMessage(notification.tabId, {
-        action: 'ruleTriggered',
+        action: MESSAGES.RULE_TRIGGERED,
         notification
       }).catch(() => {
         // Ignore errors when content script not available
@@ -130,7 +133,7 @@ class ServiceWorker {
 
   async handleMessage(request, sender, sendResponse) {
     switch (request.action) {
-      case 'getStatus':
+      case MESSAGES.GET_STATUS:
         await this.safeHandle(sendResponse, async () => {
           sendResponse({
             enabled: this.storageManager.isGlobalEnabled(),
@@ -140,96 +143,96 @@ class ServiceWorker {
         });
         break;
 
-      case 'toggleGlobal':
+      case MESSAGES.TOGGLE_GLOBAL:
         await this.safeHandle(sendResponse, async () => {
           await this.storageManager.toggleGlobalEnabled();
           sendResponse({ enabled: this.storageManager.isGlobalEnabled() });
         });
         break;
 
-      case 'addRule':
+      case MESSAGES.ADD_RULE:
         await this.safeHandle(sendResponse, async () => {
           const newRule = await this.storageManager.addRule(request.rule);
           sendResponse({ success: true, ruleId: newRule.id, rule: newRule });
         });
         break;
 
-      case 'updateRule':
+      case MESSAGES.UPDATE_RULE:
         await this.safeHandle(sendResponse, async () => {
           await this.storageManager.updateRule(request.ruleId, request.rule);
           sendResponse({ success: true });
         });
         break;
 
-      case 'deleteRule':
+      case MESSAGES.DELETE_RULE:
         await this.safeHandle(sendResponse, async () => {
           await this.storageManager.deleteRule(request.ruleId);
           sendResponse({ success: true });
         });
         break;
 
-      case 'getRules':
+      case MESSAGES.GET_RULES:
         await this.safeHandle(sendResponse, async () => {
           sendResponse({ rules: this.storageManager.getRules() });
         });
         break;
 
-      case 'attachDebugger':
+      case MESSAGES.ATTACH_DEBUGGER:
         await this.safeHandle(sendResponse, async () => {
           await this.attachDebuggerToTab(request.tabId);
           sendResponse({ success: true });
         });
         break;
 
-      case 'detachDebugger':
+      case MESSAGES.DETACH_DEBUGGER:
         await this.safeHandle(sendResponse, async () => {
           await this.detachDebuggerFromTab(request.tabId);
           sendResponse({ success: true });
         });
         break;
 
-      case 'getGroups':
+      case MESSAGES.GET_GROUPS:
         await this.safeHandle(sendResponse, async () => {
           sendResponse({ groups: this.storageManager.getGroups() });
         });
         break;
 
-      case 'addGroup':
+      case MESSAGES.ADD_GROUP:
         await this.safeHandle(sendResponse, async () => {
           const newGroup = await this.storageManager.addGroup(request.group);
           sendResponse({ success: true, group: newGroup });
         });
         break;
 
-      case 'updateGroup':
+      case MESSAGES.UPDATE_GROUP:
         await this.safeHandle(sendResponse, async () => {
           await this.storageManager.updateGroup(request.groupId, request.group);
           sendResponse({ success: true });
         });
         break;
 
-      case 'deleteGroup':
+      case MESSAGES.DELETE_GROUP:
         await this.safeHandle(sendResponse, async () => {
           await this.storageManager.deleteGroup(request.groupId, request.deleteRules);
           sendResponse({ success: true });
         });
         break;
 
-      case 'toggleGroup':
+      case MESSAGES.TOGGLE_GROUP:
         await this.safeHandle(sendResponse, async () => {
           const groupEnabled = await this.storageManager.toggleGroupEnabled(request.groupId);
           sendResponse({ success: true, enabled: groupEnabled });
         });
         break;
 
-      case 'assignRuleToGroup':
+      case MESSAGES.ASSIGN_RULE_TO_GROUP:
         await this.safeHandle(sendResponse, async () => {
           await this.storageManager.assignRuleToGroup(request.ruleId, request.groupId);
           sendResponse({ success: true });
         });
         break;
 
-      case 'getNetworkLogs':
+      case MESSAGES.GET_NETWORK_LOGS:
         await this.safeHandle(sendResponse, async () => {
           const logs = request.tabId
             ? this.interceptor.getNetworkLogs(request.tabId)
@@ -238,34 +241,34 @@ class ServiceWorker {
         });
         break;
 
-      case 'clearNetworkLogs':
+      case MESSAGES.CLEAR_NETWORK_LOGS:
         await this.safeHandle(sendResponse, async () => {
           this.interceptor.clearNetworkLogs(request.tabId);
           sendResponse({ success: true });
         });
         break;
 
-      case 'getNetworkLoggingStatus':
+      case MESSAGES.GET_NETWORK_LOGGING_STATUS:
         await this.safeHandle(sendResponse, async () => {
           sendResponse({ enabled: this.interceptor.isNetworkLoggingEnabled() });
         });
         break;
 
-      case 'setNetworkLogging':
+      case MESSAGES.SET_NETWORK_LOGGING:
         await this.safeHandle(sendResponse, async () => {
           this.interceptor.setNetworkLogging(request.enabled);
           sendResponse({ success: true, enabled: request.enabled });
         });
         break;
 
-      case 'generateRuleFromRequest':
+      case MESSAGES.GENERATE_RULE_FROM_REQUEST:
         await this.safeHandle(sendResponse, async () => {
           const suggestedRule = this.interceptor.generateRuleFromRequest(request.logEntry);
           sendResponse({ rule: suggestedRule });
         });
         break;
 
-      case 'createRuleFromRequest':
+      case MESSAGES.CREATE_RULE_FROM_REQUEST:
         await this.safeHandle(sendResponse, async () => {
           const ruleFromRequest = this.interceptor.generateRuleFromRequest(request.logEntry);
           const finalRule = { ...ruleFromRequest, ...request.modifications };
@@ -274,7 +277,30 @@ class ServiceWorker {
         });
         break;
 
-      case 'getRecentNotifications':
+      case MESSAGES.FETCH_URL_AS_BASE64:
+        await this.safeHandle(sendResponse, async () => {
+          const fetchResponse = await fetch(request.url);
+          if (!fetchResponse.ok) {
+            throw new Error(`HTTP ${fetchResponse.status}: ${fetchResponse.statusText}`);
+          }
+          const declaredLength = parseInt(fetchResponse.headers.get('content-length') || '', 10);
+          if (Number.isFinite(declaredLength) && declaredLength > MAX_FETCH_URL_BYTES) {
+            throw new Error(`Response too large: ${declaredLength} bytes exceeds ${MAX_FETCH_URL_BYTES} byte limit`);
+          }
+          const arrayBuffer = await fetchResponse.arrayBuffer();
+          if (arrayBuffer.byteLength > MAX_FETCH_URL_BYTES) {
+            throw new Error(`Response too large: ${arrayBuffer.byteLength} bytes exceeds ${MAX_FETCH_URL_BYTES} byte limit`);
+          }
+          const uint8 = new Uint8Array(arrayBuffer);
+          let binaryString = '';
+          for (let i = 0; i < uint8.length; i++) {
+            binaryString += String.fromCharCode(uint8[i]);
+          }
+          sendResponse({ success: true, base64: btoa(binaryString) });
+        });
+        break;
+
+      case MESSAGES.GET_RECENT_NOTIFICATIONS:
         await this.safeHandle(sendResponse, async () => {
           const tabNotifications = request.tabId
             ? this.recentNotifications.filter(n => n.tabId === request.tabId)
@@ -283,7 +309,7 @@ class ServiceWorker {
         });
         break;
 
-      case 'clearNotifications':
+      case MESSAGES.CLEAR_NOTIFICATIONS:
         await this.safeHandle(sendResponse, async () => {
           if (request.tabId) {
             this.recentNotifications = this.recentNotifications.filter(n => n.tabId !== request.tabId);
@@ -291,6 +317,17 @@ class ServiceWorker {
             this.recentNotifications = [];
           }
           sendResponse({ success: true });
+        });
+        break;
+
+      case MESSAGES.IMPORT_DATA:
+        await this.safeHandle(sendResponse, async () => {
+          const { importedCount, importedGroupsCount } = await this.storageManager.importRules(request.data);
+          sendResponse({
+            success: true,
+            groupsImported: importedGroupsCount,
+            rulesImported: importedCount
+          });
         });
         break;
 
@@ -313,12 +350,18 @@ class ServiceWorker {
       }
 
       await chrome.debugger.attach({ tabId }, '1.3');
-      await chrome.debugger.sendCommand({ tabId }, 'Fetch.enable', {
-        patterns: [
-          { urlPattern: '*', requestStage: 'Request' },
-          { urlPattern: '*', requestStage: 'Response' }
-        ]
-      });
+      try {
+        await chrome.debugger.sendCommand({ tabId }, 'Fetch.enable', {
+          patterns: [
+            { urlPattern: '*', requestStage: 'Request' },
+            { urlPattern: '*', requestStage: 'Response' }
+          ]
+        });
+      } catch (enableError) {
+        // Fetch.enable failed — detach so we don't leave an orphaned debugger session
+        try { await chrome.debugger.detach({ tabId }); } catch {}
+        throw enableError;
+      }
 
       this.activeTabs.add(tabId);
       this.interceptor.attachToTab(tabId);

@@ -41,6 +41,9 @@
  * @property {string} ruleId - ID of the applied rule
  */
 
+import { isBinaryContentType } from '../shared/content-types.js';
+import { safeCompileRegex } from '../shared/regex.js';
+
 export class RuleEngine {
   constructor() {
     /** @type {Rule[]} */
@@ -74,10 +77,11 @@ export class RuleEngine {
     this.compiledPatterns.clear();
     this.rules.forEach(rule => {
       if (rule.matchType === 'regex') {
-        try {
-          this.compiledPatterns.set(rule.id, new RegExp(rule.urlPattern));
-        } catch (error) {
-          console.error(`Failed to compile regex for rule ${rule.id}:`, error);
+        const compiled = safeCompileRegex(rule.urlPattern);
+        if (compiled) {
+          this.compiledPatterns.set(rule.id, compiled);
+        } else {
+          console.error(`Skipping unsafe/invalid regex for rule ${rule.id}`);
         }
       } else if (rule.matchType === 'wildcard') {
         try {
@@ -86,7 +90,8 @@ export class RuleEngine {
             .replace(/\*\*/g, '<!DW!>')
             .replace(/\*/g, '[^/]*')
             .replace(/<!DW!>/g, '.*');
-          this.compiledPatterns.set(rule.id, new RegExp(`^${regexStr}$`));
+          const compiled = safeCompileRegex(`^${regexStr}$`);
+          if (compiled) this.compiledPatterns.set(rule.id, compiled);
         } catch (error) {
           console.error(`Failed to compile wildcard for rule ${rule.id}:`, error);
         }
@@ -109,14 +114,10 @@ export class RuleEngine {
       case 'wildcard':
         return this.wildcardMatch(url, pattern);
 
-      case 'regex':
-        try {
-          const regex = new RegExp(pattern);
-          return regex.test(url);
-        } catch (error) {
-          console.error('Invalid regex pattern:', error);
-          return false;
-        }
+      case 'regex': {
+        const regex = safeCompileRegex(pattern);
+        return regex ? regex.test(url) : false;
+      }
 
       case 'contains':
         return url.includes(pattern);
@@ -303,6 +304,11 @@ export class RuleEngine {
    * @private
    */
   async applyModification(originalBody, modification, modifyType, contentType) {
+    if (isBinaryContentType(contentType) && (modifyType === 'json-path' || modifyType === 'regex')) {
+      console.warn(`modifyType '${modifyType}' is not compatible with binary content type '${contentType}'`);
+      return null;
+    }
+
     switch (modifyType) {
       case 'replace':
         return this.replaceBody(modification);
@@ -396,7 +402,8 @@ export class RuleEngine {
     // Apply regex find and replace
     try {
       const { pattern, replacement, flags } = modification;
-      const regex = new RegExp(pattern, flags || 'g');
+      const regex = safeCompileRegex(pattern, flags || 'g');
+      if (!regex) return null;
       return originalBody.replace(regex, replacement);
     } catch (error) {
       console.error('Failed to apply regex replacement:', error);

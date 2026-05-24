@@ -1,18 +1,4 @@
-// Utility: Debounce function to prevent excessive saves
-function debounce(func, wait) {
-  let timeout;
-  let lastArgs;
-  function executedFunction(...args) {
-    lastArgs = args;
-    const later = () => { clearTimeout(timeout); timeout = null; func(...args); };
-    clearTimeout(timeout);
-    timeout = setTimeout(later, wait);
-  }
-  executedFunction.flush = function() {
-    if (timeout) { clearTimeout(timeout); timeout = null; func(...(lastArgs || [])); }
-  };
-  return executedFunction;
-}
+import { debounce } from '../shared/debounce.js';
 
 // Storage Manager - Handles all storage operations
 export class StorageManager {
@@ -27,6 +13,7 @@ export class StorageManager {
     this.groupListeners = [];
     this.QUOTA_WARNING_THRESHOLD = 0.8; // 80% of quota
     this.QUOTA_BYTES_LIMIT = 10485760; // 10MB in bytes (chrome.storage.local limit)
+    this._warnedOrphanRuleIds = new Set();
 
     // Create debounced save methods (500ms delay)
     this.saveRulesDebounced = debounce(this.saveRules.bind(this), 500);
@@ -34,6 +21,7 @@ export class StorageManager {
   }
 
   async loadRules() {
+    this._warnedOrphanRuleIds.clear();
     try {
       const data = await chrome.storage.local.get(['rules', 'settings']);
 
@@ -45,6 +33,10 @@ export class StorageManager {
           if (!rule.createdAt) {
             rule.createdAt = Date.now();
             rule.modifiedAt = Date.now();
+            needsUpdate = true;
+          }
+          if (!rule.contentType) {
+            rule.contentType = 'application/json';
             needsUpdate = true;
           }
         });
@@ -185,7 +177,18 @@ export class StorageManager {
       // If rule belongs to a group, the group must also be enabled
       if (rule.groupId) {
         const group = this.groups.find(g => g.id === rule.groupId);
-        return group ? group.enabled : true; // If group not found, allow rule
+        if (!group) {
+          // Orphaned rule: group was deleted. Disable it, but warn once per session
+          // so a developer can see why the rule stopped firing.
+          if (!this._warnedOrphanRuleIds.has(rule.id)) {
+            this._warnedOrphanRuleIds.add(rule.id);
+            console.warn(
+              `Orphaned rule disabled: rule "${rule.name || '(unnamed)'}" (id=${rule.id}) references missing groupId=${rule.groupId}`
+            );
+          }
+          return false;
+        }
+        return group.enabled;
       }
 
       return true;
@@ -347,6 +350,7 @@ export class StorageManager {
 
   async importRules(data) {
     let importedCount = 0;
+    let importedGroupsCount = 0;
     let skippedCount = 0;
 
     // Import groups first (if present)
@@ -374,6 +378,7 @@ export class StorageManager {
         });
 
       this.groups = [...this.groups, ...importedGroups];
+      importedGroupsCount = importedGroups.length;
       await this.saveGroups();
 
       // Import rules and update group references
@@ -442,7 +447,7 @@ export class StorageManager {
       console.warn(`Import completed: ${importedCount} rules imported, ${skippedCount} rules skipped due to validation errors`);
     }
 
-    return importedCount;
+    return { importedCount, importedGroupsCount };
   }
 
   async clearAllRules() {
@@ -452,6 +457,7 @@ export class StorageManager {
 
   // Group Management
   async loadGroups() {
+    this._warnedOrphanRuleIds.clear();
     try {
       const data = await chrome.storage.local.get(['groups']);
       if (data.groups) {

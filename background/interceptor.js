@@ -1,3 +1,5 @@
+import { CONTENT_TYPE_PRESETS, isBinaryContentType } from '../shared/content-types.js';
+
 // Response Interceptor - Intercepts and modifies network responses using Chrome Debugger API
 export class ResponseInterceptor {
   constructor(ruleEngine, storageManager) {
@@ -24,13 +26,14 @@ export class ResponseInterceptor {
   /**
    * Notify all callbacks that a rule was triggered
    */
-  notifyRuleTriggered(tabId, rule, url, action) {
+  notifyRuleTriggered(tabId, rule, url, action, method) {
     const notification = {
       tabId,
       ruleName: rule.name,
       ruleId: rule.id,
       url,
       action, // 'intercepted', 'delayed'
+      method: method || null,
       timestamp: Date.now()
     };
     this.ruleTriggeredCallbacks.forEach(callback => {
@@ -135,16 +138,14 @@ export class ResponseInterceptor {
           }
 
           // Generate mock response based on rule
-          const mockBody = await this.generateMockResponse(rule, url, method);
+          const { body: mockBody, alreadyBase64 } = await this.generateMockResponse(rule, url, method);
           const mockStatusCode = rule.modifyStatusCode || 200;
-          const mockHeaders = rule.modifyHeaders ? this.applyHeaderModifications([], rule.modifyHeaders) : [
-            { name: 'Content-Type', value: 'application/json' }
-          ];
+          const mockHeaders = this.buildResponseHeaders(rule);
 
-          // Encode the mock body
+          // Encode the mock body (skip if body is already raw base64, e.g. for binary types)
           let base64Body;
           try {
-            base64Body = this.base64Encode(mockBody);
+            base64Body = alreadyBase64 ? mockBody : this.base64Encode(mockBody);
           } catch (encodeError) {
             console.error('Failed to encode response body:', encodeError);
             // Continue with normal request on encoding failure
@@ -157,7 +158,7 @@ export class ResponseInterceptor {
           }
 
           // Notify about the interception
-          this.notifyRuleTriggered(tabId, rule, url, 'intercepted');
+          this.notifyRuleTriggered(tabId, rule, url, 'intercepted', method);
 
           // Fulfill with mock response immediately (no server request made)
           await chrome.debugger.sendCommand(
@@ -244,37 +245,59 @@ export class ResponseInterceptor {
   }
 
   async generateMockResponse(rule, url, method) {
-    // Generate mock response based on rule modification settings
+    // Generate mock response based on rule modification settings.
+    // Returns { body: string, alreadyBase64: boolean }.
+    // For binary content types the body is already a raw base64 string and must not be re-encoded.
     try {
+      const contentType = rule.contentType === '__custom__'
+        ? (rule.customContentType || 'application/octet-stream')
+        : (rule.contentType || 'application/json');
+      const isBinary = isBinaryContentType(contentType) ||
+        (rule.contentType === '__custom__' && rule.modification?.isBinary === true);
+
       if (!rule.modifyType || !rule.modification) {
-        // No modification specified, return empty JSON object
-        return '{}';
+        return { body: isBinary ? '' : '{}', alreadyBase64: isBinary };
       }
 
       switch (rule.modifyType) {
         case 'replace':
-          // Return the replacement value directly
-          return rule.modification.value || '{}';
+          return {
+            body: rule.modification.value || (isBinary ? '' : '{}'),
+            alreadyBase64: isBinary
+          };
 
-        case 'json-path':
-          // Create a JSON object with the specified path and value
+        case 'json-path': {
           const jsonData = {};
           const { path, value } = rule.modification;
           this.ruleEngine.setNestedProperty(jsonData, path, this.parseValue(value));
-          return JSON.stringify(jsonData);
+          return { body: JSON.stringify(jsonData), alreadyBase64: false };
+        }
 
         case 'regex':
-          // Can't apply regex without original body, return empty object
           console.warn('Regex modification not applicable for blocked requests');
-          return '{}';
+          return { body: '{}', alreadyBase64: false };
 
         default:
-          return '{}';
+          return { body: '{}', alreadyBase64: false };
       }
     } catch (error) {
       console.error('Failed to generate mock response:', error);
-      return '{}';
+      return { body: '{}', alreadyBase64: false };
     }
+  }
+
+  buildResponseHeaders(rule) {
+    const rawContentType = rule.contentType === '__custom__'
+      ? (rule.customContentType || 'application/octet-stream')
+      : (rule.contentType || 'application/json');
+
+    let headers = [{ name: 'content-type', value: rawContentType }];
+
+    if (rule.modifyHeaders && rule.modifyHeaders.length > 0) {
+      headers = this.applyHeaderModifications(headers, rule.modifyHeaders);
+    }
+
+    return headers;
   }
 
   applyHeaderModifications(originalHeaders, modifications) {

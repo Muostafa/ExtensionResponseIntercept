@@ -1,11 +1,6 @@
 // Popup script
-function debounce(func, wait) {
-  let timeout;
-  return function(...args) {
-    clearTimeout(timeout);
-    timeout = setTimeout(() => func(...args), wait);
-  };
-}
+import { debounce } from '../shared/debounce.js';
+import { MESSAGES } from '../shared/messages.js';
 
 let currentTab = null;
 let activeEditRuleIds = new Set();
@@ -30,6 +25,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Load status and rules
   await loadStatus();
   await loadRules();
+  await loadRecentlyFired();
+  await loadGroupToggles();
 
   // Setup event listeners
   setupEventListeners();
@@ -41,16 +38,115 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Start network logs refresh if on network tab
   startNetworkRefresh();
+
+  window.addEventListener('unload', stopNetworkRefresh);
 });
 
 // Setup listener for rule triggered notifications
 function setupNotificationListener() {
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message.action === 'ruleTriggered' && message.notification) {
+    if (message.action === MESSAGES.RULE_TRIGGERED && message.notification) {
       handleRuleTriggeredNotification(message.notification);
     }
     return false;
   });
+}
+
+function formatTimeAgo(timestamp) {
+  const seconds = Math.floor((Date.now() - timestamp) / 1000);
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  return `${Math.floor(minutes / 60)}h ago`;
+}
+
+async function loadRecentlyFired() {
+  try {
+    const response = await chrome.runtime.sendMessage({
+      action: MESSAGES.GET_RECENT_NOTIFICATIONS,
+      tabId: currentTab?.id
+    });
+    const notifications = (response?.notifications || []).slice(0, 3);
+    const section = document.getElementById('recentlyFiredSection');
+    const list = document.getElementById('recentlyFiredList');
+    if (!section || !list) return;
+
+    if (notifications.length === 0) {
+      section.style.display = 'none';
+      return;
+    }
+
+    section.style.display = 'block';
+    list.innerHTML = notifications.map(n => {
+      const timeAgo = formatTimeAgo(n.timestamp);
+      const actionClass = n.action === 'intercepted' ? 'badge-intercepted' : 'badge-delayed';
+      const methodHtml = n.method ? `<span class="rf-method">${escapeHtml(n.method)}</span>` : '';
+      return `
+        <div class="recently-fired-item">
+          <div class="rf-name">${escapeHtml(n.ruleName)}</div>
+          <div class="rf-meta">
+            ${methodHtml}
+            <span class="rf-badge ${actionClass}">${escapeHtml(n.action)}</span>
+            <span class="rf-time">${timeAgo}</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch (e) {
+    // Popup may open before service worker is ready
+  }
+}
+
+let recentlyFiredCollapsed = false;
+
+function setupRecentlyFiredToggle() {
+  document.getElementById('recentlyFiredToggle')?.addEventListener('click', () => {
+    recentlyFiredCollapsed = !recentlyFiredCollapsed;
+    const list = document.getElementById('recentlyFiredList');
+    const arrow = document.querySelector('#recentlyFiredToggle .arrow');
+    if (list) list.style.display = recentlyFiredCollapsed ? 'none' : 'block';
+    if (arrow) arrow.style.transform = recentlyFiredCollapsed ? 'rotate(-90deg)' : '';
+  });
+}
+
+async function loadGroupToggles() {
+  try {
+    const response = await chrome.runtime.sendMessage({ action: MESSAGES.GET_GROUPS });
+    const groups = response?.groups || [];
+    const section = document.getElementById('groupTogglesSection');
+    const list = document.getElementById('groupTogglesList');
+    if (!section || !list) return;
+
+    if (groups.length === 0) {
+      section.style.display = 'none';
+      return;
+    }
+
+    section.style.display = 'block';
+    list.innerHTML = groups.map(g => `
+      <div class="group-toggle-item">
+        <span class="group-toggle-name">${escapeHtml(g.name)}</span>
+        <div class="toggle-switch toggle-switch-sm">
+          <input type="checkbox" id="group-toggle-${g.id}" class="toggle-input group-toggle-input"
+            data-group-id="${g.id}" ${g.enabled ? 'checked' : ''}>
+          <label for="group-toggle-${g.id}" class="toggle-label"></label>
+        </div>
+      </div>
+    `).join('');
+
+    list.querySelectorAll('.group-toggle-input').forEach(input => {
+      input.addEventListener('change', async (e) => {
+        const groupId = e.target.dataset.groupId;
+        try {
+          await chrome.runtime.sendMessage({ action: MESSAGES.TOGGLE_GROUP, groupId });
+        } catch (err) {
+          console.error('Failed to toggle group:', err);
+        }
+      });
+    });
+  } catch (e) {
+    // Ignore
+  }
 }
 
 // Handle rule triggered notification - show visual feedback
@@ -73,6 +169,9 @@ function handleRuleTriggeredNotification(notification) {
 
   // Show toast with rule info
   showRuleToast(icon, notification.ruleName, action, notification.url);
+
+  // Refresh recently-fired section
+  loadRecentlyFired();
 }
 
 // Show a styled toast for rule triggering
@@ -102,9 +201,9 @@ function showRuleToast(icon, ruleName, action, url) {
   }
 
   toast.innerHTML = `
-    <span class="rule-toast-icon">${icon}</span>
+    <span class="rule-toast-icon">${escapeHtml(icon)}</span>
     <div class="rule-toast-content">
-      <span class="rule-toast-action">${action}</span>
+      <span class="rule-toast-action">${escapeHtml(action)}</span>
       <span class="rule-toast-rule">${escapeHtml(ruleName)}</span>
       <span class="rule-toast-url" title="${escapeHtml(url)}">${escapeHtml(shortUrl)}</span>
     </div>
@@ -176,7 +275,7 @@ function showToast(message, type = 'info') {
 
 async function loadStatus() {
   try {
-    const response = await chrome.runtime.sendMessage({ action: 'getStatus' });
+    const response = await chrome.runtime.sendMessage({ action: MESSAGES.GET_STATUS });
 
     // Set global toggle
     const globalToggle = document.getElementById('globalToggle');
@@ -197,7 +296,7 @@ async function loadStatus() {
 
 async function loadRules() {
   try {
-    const response = await chrome.runtime.sendMessage({ action: 'getRules' });
+    const response = await chrome.runtime.sendMessage({ action: MESSAGES.GET_RULES });
     const rules = response.rules || [];
 
     // Store rules globally for sorting
@@ -257,7 +356,7 @@ async function displayRules(rules) {
   const noSearchResults = document.getElementById('noSearchResults');
 
   // Get groups for filtering
-  const response = await chrome.runtime.sendMessage({ action: 'getGroups' });
+  const response = await chrome.runtime.sendMessage({ action: MESSAGES.GET_GROUPS });
   const groups = response.groups || [];
   window.currentGroups = groups;
 
@@ -344,7 +443,16 @@ async function displayRules(rules) {
             <div class="group-empty-state">
               <span>No rules in this group</span>
             </div>
-          ` : groupRules.map(rule => renderRuleItem(rule, group)).join('')}
+          ` : `
+            <div class="rules-table">
+              <div class="rules-table-header">
+                <div class="th th-name">Name</div>
+                <div class="th th-method">Method</div>
+                <div class="th th-status">Status</div>
+              </div>
+              ${groupRules.map(rule => renderRuleItem(rule, group)).join('')}
+            </div>
+          `}
         </div>
       </div>
     `;
@@ -374,7 +482,16 @@ async function displayRules(rules) {
             <div class="group-empty-state">
               <span>No ungrouped rules</span>
             </div>
-          ` : ungroupedRules.map(rule => renderRuleItem(rule, null)).join('')}
+          ` : `
+            <div class="rules-table">
+              <div class="rules-table-header">
+                <div class="th th-name">Name</div>
+                <div class="th th-method">Method</div>
+                <div class="th th-status">Status</div>
+              </div>
+              ${ungroupedRules.map(rule => renderRuleItem(rule, null)).join('')}
+            </div>
+          `}
         </div>
       </div>
     `;
@@ -399,27 +516,26 @@ async function displayRules(rules) {
 function renderRuleItem(rule, group) {
   const isGroupDisabled = group && !group.enabled;
 
-  // Build action badges
+  // Build action badges (Mock + optional delay)
   let actionBadges = `<span class="rule-tag action-mock">Mock</span>`;
   if (rule.delay && rule.delay > 0) {
     actionBadges += `<span class="rule-tag delay">${rule.delay}ms</span>`;
   }
 
+  const methods = (rule.methods || ['GET'])
+    .map(m => `<span class="rule-tag method">${m}</span>`)
+    .join('');
+
   return `
     <div class="rule-item ${rule.enabled ? '' : 'disabled'} ${isGroupDisabled ? 'group-disabled-rule' : ''}" data-rule-id="${rule.id}">
-      <div class="rule-header">
-        <div class="rule-info">
-          <div class="rule-name" title="${escapeHtml(rule.name)}">
-            ${escapeHtml(rule.name)}
-          </div>
+      <div class="rule-row">
+        <div class="rule-cell rule-cell-name">
+          <div class="rule-name" title="${escapeHtml(rule.name)}">${escapeHtml(rule.name)}</div>
           <div class="rule-pattern" title="${escapeHtml(rule.urlPattern)}">${escapeHtml(rule.urlPattern)}</div>
-          <div class="rule-meta">
-            ${actionBadges}
-            <span class="rule-tag type">${rule.matchType || 'wildcard'}</span>
-            ${(rule.methods || ['GET']).map(m => `<span class="rule-tag method">${m}</span>`).join('')}
-          </div>
+          <div class="rule-meta-inline">${actionBadges}</div>
         </div>
-        <div class="rule-actions">
+        <div class="rule-cell rule-cell-method">${methods}</div>
+        <div class="rule-cell rule-cell-actions">
           <button class="btn-icon edit-rule-btn" data-rule-id="${rule.id}" title="Edit Rule">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
@@ -553,7 +669,7 @@ function toggleGroupCollapse(groupId) {
 async function toggleGroup(groupId) {
   try {
     await chrome.runtime.sendMessage({
-      action: 'toggleGroup',
+      action: MESSAGES.TOGGLE_GROUP,
       groupId: groupId
     });
     showToast('Group toggled', 'success');
@@ -565,6 +681,9 @@ async function toggleGroup(groupId) {
 }
 
 function setupEventListeners() {
+  // Recently-fired toggle
+  setupRecentlyFiredToggle();
+
   // Theme toggle
   const themeToggle = document.getElementById('themeToggle');
   if (themeToggle) {
@@ -623,7 +742,7 @@ function setupEventListeners() {
   // Global toggle
   document.getElementById('globalToggle').addEventListener('change', async (e) => {
     try {
-      await chrome.runtime.sendMessage({ action: 'toggleGlobal' });
+      await chrome.runtime.sendMessage({ action: MESSAGES.TOGGLE_GLOBAL });
 
       // Update status indicator
       const statusIndicator = document.getElementById('globalStatusIndicator');
@@ -647,14 +766,14 @@ function setupEventListeners() {
 
       if (isAttached) {
         await chrome.runtime.sendMessage({
-          action: 'detachDebugger',
+          action: MESSAGES.DETACH_DEBUGGER,
           tabId: currentTab.id
         });
         updateAttachButton(false);
         showToast('Debugger detached', 'success');
       } else {
         await chrome.runtime.sendMessage({
-          action: 'attachDebugger',
+          action: MESSAGES.ATTACH_DEBUGGER,
           tabId: currentTab.id
         });
         updateAttachButton(true);
@@ -697,14 +816,17 @@ function setupEventListeners() {
 }
 
 function setupStorageListener() {
+  let reloadPending = false;
   chrome.storage.onChanged.addListener((changes, areaName) => {
     if (areaName === 'local') {
-      if (changes.rules) {
-        loadRules();
-      }
-
-      if (changes.groups) {
-        loadRules();
+      if (changes.rules || changes.groups) {
+        if (!reloadPending) {
+          reloadPending = true;
+          Promise.resolve().then(() => {
+            reloadPending = false;
+            loadRules();
+          });
+        }
       }
 
       if (changes.settings) {
@@ -745,14 +867,14 @@ function updateAttachButton(isAttached) {
 
 async function toggleRule(ruleId) {
   try {
-    const response = await chrome.runtime.sendMessage({ action: 'getRules' });
+    const response = await chrome.runtime.sendMessage({ action: MESSAGES.GET_RULES });
     const rules = response.rules || [];
     const rule = rules.find(r => r.id === ruleId);
 
     if (rule) {
       rule.enabled = !rule.enabled;
       await chrome.runtime.sendMessage({
-        action: 'updateRule',
+        action: MESSAGES.UPDATE_RULE,
         ruleId: ruleId,
         rule: rule
       });
@@ -784,7 +906,7 @@ async function toggleEditMode(ruleId, show) {
     activeEditRuleIds.add(ruleId);
 
     try {
-      const response = await chrome.runtime.sendMessage({ action: 'getRules' });
+      const response = await chrome.runtime.sendMessage({ action: MESSAGES.GET_RULES });
 
       if (!response || !response.rules) {
         console.error('Failed to get rules: Invalid response');
@@ -885,7 +1007,11 @@ async function saveJsonEdit(ruleId) {
   const statusInput = document.getElementById(`status-${ruleId}`);
   const errorDiv = document.getElementById(`error-${ruleId}`);
 
-  if (textarea && textarea.value.trim()) {
+  const ruleResp = await chrome.runtime.sendMessage({ action: MESSAGES.GET_RULES });
+  const ruleForValidation = (ruleResp.rules || []).find(r => r.id === ruleId);
+  const ruleContentType = ruleForValidation?.contentType || 'application/json';
+
+  if (textarea && textarea.value.trim() && ruleContentType === 'application/json') {
     try {
       JSON.parse(textarea.value);
     } catch (error) {
@@ -905,8 +1031,7 @@ async function saveJsonEdit(ruleId) {
   }
 
   try {
-    const response = await chrome.runtime.sendMessage({ action: 'getRules' });
-    const rules = response.rules || [];
+    const rules = ruleResp.rules || [];
     const rule = rules.find(r => r.id === ruleId);
 
     if (rule) {
@@ -914,7 +1039,7 @@ async function saveJsonEdit(ruleId) {
         if (textarea.value.trim()) {
           rule.modifyType = 'replace';
           rule.modification = {
-            type: 'json',
+            type: 'text',
             value: textarea.value
           };
         } else if (rule.modifyType === 'replace') {
@@ -931,7 +1056,7 @@ async function saveJsonEdit(ruleId) {
       }
 
       await chrome.runtime.sendMessage({
-        action: 'updateRule',
+        action: MESSAGES.UPDATE_RULE,
         ruleId: ruleId,
         rule: rule
       });
@@ -992,12 +1117,14 @@ function switchView(view) {
     networkTabBtn?.classList.remove('active');
     if (rulesSection) rulesSection.style.display = 'block';
     if (networkSection) networkSection.style.display = 'none';
+    stopNetworkRefresh();
   } else {
     rulesTabBtn?.classList.remove('active');
     networkTabBtn?.classList.add('active');
     if (rulesSection) rulesSection.style.display = 'none';
     if (networkSection) networkSection.style.display = 'block';
     loadNetworkLogs();
+    startNetworkRefresh();
   }
 }
 
@@ -1035,7 +1162,7 @@ function setupNetworkSection() {
     clearNetworkLogsBtn.addEventListener('click', async () => {
       try {
         await chrome.runtime.sendMessage({
-          action: 'clearNetworkLogs',
+          action: MESSAGES.CLEAR_NETWORK_LOGS,
           tabId: currentTab?.id
         });
         networkLogs = [];
@@ -1051,7 +1178,7 @@ function setupNetworkSection() {
 
 async function loadNetworkLoggingStatus() {
   try {
-    const response = await chrome.runtime.sendMessage({ action: 'getNetworkLoggingStatus' });
+    const response = await chrome.runtime.sendMessage({ action: MESSAGES.GET_NETWORK_LOGGING_STATUS });
     isNetworkLoggingEnabled = response.enabled;
     updateLoggingButtonState();
   } catch (error) {
@@ -1063,7 +1190,7 @@ async function toggleNetworkLogging() {
   try {
     const newState = !isNetworkLoggingEnabled;
     await chrome.runtime.sendMessage({
-      action: 'setNetworkLogging',
+      action: MESSAGES.SET_NETWORK_LOGGING,
       enabled: newState
     });
     isNetworkLoggingEnabled = newState;
@@ -1095,7 +1222,7 @@ function updateLoggingButtonState() {
 }
 
 function startNetworkRefresh() {
-  // Refresh network logs every 2 seconds
+  if (networkRefreshInterval) clearInterval(networkRefreshInterval);
   networkRefreshInterval = setInterval(() => {
     if (currentView === 'network') {
       loadNetworkLogs();
@@ -1103,10 +1230,17 @@ function startNetworkRefresh() {
   }, 2000);
 }
 
+function stopNetworkRefresh() {
+  if (networkRefreshInterval) {
+    clearInterval(networkRefreshInterval);
+    networkRefreshInterval = null;
+  }
+}
+
 async function loadNetworkLogs() {
   try {
     const response = await chrome.runtime.sendMessage({
-      action: 'getNetworkLogs',
+      action: MESSAGES.GET_NETWORK_LOGS,
       tabId: currentTab?.id
     });
     networkLogs = response.logs || [];
@@ -1235,6 +1369,14 @@ function setupCreateRuleModal() {
   if (confirmBtn) {
     confirmBtn.addEventListener('click', createRuleFromModal);
   }
+
+  document.getElementById('modalContentType')?.addEventListener('change', (e) => {
+    const label = document.getElementById('modalBodyLabel');
+    const ta = document.getElementById('modalResponseBody');
+    const isJson = e.target.value === 'application/json';
+    if (label) label.textContent = isJson ? 'Response Body (JSON)' : 'Response Body';
+    if (ta) ta.placeholder = isJson ? '{"key": "value"}' : 'Enter response body...';
+  });
 }
 
 async function openCreateRuleModal(logEntry) {
@@ -1244,7 +1386,7 @@ async function openCreateRuleModal(logEntry) {
   try {
     // Get suggested rule from service worker
     const response = await chrome.runtime.sendMessage({
-      action: 'generateRuleFromRequest',
+      action: MESSAGES.GENERATE_RULE_FROM_REQUEST,
       logEntry: logEntry
     });
 
@@ -1302,8 +1444,10 @@ async function createRuleFromModal() {
     return;
   }
 
-  // Validate JSON if provided
-  if (responseBody) {
+  const contentType = document.getElementById('modalContentType')?.value || 'application/json';
+
+  // Only validate as JSON when content type is JSON
+  if (responseBody && contentType === 'application/json') {
     try {
       JSON.parse(responseBody);
     } catch (e) {
@@ -1328,10 +1472,11 @@ async function createRuleFromModal() {
     matchType: 'wildcard',
     methods,
     enabled: true,
+    contentType,
     modifyType: 'replace',
     modification: {
-      type: 'json',
-      value: responseBody || '{}'
+      type: 'text',
+      value: responseBody || (contentType === 'application/json' ? '{}' : '')
     }
   };
 
@@ -1341,7 +1486,7 @@ async function createRuleFromModal() {
 
   try {
     await chrome.runtime.sendMessage({
-      action: 'addRule',
+      action: MESSAGES.ADD_RULE,
       rule
     });
 

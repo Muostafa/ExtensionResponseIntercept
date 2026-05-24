@@ -120,6 +120,8 @@
    * Listen for messages from the background script
    */
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    // Content scripts can't statically import ES modules under MV3, so this
+    // literal must stay in sync with shared/messages.js MESSAGES.RULE_TRIGGERED.
     if (message.action === 'ruleTriggered' && message.notification) {
       showToast(message.notification);
       sendResponse({ received: true });

@@ -175,6 +175,19 @@
             </div>
           </div>
 
+          <div class="options-search-container">
+            <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"/>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input type="text" id="optionsSearch" class="options-search-input" placeholder="Search rules by name, URL, or description...">
+            <button id="optionsClearSearch" class="options-search-clear" style="display:none" title="Clear search">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </div>
+
           <div class="card options-toolbar" style="margin-bottom: 20px">
             <div
               style="
@@ -236,16 +249,37 @@
             <!-- Groups with rules will be populated here -->
           </div>
 
-          <div id="emptyState" class="empty-state" style="display: none">
-            <div class="empty-icon">📭</div>
-            <h3>No Rules Yet</h3>
-            <p>
-              Create your first rule to start intercepting and modifying API
-              responses
-            </p>
-            <button id="emptyStateCreateRuleBtn" class="btn btn-primary">
-              Create Rule
-            </button>
+          <div id="emptyState" class="empty-state-enhanced" style="display: none">
+            <div class="empty-state-icon-wrap">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="12" y1="18" x2="12" y2="12"/>
+                <line x1="9" y1="15" x2="15" y2="15"/>
+              </svg>
+            </div>
+            <h3 class="empty-state-heading">No Rules Yet</h3>
+            <p class="empty-state-subtext">Create your first rule to start intercepting and modifying API responses. Rules let you mock, delay, or transform any network request.</p>
+            <div class="empty-state-actions">
+              <button id="emptyStateCreateRuleBtn" class="empty-action-card">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="12" y1="8" x2="12" y2="16"/>
+                  <line x1="8" y1="12" x2="16" y2="12"/>
+                </svg>
+                <span class="empty-action-title">Create Rule</span>
+                <span class="empty-action-desc">Define a new interception rule</span>
+              </button>
+              <button id="emptyStateImportBtn" class="empty-action-card">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="17 8 12 3 7 8"/>
+                  <line x1="12" y1="3" x2="12" y2="15"/>
+                </svg>
+                <span class="empty-action-title">Import Rules</span>
+                <span class="empty-action-desc">Load rules from a JSON file</span>
+              </button>
+            </div>
           </div>
 
           <!-- Add/Edit Group Modal -->
@@ -410,279 +444,226 @@
 
         <!-- New Rule Tab -->
         <div id="new-rule-tab" class="tab-content">
-          <div class="header">
-            <h2 id="formTitle">Create New Rule</h2>
-          </div>
-
-          <form id="ruleForm" class="rule-form">
+          <form id="ruleForm" class="rule-form rule-form-v2">
             <input type="hidden" id="ruleId" value="" />
 
-            <div class="form-group">
-              <label for="ruleName">Rule Name</label>
-              <input
-                type="text"
-                id="ruleName"
-                class="form-control"
-                placeholder="My API Rule"
-                required
-              />
-            </div>
-
-            <div class="form-group">
-              <label for="ruleDescription">Description (optional)</label>
-              <textarea
-                id="ruleDescription"
-                class="form-control"
-                rows="2"
-                placeholder="What does this rule do?"
-              ></textarea>
-            </div>
-
-            <div class="form-group">
-              <label for="ruleGroup">Group (optional)</label>
-              <select id="ruleGroup" class="form-control">
-                <option value="">No Group</option>
-                <!-- Groups will be populated here -->
-              </select>
-              <small class="form-hint"
-                >Assign this rule to a group for easier management</small
-              >
-            </div>
-
-            <div class="form-row">
-              <div class="form-group">
-                <label for="urlPattern">URL Pattern</label>
-                <input
-                  type="text"
-                  id="urlPattern"
-                  class="form-control"
-                  placeholder="*://*/api/*"
-                  required
-                />
-                <small class="form-hint"
-                  >Use * for wildcards, ** for any path</small
-                >
-              </div>
-
-              <div class="form-group">
-                <label for="matchType">Match Type</label>
-                <select id="matchType" class="form-control">
-                  <option value="wildcard">Wildcard</option>
-                  <option value="regex">Regex</option>
-                  <option value="exact">Exact</option>
-                  <option value="contains">Contains</option>
+            <!-- Top bar: enable toggle, name, group, title, save/cancel -->
+            <div class="rf-topbar">
+              <div class="rf-topbar-left">
+                <div class="toggle-switch-small rf-enable-toggle">
+                  <input type="checkbox" id="ruleEnabled" checked />
+                  <label for="ruleEnabled"></label>
+                </div>
+                <input type="text" id="ruleName" class="rf-name-input" placeholder="Rule name" required />
+                <select id="ruleGroup" class="rf-group-select">
+                  <option value="">No Group</option>
                 </select>
               </div>
-            </div>
-
-            <div class="form-group">
-              <label>HTTP Methods</label>
-              <div class="checkbox-group">
-                <label class="checkbox-label">
-                  <input type="checkbox" name="methods" value="GET" checked />
-                  GET
-                </label>
-                <label class="checkbox-label">
-                  <input type="checkbox" name="methods" value="POST" /> POST
-                </label>
-                <label class="checkbox-label">
-                  <input type="checkbox" name="methods" value="PUT" /> PUT
-                </label>
-                <label class="checkbox-label">
-                  <input type="checkbox" name="methods" value="DELETE" /> DELETE
-                </label>
-                <label class="checkbox-label">
-                  <input type="checkbox" name="methods" value="PATCH" /> PATCH
-                </label>
+              <div class="rf-topbar-right">
+                <span id="formTitle" class="rf-form-title">Create New Rule</span>
+                <button type="button" id="cancelBtn" class="btn btn-secondary btn-small">Cancel</button>
+                <button type="submit" class="btn btn-primary btn-small">Save Rule</button>
               </div>
             </div>
 
-            <!-- Delay Input -->
-            <div class="form-group">
-              <label for="ruleDelay">Delay (ms)</label>
-              <input
-                type="number"
-                id="ruleDelay"
-                class="form-control"
-                placeholder="e.g., 1000, 2000"
-                min="0"
-                max="30000"
-              />
-              <small class="form-hint"
-                >Add artificial delay in milliseconds (max 30 seconds). Useful
-                for testing loading states.</small
-              >
-            </div>
+            <!-- Two-column body -->
+            <div class="rf-columns">
 
-            <!-- Response Modification Options -->
-            <div class="form-group">
-              <label for="modifyType">Response Modification Type</label>
-              <select id="modifyType" class="form-control">
-                <option value="replace">Replace Entire Body</option>
-                <option value="json-path">Modify JSON Path</option>
-                <option value="regex">Regex Find & Replace</option>
-              </select>
-            </div>
-
-            <!-- Replace Body -->
-            <div id="replaceOptions" class="modification-options">
-              <div class="form-group">
-                <label for="replaceValue">New Response Body</label>
-                <textarea
-                  id="replaceValue"
-                  class="form-control code-editor"
-                  rows="10"
-                  placeholder='{"message": "Modified response"}'
-                ></textarea>
-                <div style="display: flex; gap: 10px; margin-top: 8px; flex-wrap: wrap">
-                  <button
-                    type="button"
-                    id="prettifyJsonBtn"
-                    class="btn btn-secondary btn-small"
-                  >
-                    ✨ Prettify JSON
-                  </button>
-                  <button
-                    type="button"
-                    id="expandJsonEditorBtn"
-                    class="btn btn-secondary btn-small"
-                  >
-                    ⛶ Expand Editor
-                  </button>
-                  <small class="form-hint" style="margin: 0; align-self: center"
-                    >Format or expand the JSON editor</small
-                  >
+              <!-- LEFT: 01 Match -->
+              <section class="rf-col rf-col-left">
+                <div class="rf-col-header">
+                  <span class="rf-col-num">01</span>
+                  <span class="rf-col-title">Match</span>
                 </div>
-              </div>
-            </div>
 
-            <!-- JSON Path -->
-            <div
-              id="jsonPathOptions"
-              class="modification-options"
-              style="display: none"
-            >
-              <div class="form-group">
-                <label for="jsonPath">JSON Path</label>
-                <input
-                  type="text"
-                  id="jsonPath"
-                  class="form-control"
-                  placeholder="data.status"
-                />
-                <small class="form-hint"
-                  >Use dot notation: data.user.name</small
-                >
-              </div>
-              <div class="form-group">
-                <label for="jsonValue">New Value</label>
-                <input
-                  type="text"
-                  id="jsonValue"
-                  class="form-control"
-                  placeholder='"success"'
-                />
-                <small class="form-hint"
-                  >Enter JSON value (strings need quotes)</small
-                >
-              </div>
-            </div>
+                <!-- URL Pattern + Match Type -->
+                <div class="rf-field">
+                  <label for="urlPattern" class="rf-label">URL Pattern <span class="rf-required">*</span></label>
+                  <div class="rf-url-row">
+                    <input type="text" id="urlPattern" class="form-control rf-mono" placeholder="*://*/api/*" required />
+                    <select id="matchType" class="form-control rf-match-type-select">
+                      <option value="wildcard">Wildcard</option>
+                      <option value="regex">Regex</option>
+                      <option value="exact">Exact</option>
+                      <option value="contains">Contains</option>
+                    </select>
+                  </div>
+                  <div id="matchTypeHint" class="rf-match-hint"></div>
+                </div>
 
-            <!-- Regex Replace -->
-            <div
-              id="regexOptions"
-              class="modification-options"
-              style="display: none"
-            >
-              <div class="form-group">
-                <label for="regexPattern">Regex Pattern</label>
-                <input
-                  type="text"
-                  id="regexPattern"
-                  class="form-control"
-                  placeholder="error"
-                />
-                <small class="form-hint">Pattern to search for</small>
-              </div>
-              <div class="form-group">
-                <label for="regexReplacement">Replacement</label>
-                <input
-                  type="text"
-                  id="regexReplacement"
-                  class="form-control"
-                  placeholder="success"
-                />
-                <small class="form-hint">Text to replace matches with</small>
-              </div>
-              <div class="form-group">
-                <label for="regexFlags">Flags (optional)</label>
-                <input
-                  type="text"
-                  id="regexFlags"
-                  class="form-control"
-                  placeholder="gi"
-                  value="g"
-                />
-                <small class="form-hint"
-                  >g=global, i=case-insensitive, m=multiline</small
-                >
-              </div>
-            </div>
+                <!-- HTTP Methods as chips (hidden checkboxes preserve collectFormData logic) -->
+                <div class="rf-field">
+                  <label class="rf-label">HTTP Methods</label>
+                  <div class="rf-method-chips" role="group">
+                    <button type="button" class="rf-chip rf-chip-active" data-method="GET">GET</button>
+                    <button type="button" class="rf-chip" data-method="POST">POST</button>
+                    <button type="button" class="rf-chip" data-method="PUT">PUT</button>
+                    <button type="button" class="rf-chip" data-method="DELETE">DELETE</button>
+                    <button type="button" class="rf-chip" data-method="PATCH">PATCH</button>
+                    <input type="checkbox" name="methods" value="GET" checked class="rf-chip-input" />
+                    <input type="checkbox" name="methods" value="POST" class="rf-chip-input" />
+                    <input type="checkbox" name="methods" value="PUT" class="rf-chip-input" />
+                    <input type="checkbox" name="methods" value="DELETE" class="rf-chip-input" />
+                    <input type="checkbox" name="methods" value="PATCH" class="rf-chip-input" />
+                  </div>
+                </div>
 
-            <!-- Status Code Modification -->
-            <div class="form-group">
-              <label for="modifyStatusCode"
-                >Modify Status Code (optional)</label
-              >
-              <input
-                type="number"
-                id="modifyStatusCode"
-                class="form-control"
-                placeholder="e.g., 200, 404, 500"
-                min="100"
-                max="599"
-              />
-              <small class="form-hint"
-                >Leave empty to keep original status code</small
-              >
-            </div>
+                <!-- Description (collapsible) -->
+                <div class="rf-field rf-field-collapsible">
+                  <button type="button" class="rf-collapse-trigger" id="toggleDescription">
+                    <svg class="rf-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+                    <span class="rf-trigger-text">Description</span>
+                    <span style="color:var(--text-muted); font-weight:400; font-size:11px; margin-left:2px;">(optional)</span>
+                  </button>
+                  <div class="rf-collapsible-body" id="descriptionBody" style="display:none">
+                    <textarea id="ruleDescription" class="form-control" rows="2" placeholder="What does this rule do?"></textarea>
+                  </div>
+                </div>
 
-            <!-- Header Modifications -->
-            <div class="form-group">
-              <label>Modify Response Headers (optional)</label>
-              <div id="headerModifications">
-                <!-- Header modification rows will be added here -->
-              </div>
-              <div style="display: flex; gap: 10px">
-                <button
-                  type="button"
-                  id="addHeaderBtn"
-                  class="btn btn-secondary btn-small"
-                >
-                  + Add Header Modification
-                </button>
-                <button
-                  type="button"
-                  id="clearHeadersBtn"
-                  class="btn btn-danger btn-small"
-                >
-                  Clear All Headers
-                </button>
-              </div>
-            </div>
+                <!-- URL Tester — pushed to bottom of left col -->
+                <div class="rf-field rf-url-tester-container">
+                  <button type="button" id="toggleUrlTester" class="rf-collapse-trigger">
+                    <svg class="rf-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+                    <span class="rf-trigger-text">Test Pattern</span>
+                  </button>
+                  <div id="urlTesterPanel" style="display:none" class="url-tester-panel rf-collapsible-body">
+                    <div class="url-tester-row">
+                      <input type="text" id="testUrlInput" class="form-control" placeholder="https://api.example.com/users/123">
+                      <button type="button" id="testUrlBtn" class="btn btn-primary btn-small">Test</button>
+                    </div>
+                    <div id="urlTestResult" class="url-test-result" style="display:none"></div>
+                  </div>
+                </div>
+              </section>
 
-            <div class="form-group">
-              <label class="checkbox-label">
-                <input type="checkbox" id="ruleEnabled" checked /> Enable this
-                rule
-              </label>
-            </div>
+              <!-- RIGHT: 02 Respond -->
+              <section class="rf-col rf-col-right">
+                <div class="rf-col-header">
+                  <span class="rf-col-num">02</span>
+                  <span class="rf-col-title">Respond</span>
+                </div>
 
-            <div class="form-actions">
-              <button type="submit" class="btn btn-primary">Save Rule</button>
-              <button type="button" id="cancelBtn" class="btn btn-secondary">
-                Cancel
-              </button>
+                <!-- Status Code + Delay side-by-side -->
+                <div class="rf-status-delay-row">
+                  <div class="rf-field">
+                    <label class="rf-label">Status Code</label>
+                    <div class="rf-status-stepper">
+                      <button type="button" class="rf-stepper-btn" id="statusDecBtn">−</button>
+                      <input type="number" id="modifyStatusCode" class="rf-stepper-input" placeholder="—" min="100" max="599" />
+                      <button type="button" class="rf-stepper-btn" id="statusIncBtn">+</button>
+                    </div>
+                    <div class="status-code-presets rf-compact-presets" id="ruleFormStatusPresets">
+                      <button type="button" class="status-preset status-2xx" data-code="200">200</button>
+                      <button type="button" class="status-preset status-2xx" data-code="201">201</button>
+                      <button type="button" class="status-preset status-2xx" data-code="204">204</button>
+                      <button type="button" class="status-preset status-3xx" data-code="301">301</button>
+                      <button type="button" class="status-preset status-4xx" data-code="400">400</button>
+                      <button type="button" class="status-preset status-4xx" data-code="401">401</button>
+                      <button type="button" class="status-preset status-4xx" data-code="403">403</button>
+                      <button type="button" class="status-preset status-4xx" data-code="404">404</button>
+                      <button type="button" class="status-preset status-4xx" data-code="422">422</button>
+                      <button type="button" class="status-preset status-5xx" data-code="500">500</button>
+                      <button type="button" class="status-preset status-5xx" data-code="503">503</button>
+                    </div>
+                    <small class="form-hint">Leave empty to keep original</small>
+                  </div>
+                  <div class="rf-field rf-field-delay">
+                    <label class="rf-label" for="ruleDelay">Delay <span class="rf-delay-readout" id="delayReadout">off</span></label>
+                    <input type="range" id="ruleDelay" class="rf-delay-slider" min="0" max="30000" step="100" value="0" />
+                    <div class="rf-delay-minmax">
+                      <small class="form-hint">0 ms</small>
+                      <small class="form-hint">30 000 ms</small>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Response Type (Content-Type) -->
+                <div class="rf-field" id="contentTypeGroup">
+                  <label for="responseContentType" class="rf-label">Response Type</label>
+                  <select id="responseContentType" class="form-control">
+                    <option value="application/json">JSON (application/json)</option>
+                    <option value="text/html">HTML (text/html)</option>
+                    <option value="text/plain">Plain Text (text/plain)</option>
+                    <option value="application/xml">XML (application/xml)</option>
+                    <option value="text/csv">CSV (text/csv)</option>
+                    <option value="application/javascript">JavaScript (application/javascript)</option>
+                    <option value="application/pdf">PDF — binary (application/pdf)</option>
+                    <option value="image/png">PNG Image — binary</option>
+                    <option value="image/jpeg">JPEG Image — binary</option>
+                    <option value="image/gif">GIF Image — binary</option>
+                    <option value="image/webp">WebP Image — binary</option>
+                    <option value="image/svg+xml">SVG (image/svg+xml)</option>
+                    <option value="__custom__">Custom...</option>
+                  </select>
+                  <div id="customContentTypeRow" style="display:none; margin-top:6px;">
+                    <input type="text" id="customContentType" class="form-control" placeholder="e.g. application/vnd.api+json" />
+                    <small class="form-hint">Enter the exact MIME type string</small>
+                  </div>
+                </div>
+
+                <!-- Replace Body -->
+                <div id="replaceOptions" class="modification-options">
+                  <div id="textBodyPanel" class="rf-field">
+                    <label for="replaceValue" id="replaceValueLabel" class="rf-label">Response Body</label>
+                    <textarea id="replaceValue" class="form-control code-editor" rows="6" placeholder='{"message": "Modified response"}'></textarea>
+                    <div class="rf-body-actions">
+                      <button type="button" id="prettifyJsonBtn" class="btn btn-secondary btn-small">✨ Prettify JSON</button>
+                      <button type="button" id="expandJsonEditorBtn" class="btn btn-secondary btn-small">⛶ Expand Editor</button>
+                    </div>
+                  </div>
+                  <div id="binaryBodyPanel" class="rf-field" style="display:none;">
+                    <label class="rf-label">Binary Response Body</label>
+                    <div style="display:flex; gap:8px; margin-bottom:8px;">
+                      <button type="button" class="btn btn-secondary btn-small binary-tab-btn active" data-tab="paste">Paste Base64</button>
+                      <button type="button" class="btn btn-secondary btn-small binary-tab-btn" data-tab="upload">Upload File</button>
+                      <button type="button" class="btn btn-secondary btn-small binary-tab-btn" data-tab="url">Fetch URL</button>
+                    </div>
+                    <div id="binaryPasteTab" class="binary-input-panel">
+                      <textarea id="binaryBase64Value" class="form-control code-editor" rows="5" placeholder="Paste raw base64-encoded content here (no data: URI prefix)..."></textarea>
+                    </div>
+                    <div id="binaryUploadTab" class="binary-input-panel" style="display:none;">
+                      <input type="file" id="binaryFileInput" class="form-control" />
+                      <div id="binaryFileInfo" style="margin-top:8px; font-size:12px; color:var(--text-secondary);">No file selected</div>
+                      <small class="form-hint">File is encoded as base64. Large files may hit storage limits.</small>
+                    </div>
+                    <div id="binaryUrlTab" class="binary-input-panel" style="display:none;">
+                      <div style="display:flex; gap:8px;">
+                        <input type="text" id="binaryFetchUrl" class="form-control" placeholder="https://example.com/image.png" style="flex:1;" />
+                        <button type="button" id="binaryFetchBtn" class="btn btn-secondary">Fetch</button>
+                      </div>
+                      <div id="binaryFetchStatus" style="margin-top:8px; font-size:12px;"></div>
+                      <small class="form-hint">Extension fetches the URL and encodes it as base64.</small>
+                    </div>
+                    <div id="binaryPreview" style="margin-top:10px; display:none;">
+                      <strong style="font-size:12px;">Preview:</strong>
+                      <div id="binaryPreviewContent" style="margin-top:6px;"></div>
+                    </div>
+                  </div>
+                  <div id="customBinaryToggle" class="rf-field" style="display:none;">
+                    <label class="checkbox-label" style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                      <input type="checkbox" id="customIsBinary" />
+                      Body is binary (value is raw base64)
+                    </label>
+                  </div>
+                </div>
+
+                <!-- Response Headers (collapsible) -->
+                <div class="rf-field rf-field-collapsible">
+                  <button type="button" class="rf-collapse-trigger" id="toggleHeadersSection">
+                    <svg class="rf-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+                    <span>Response Headers</span>
+                    <span class="rf-collapse-count" id="headerCount"></span>
+                  </button>
+                  <div class="rf-collapsible-body" id="headersBody" style="display:none">
+                    <div id="headerModifications"></div>
+                    <div class="rf-header-actions">
+                      <button type="button" id="addHeaderBtn" class="btn btn-secondary btn-small">+ Add Header</button>
+                      <button type="button" id="clearHeadersBtn" class="btn btn-danger btn-small">Clear All</button>
+                    </div>
+                  </div>
+                </div>
+
+              </section>
             </div>
           </form>
         </div>
@@ -690,22 +671,27 @@
         <!-- Import/Export Tab -->
         <div id="import-export-tab" class="tab-content">
           <div class="header">
-            <h2>Import/Export Rules</h2>
+            <h2>Import/Export Rules & Groups</h2>
           </div>
 
           <div class="card">
             <h3>Export Rules</h3>
-            <p>Download all your rules as a JSON file to back up or share</p>
-            <button id="exportBtn" class="btn btn-primary">
-              Export All Rules
-            </button>
+            <p>Download all your groups and rules as a JSON file to back up or share</p>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+              <button id="exportBtn" class="btn btn-primary">
+                Export as File
+              </button>
+              <button id="copyExportBtn" class="btn btn-secondary">
+                Copy to Clipboard
+              </button>
+            </div>
           </div>
 
           <div class="card">
             <h3>Import Rules</h3>
             <p>
-              Import rules from a JSON file. This will add to your existing
-              rules.
+              Import groups and rules from a JSON file. This will add to your existing
+              data.
             </p>
             <div
               class="security-warning"
@@ -735,9 +721,14 @@
               accept=".json"
               style="display: none"
             />
-            <button id="importBtn" class="btn btn-secondary">
-              Import Rules
-            </button>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+              <button id="importBtn" class="btn btn-secondary">
+                Import from File
+              </button>
+              <button id="pasteImportBtn" class="btn btn-secondary">
+                Paste JSON
+              </button>
+            </div>
           </div>
 
           <div class="card danger">
@@ -749,6 +740,38 @@
             <button id="clearAllBtn" class="btn btn-danger">
               Clear All Rules
             </button>
+          </div>
+
+          <!-- Paste JSON Import Modal -->
+          <div id="pasteImportModal" class="modal" style="display: none">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h3>Paste JSON to Import</h3>
+                <button class="modal-close" id="closePasteImportModal">&times;</button>
+              </div>
+              <div class="modal-body">
+                <div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:12px 16px;margin-bottom:12px;">
+                  <div style="display:flex;align-items:flex-start;gap:10px">
+                    <span style="font-size:18px">⚠️</span>
+                    <div>
+                      <strong style="color:#92400e">Security Warning</strong>
+                      <p style="margin:4px 0 0;color:#78350f;font-size:13px">Only import rules from sources you trust.</p>
+                    </div>
+                  </div>
+                </div>
+                <textarea
+                  id="pasteImportText"
+                  class="form-control"
+                  rows="12"
+                  placeholder="Paste exported JSON here..."
+                  style="font-family:monospace;font-size:12px;resize:vertical;"
+                ></textarea>
+              </div>
+              <div class="modal-footer" style="display:flex;justify-content:flex-end;gap:10px;padding:16px;">
+                <button id="cancelPasteImportBtn" class="btn btn-secondary">Cancel</button>
+                <button id="confirmPasteImportBtn" class="btn btn-primary">Import</button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -904,6 +927,7 @@
     </div>
 
     <div id="toast" class="toast"></div>
-    <script src="options.js"></script>
+
+    <script type="module" src="options.js"></script>
   </body>
 </html>
