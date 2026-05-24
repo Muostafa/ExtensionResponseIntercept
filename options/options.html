@@ -155,6 +155,26 @@
             </div>
           </div>
 
+          <!-- KPI Strip -->
+          <div class="kpi-strip">
+            <div class="kpi-item">
+              <span class="kpi-label">Total Rules</span>
+              <span class="kpi-value" id="kpi-total">—</span>
+            </div>
+            <div class="kpi-item">
+              <span class="kpi-label">Active</span>
+              <span class="kpi-value kpi-ok" id="kpi-active">—</span>
+            </div>
+            <div class="kpi-item">
+              <span class="kpi-label">Groups</span>
+              <span class="kpi-value" id="kpi-groups">—</span>
+            </div>
+            <div class="kpi-item">
+              <span class="kpi-label">Disabled</span>
+              <span class="kpi-value" id="kpi-disabled">—</span>
+            </div>
+          </div>
+
           <div class="card options-toolbar" style="margin-bottom: 20px">
             <div
               style="
@@ -392,99 +412,6 @@
         <div id="new-rule-tab" class="tab-content">
           <div class="header">
             <h2 id="formTitle">Create New Rule</h2>
-          </div>
-
-          <!-- Rule Templates Section -->
-          <div class="card templates-card" style="margin-bottom: 20px">
-            <div class="templates-header">
-              <h3>Quick Start Templates</h3>
-              <small class="form-hint"
-                >Select a template to pre-fill the form with common
-                scenarios</small
-              >
-            </div>
-            <div class="templates-grid" id="templatesGrid">
-              <button
-                type="button"
-                class="template-btn"
-                data-template="mock-success"
-                title="Return a successful JSON response"
-              >
-                <span class="template-icon">✅</span>
-                <span class="template-name">Mock Success</span>
-                <span class="template-desc">Return 200 OK</span>
-              </button>
-              <button
-                type="button"
-                class="template-btn"
-                data-template="mock-error"
-                title="Simulate a 500 server error"
-              >
-                <span class="template-icon">❌</span>
-                <span class="template-name">Mock Error</span>
-                <span class="template-desc">Return 500 Error</span>
-              </button>
-              <button
-                type="button"
-                class="template-btn"
-                data-template="mock-404"
-                title="Simulate a not found response"
-              >
-                <span class="template-icon">🔍</span>
-                <span class="template-name">Not Found</span>
-                <span class="template-desc">Return 404</span>
-              </button>
-              <button
-                type="button"
-                class="template-btn"
-                data-template="mock-delay"
-                title="Add artificial delay to simulate slow network"
-              >
-                <span class="template-icon">⏱️</span>
-                <span class="template-name">Slow Network</span>
-                <span class="template-desc">Add 2s delay</span>
-              </button>
-              <button
-                type="button"
-                class="template-btn"
-                data-template="cors-headers"
-                title="Add CORS headers to enable cross-origin requests"
-              >
-                <span class="template-icon">🌐</span>
-                <span class="template-name">CORS Headers</span>
-                <span class="template-desc">Enable CORS</span>
-              </button>
-              <button
-                type="button"
-                class="template-btn"
-                data-template="empty-array"
-                title="Return an empty array for list endpoints"
-              >
-                <span class="template-icon">📭</span>
-                <span class="template-name">Empty List</span>
-                <span class="template-desc">Return []</span>
-              </button>
-              <button
-                type="button"
-                class="template-btn"
-                data-template="auth-error"
-                title="Simulate authentication failure"
-              >
-                <span class="template-icon">🔐</span>
-                <span class="template-name">Auth Error</span>
-                <span class="template-desc">Return 401</span>
-              </button>
-              <button
-                type="button"
-                class="template-btn"
-                data-template="rate-limit"
-                title="Simulate rate limiting"
-              >
-                <span class="template-icon">🚫</span>
-                <span class="template-name">Rate Limit</span>
-                <span class="template-desc">Return 429</span>
-              </button>
-            </div>
           </div>
 
           <form id="ruleForm" class="rule-form">
