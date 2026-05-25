@@ -43,9 +43,13 @@ function fileToBase64(file) {
 }
 
 async function fetchUrlAsBase64(url) {
-  const response = await chrome.runtime.sendMessage({ action: MESSAGES.FETCH_URL_AS_BASE64, url });
-  if (!response.success) throw new Error(response.error || 'Fetch failed');
-  return response.base64;
+  try {
+    const response = await chrome.runtime.sendMessage({ action: MESSAGES.FETCH_URL_AS_BASE64, url });
+    if (!response.success) throw new Error(response.error || 'Fetch failed');
+    return response.base64;
+  } catch (error) {
+    throw new Error(error.message || 'Failed to fetch URL');
+  }
 }
 
 function updateBinaryPreview(base64, contentType) {
@@ -54,7 +58,11 @@ function updateBinaryPreview(base64, contentType) {
   if (!preview || !content) return;
   preview.style.display = 'block';
   if (contentType && contentType.startsWith('image/')) {
-    content.innerHTML = `<img src="data:${contentType};base64,${base64}" style="max-width:200px; max-height:150px; border:1px solid var(--border);" />`;
+    const img = document.createElement('img');
+    img.src = `data:${contentType};base64,${base64}`;
+    img.style.cssText = 'max-width:200px; max-height:150px; border:1px solid var(--border);';
+    content.innerHTML = '';
+    content.appendChild(img);
   } else {
     const kb = Math.round((base64.length * 3 / 4) / 1024);
     content.innerHTML = `<span style="font-size:12px;">${kb} KB of binary data encoded</span>`;
@@ -1671,6 +1679,7 @@ async function toggleRule(ruleId) {
     }
   } catch (error) {
     console.error('Failed to toggle rule:', error);
+    showToast('Failed to toggle rule', 'error');
   }
 }
 
@@ -2254,6 +2263,7 @@ function openJsonEditorModal(sourceTextareaId) {
 }
 
 function closeJsonEditorModal(apply) {
+  clearTimeout(jsonValidateTimer);
   const modal = document.getElementById('jsonEditorModal');
   const textarea = document.getElementById('jsonEditorTextarea');
 

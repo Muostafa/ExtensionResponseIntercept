@@ -15,7 +15,9 @@ class ServiceWorker {
     this.tabsToReattach = new Set(); // Tabs that need re-attach after navigation
     this.recentNotifications = []; // Store recent rule triggered notifications
     this.MAX_NOTIFICATIONS = 50; // Limit notifications to prevent memory issues
-    this.init();
+    // Register listeners synchronously so messages aren't dropped while storage loads
+    this.setupListeners();
+    this.initPromise = this.init();
   }
 
   async init() {
@@ -35,9 +37,6 @@ class ServiceWorker {
     this.interceptor.onRuleTriggered((notification) => {
       this.handleRuleTriggered(notification);
     });
-
-    // Set up event listeners
-    this.setupListeners();
   }
 
   /**
@@ -132,6 +131,12 @@ class ServiceWorker {
   }
 
   async handleMessage(request, sender, sendResponse) {
+    try {
+      await this.initPromise;
+    } catch (error) {
+      sendResponse({ success: false, error: 'Extension initialization failed' });
+      return;
+    }
     switch (request.action) {
       case MESSAGES.GET_STATUS:
         await this.safeHandle(sendResponse, async () => {

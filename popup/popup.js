@@ -356,8 +356,13 @@ async function displayRules(rules) {
   const noSearchResults = document.getElementById('noSearchResults');
 
   // Get groups for filtering
-  const response = await chrome.runtime.sendMessage({ action: MESSAGES.GET_GROUPS });
-  const groups = response.groups || [];
+  let groups = [];
+  try {
+    const response = await chrome.runtime.sendMessage({ action: MESSAGES.GET_GROUPS });
+    groups = response?.groups || [];
+  } catch (e) {
+    // render rules without group context
+  }
   window.currentGroups = groups;
 
   // Apply sorting and filtering
@@ -767,14 +772,14 @@ function setupEventListeners() {
       if (isAttached) {
         await chrome.runtime.sendMessage({
           action: MESSAGES.DETACH_DEBUGGER,
-          tabId: currentTab.id
+          tabId: currentTab?.id
         });
         updateAttachButton(false);
         showToast('Debugger detached', 'success');
       } else {
         await chrome.runtime.sendMessage({
           action: MESSAGES.ATTACH_DEBUGGER,
-          tabId: currentTab.id
+          tabId: currentTab?.id
         });
         updateAttachButton(true);
         showToast('Debugger attached', 'success');
