@@ -3,11 +3,71 @@ import { MESSAGES } from '../../shared/messages.js';
 import { escapeHtml } from '../../shared/dom.js';
 import { debug } from '../../shared/debug.js';
 import { STATUS_CODE_MIN, STATUS_CODE_MAX } from '../../shared/constants.js';
+import { icon } from '../../shared/icons.js';
 import { state, BODY_PLACEHOLDERS, MATCH_TYPE_HINTS } from './state.js';
 import { showToast } from './toast.js';
 import { loadGroups } from './groups.js';
 import { loadRules } from './rules-view.js';
 import { showTab } from './navigation.js';
+
+// Inline field validation. Marks the field's wrapper (.rf-field) or the field
+// itself with .field-error and injects a <span class="field-error-message">.
+// Cleared automatically on the field's next input event and on resetForm().
+function fieldContainer(fieldId) {
+  const el = document.getElementById(fieldId);
+  if (!el) return null;
+  return el.closest('.rf-field') || el.parentElement;
+}
+
+export function setFieldError(fieldId, message) {
+  const wrapper = fieldContainer(fieldId);
+  const field = document.getElementById(fieldId);
+  if (!wrapper || !field) return;
+  wrapper.classList.add('field-error');
+  let msg = wrapper.querySelector(':scope > .field-error-message');
+  if (!msg) {
+    msg = document.createElement('span');
+    msg.className = 'field-error-message';
+    wrapper.appendChild(msg);
+  }
+  msg.textContent = message;
+  if (!field.dataset.errorClearBound) {
+    field.dataset.errorClearBound = '1';
+    field.addEventListener('input', () => clearFieldError(fieldId));
+    field.addEventListener('change', () => clearFieldError(fieldId));
+  }
+}
+
+export function clearFieldError(fieldId) {
+  const wrapper = fieldContainer(fieldId);
+  if (!wrapper) return;
+  wrapper.classList.remove('field-error');
+  const msg = wrapper.querySelector(':scope > .field-error-message');
+  if (msg) msg.remove();
+}
+
+export function clearAllFieldErrors() {
+  document.querySelectorAll('.field-error').forEach(w => w.classList.remove('field-error'));
+  document.querySelectorAll('.field-error-message').forEach(n => n.remove());
+  document.getElementById('statusCodeWarning')?.remove();
+}
+
+function showStatusCodeWarning(message) {
+  const wrapper = fieldContainer('modifyStatusCode');
+  if (!wrapper) return;
+  let chip = wrapper.querySelector(':scope > #statusCodeWarning');
+  if (!chip) {
+    chip = document.createElement('div');
+    chip.id = 'statusCodeWarning';
+    chip.className = 'field-warning';
+    wrapper.appendChild(chip);
+  }
+  chip.innerHTML = `${icon('alert', { size: 14 })}<span>${escapeHtml(message)}</span>`;
+}
+
+function clearStatusCodeWarning() {
+  document.getElementById('statusCodeWarning')?.remove();
+}
 
 const VALID_STATUS_CODES = [
   100, 101, 102, 103,
@@ -86,11 +146,23 @@ export function updateMatchTypeHint() {
 }
 
 export async function saveRule() {
-  const ruleData = collectFormData();
+  clearAllFieldErrors();
+  const { data: ruleData, errors } = collectFormData();
 
-  if (!ruleData) {
-    showToast('Please fill in all required fields', 'error');
+  if (errors.length > 0) {
+    errors.forEach(({ fieldId, message }) => setFieldError(fieldId, message));
+    const firstField = document.getElementById(errors[0].fieldId);
+    firstField?.focus();
+    showToast('Please fix the highlighted fields', 'error');
     return;
+  }
+
+  const saveBtn = document.getElementById('saveRule');
+  const originalLabel = saveBtn?.textContent;
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.classList.add('is-loading');
+    saveBtn.innerHTML = `${icon('spinner', { size: 14, className: 'spin' })}<span>Saving...</span>`;
   }
 
   try {
@@ -135,6 +207,12 @@ export async function saveRule() {
   } catch (error) {
     debug.error('Failed to save rule:', error);
     showToast('Failed to save rule: ' + error.message, 'error');
+  } finally {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.classList.remove('is-loading');
+      saveBtn.textContent = originalLabel || 'Save Rule';
+    }
   }
 }
 
@@ -150,6 +228,7 @@ export function validateStatusCode(statusCode) {
 }
 
 export function collectFormData() {
+  const errors = [];
   const name = document.getElementById('ruleName').value.trim();
   const description = document.getElementById('ruleDescription').value.trim();
   const urlPattern = document.getElementById('urlPattern').value.trim();
@@ -157,7 +236,8 @@ export function collectFormData() {
   const modifyType = 'replace';
   const enabled = document.getElementById('ruleEnabled').checked;
 
-  if (!name || !urlPattern) return null;
+  if (!name) errors.push({ fieldId: 'ruleName', message: 'Rule name is required' });
+  if (!urlPattern) errors.push({ fieldId: 'urlPattern', message: 'URL pattern is required' });
 
   const methods = Array.from(document.querySelectorAll('input[name="methods"]:checked')).map(cb => cb.value);
 
@@ -165,8 +245,7 @@ export function collectFormData() {
   const delay = delayValue ? parseInt(delayValue, 10) : null;
 
   if (delay !== null && (delay < 0 || delay > 30000)) {
-    showToast('Delay must be between 0 and 30000 milliseconds', 'error');
-    return null;
+    errors.push({ fieldId: 'ruleDelay', message: 'Delay must be between 0 and 30000 ms' });
   }
 
   const ruleData = { name, description, urlPattern, matchType, methods, enabled };
@@ -193,17 +272,16 @@ export function collectFormData() {
   ruleData.modifyType = modifyType;
   ruleData.modification = modification;
 
+  clearStatusCodeWarning();
   const statusCode = document.getElementById('modifyStatusCode').value.trim();
   if (statusCode) {
     const validation = validateStatusCode(statusCode);
     if (!validation.valid) {
-      showToast(validation.message, 'error');
-      return null;
+      errors.push({ fieldId: 'modifyStatusCode', message: validation.message });
+    } else {
+      if (validation.warning) showStatusCodeWarning(validation.warning);
+      ruleData.modifyStatusCode = parseInt(statusCode, 10);
     }
-    if (validation.warning) {
-      if (!confirm(validation.warning)) return null;
-    }
-    ruleData.modifyStatusCode = parseInt(statusCode, 10);
   }
 
   const modifyHeaders = getHeaderModifications();
@@ -212,7 +290,7 @@ export function collectFormData() {
   const groupValue = document.getElementById('ruleGroup').value;
   if (groupValue) ruleData.groupId = groupValue;
 
-  return ruleData;
+  return { data: ruleData, errors };
 }
 
 export async function editRule(ruleId) {
@@ -343,6 +421,7 @@ export function populateForm(rule) {
 }
 
 export function resetForm() {
+  clearAllFieldErrors();
   document.getElementById('ruleForm').reset();
   document.getElementById('ruleId').value = '';
   document.getElementById('formTitle').textContent = 'Create New Rule';

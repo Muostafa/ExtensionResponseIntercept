@@ -2,6 +2,7 @@ import { MESSAGES } from '../../shared/messages.js';
 import { escapeHtml } from '../../shared/dom.js';
 import { debug } from '../../shared/debug.js';
 import { STATUS_CODE_MIN, STATUS_CODE_MAX } from '../../shared/constants.js';
+import { icon } from '../../shared/icons.js';
 import { state } from './state.js';
 import { showToast } from './toast.js';
 
@@ -15,11 +16,25 @@ const VALID_STATUS_CODES = [
   500, 501, 502, 503, 504, 505, 506, 507, 508, 510, 511
 ];
 
+function renderRulesSkeleton(n = 3) {
+  const container = document.getElementById('rulesList');
+  if (!container || container.dataset.loaded === '1') return;
+  container.innerHTML = Array.from({ length: n }).map(() => `
+    <div class="skeleton-row">
+      <div class="skeleton skeleton-line long"></div>
+      <div class="skeleton skeleton-line short"></div>
+    </div>
+  `).join('');
+}
+
 export async function loadRules() {
+  renderRulesSkeleton();
   try {
     const response = await chrome.runtime.sendMessage({ action: MESSAGES.GET_RULES });
     const rules = response.rules || [];
     window.currentRules = rules;
+    const container = document.getElementById('rulesList');
+    if (container) container.dataset.loaded = '1';
     await displayRules(rules);
   } catch (error) {
     debug.error('Failed to load rules:', error);
@@ -128,9 +143,7 @@ export async function displayRules(rules) {
         <div class="group-header" data-group-id="${group.id}">
           <div class="group-header-left">
             <button class="group-collapse-btn ${isCollapsed ? 'collapsed' : ''}" data-group-id="${group.id}">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="6 9 12 15 18 9"/>
-              </svg>
+              ${icon('chevronDown', { size: 12 })}
             </button>
             <div class="group-color-bar" style="background: ${group.color}"></div>
             <div class="group-title-info">
@@ -172,9 +185,7 @@ export async function displayRules(rules) {
         <div class="group-header ungrouped-header" data-group-id="ungrouped">
           <div class="group-header-left">
             <button class="group-collapse-btn ${isCollapsed ? 'collapsed' : ''}" data-group-id="ungrouped">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="6 9 12 15 18 9"/>
-              </svg>
+              ${icon('chevronDown', { size: 12 })}
             </button>
             <div class="group-color-bar ungrouped-bar"></div>
             <div class="group-title-info">
@@ -226,24 +237,23 @@ function renderRuleItem(rule, group) {
   }
 
   const methods = (rule.methods || ['GET'])
-    .map(m => `<span class="rule-tag method">${m}</span>`)
+    .map(m => `<span class="rule-tag method" data-method="${escapeHtml(m)}">${escapeHtml(m)}</span>`)
     .join('');
+
+  const offChip = rule.enabled ? '' : '<span class="rule-off-chip">Off</span>';
 
   return `
     <div class="rule-item ${rule.enabled ? '' : 'disabled'} ${isGroupDisabled ? 'group-disabled-rule' : ''}" data-rule-id="${rule.id}">
       <div class="rule-row">
         <div class="rule-cell rule-cell-name">
-          <div class="rule-name" title="${escapeHtml(rule.name)}">${escapeHtml(rule.name)}</div>
+          <div class="rule-name" title="${escapeHtml(rule.name)}">${escapeHtml(rule.name)}${offChip}</div>
           <div class="rule-pattern" title="${escapeHtml(rule.urlPattern)}">${escapeHtml(rule.urlPattern)}</div>
           <div class="rule-meta-inline">${actionBadges}</div>
         </div>
         <div class="rule-cell rule-cell-method">${methods}</div>
         <div class="rule-cell rule-cell-actions">
           <button class="btn-icon edit-rule-btn" data-rule-id="${rule.id}" title="Edit Rule">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-            </svg>
+            ${icon('edit', { size: 14 })}
           </button>
           <div class="toggle-switch rule-toggle">
             <input type="checkbox" id="rule-${rule.id}" class="toggle-input rule-toggle-input" data-rule-id="${rule.id}" ${rule.enabled ? 'checked' : ''} ${isGroupDisabled ? 'disabled' : ''}>

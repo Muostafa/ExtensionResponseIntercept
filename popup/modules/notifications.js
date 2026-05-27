@@ -1,6 +1,7 @@
 import { MESSAGES } from '../../shared/messages.js';
 import { escapeHtml } from '../../shared/dom.js';
 import { debug } from '../../shared/debug.js';
+import { icon as renderIcon } from '../../shared/icons.js';
 import { state } from './state.js';
 
 function formatTimeAgo(timestamp) {
@@ -22,12 +23,19 @@ export async function loadRecentlyFired() {
     const list = document.getElementById('recentlyFiredList');
     if (!section || !list) return;
 
+    section.style.display = 'block';
+
     if (notifications.length === 0) {
-      section.style.display = 'none';
+      list.innerHTML = `
+        <div class="recently-fired-empty">
+          ${renderIcon('clock', { size: 20 })}
+          <span>No rules fired yet</span>
+          <span style="font-size:11px;">Visit a page with a matching URL to see activity here.</span>
+        </div>
+      `;
       return;
     }
 
-    section.style.display = 'block';
     list.innerHTML = notifications.map(n => {
       const timeAgo = formatTimeAgo(n.timestamp);
       const actionClass = n.action === 'intercepted' ? 'badge-intercepted' : 'badge-delayed';

@@ -4,6 +4,7 @@ import { debounce } from '../shared/debounce.js';
 import { loadTheme as loadThemeShared, toggleTheme as toggleThemeShared } from '../shared/theme.js';
 import { testUrlPattern } from '../shared/url-matching.js';
 import { SEARCH_DEBOUNCE_MS } from '../shared/constants.js';
+import { confirmModal } from '../shared/confirm-modal.js';
 
 import { state } from './modules/state.js';
 import { showToast } from './modules/toast.js';
@@ -38,6 +39,7 @@ import {
   clearAllRules,
 } from './modules/import-export.js';
 import { setupJsonEditorListeners } from './modules/json-editor.js';
+import { setupKeyboardHints } from './modules/keyboard-hints.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
   loadTheme();
@@ -47,6 +49,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupNavigation();
   setupThemeToggle();
   setupKeyboardShortcuts();
+  setupKeyboardHints();
   setupJsonEditorListeners();
 });
 
@@ -292,10 +295,16 @@ function setupEventListeners() {
 
   // Header modification buttons
   document.getElementById('addHeaderBtn').addEventListener('click', () => addHeaderModification());
-  document.getElementById('clearHeadersBtn').addEventListener('click', () => {
-    if (document.querySelectorAll('#headerModifications .header-mod-row').length > 0) {
-      if (confirm('Clear all header modifications?')) clearHeaderModifications();
-    }
+  document.getElementById('clearHeadersBtn').addEventListener('click', async () => {
+    if (document.querySelectorAll('#headerModifications .header-mod-row').length === 0) return;
+    const ok = await confirmModal({
+      title: 'Clear all header modifications?',
+      message: 'All header rules on this form will be removed.',
+      confirmLabel: 'Clear',
+      cancelLabel: 'Keep',
+      danger: true,
+    });
+    if (ok) clearHeaderModifications();
   });
 
   // Group management buttons
@@ -374,18 +383,18 @@ function setupKeyboardShortcuts() {
       return;
     }
 
-    // Ctrl/Cmd + N: New rule
-    if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+    // Alt + N: New rule (Ctrl+N is reserved by Chrome for new window)
+    if (e.altKey && !e.ctrlKey && !e.metaKey && (e.key === 'n' || e.key === 'N')) {
       e.preventDefault();
       state.currentEditingRuleId = null;
       resetForm();
       showTab('new-rule');
       document.getElementById('ruleName')?.focus();
-      showToast('Creating new rule (Ctrl+N)', 'info');
+      showToast('Creating new rule (Alt+N)', 'info');
     }
 
     // Ctrl/Cmd + S: Save current form (if on new-rule tab)
-    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key === 's') {
       const newRuleTab = document.getElementById('new-rule-tab');
       if (newRuleTab && newRuleTab.classList.contains('active')) {
         e.preventDefault();

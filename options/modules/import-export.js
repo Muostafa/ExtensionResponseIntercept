@@ -1,5 +1,6 @@
 import { MESSAGES } from '../../shared/messages.js';
 import { debug } from '../../shared/debug.js';
+import { confirmModal } from '../../shared/confirm-modal.js';
 import { showToast } from './toast.js';
 import { loadGroups } from './groups.js';
 import { loadRules } from './rules-view.js';
@@ -122,8 +123,14 @@ export async function importRules(e) {
 }
 
 export async function clearAllRules() {
-  if (!confirm('Are you sure you want to delete ALL rules? This action cannot be undone.')) return;
-  if (!confirm('This will permanently delete all your rules. Are you absolutely sure?')) return;
+  const ok = await confirmModal({
+    title: 'Delete all rules?',
+    message: 'This permanently deletes every rule. This cannot be undone.',
+    confirmLabel: 'Delete All Rules',
+    cancelLabel: 'Cancel',
+    danger: true,
+  });
+  if (!ok) return;
 
   try {
     const response = await chrome.runtime.sendMessage({ action: MESSAGES.GET_RULES });

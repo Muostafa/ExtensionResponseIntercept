@@ -1,5 +1,6 @@
 import { MESSAGES } from '../../shared/messages.js';
 import { debug } from '../../shared/debug.js';
+import { icon } from '../../shared/icons.js';
 import { state } from './state.js';
 import { showToast } from './toast.js';
 import { switchView } from './network.js';
@@ -109,6 +110,14 @@ async function createRuleFromModal() {
 
   if (statusCode) rule.modifyStatusCode = parseInt(statusCode);
 
+  const confirmBtn = document.getElementById('confirmCreateRule');
+  const originalLabel = confirmBtn?.textContent;
+  if (confirmBtn) {
+    confirmBtn.disabled = true;
+    confirmBtn.classList.add('is-loading');
+    confirmBtn.innerHTML = `${icon('spinner', { size: 14, className: 'spin' })}<span>Saving...</span>`;
+  }
+
   try {
     await chrome.runtime.sendMessage({ action: MESSAGES.ADD_RULE, rule });
     showToast('Rule created successfully', 'success');
@@ -118,5 +127,11 @@ async function createRuleFromModal() {
   } catch (error) {
     debug.error('Failed to create rule:', error);
     showToast('Failed to create rule', 'error');
+  } finally {
+    if (confirmBtn) {
+      confirmBtn.disabled = false;
+      confirmBtn.classList.remove('is-loading');
+      confirmBtn.textContent = originalLabel || 'Create Rule';
+    }
   }
 }

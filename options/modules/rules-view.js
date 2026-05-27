@@ -2,17 +2,38 @@ import { MESSAGES } from '../../shared/messages.js';
 import { escapeHtml } from '../../shared/dom.js';
 import { debug } from '../../shared/debug.js';
 import { DRAG_AUTOEXPAND_MS, STATUS_CODE_MIN, STATUS_CODE_MAX } from '../../shared/constants.js';
+import { icon } from '../../shared/icons.js';
 import { state, groupsState } from './state.js';
 import { showToast } from './toast.js';
 import { toggleGroup, editGroup, deleteGroup, loadGroups } from './groups.js';
 import { editRule } from './rule-form.js';
 import { showTab } from './navigation.js';
 
+function renderSkeletonRows(n = 3) {
+  const container = document.getElementById('groupedRulesList');
+  if (!container || container.dataset.loaded === '1') return;
+  container.innerHTML = `
+    <div class="options-rules-table">
+      ${Array.from({ length: n }).map(() => `
+        <div class="skeleton-row">
+          <div class="skeleton skeleton-line med"></div>
+          <div class="skeleton skeleton-line long"></div>
+          <div class="skeleton skeleton-line short"></div>
+          <div class="skeleton skeleton-line short"></div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
 export async function loadRules() {
+  renderSkeletonRows();
   try {
     const response = await chrome.runtime.sendMessage({ action: MESSAGES.GET_RULES });
     const rules = response.rules || [];
     window.currentRules = rules;
+    const container = document.getElementById('groupedRulesList');
+    if (container) container.dataset.loaded = '1';
     displayRules(rules);
   } catch (error) {
     debug.error('Failed to load rules:', error);
@@ -92,9 +113,7 @@ export function displayRules(rules) {
         <div class="options-group-header" data-group-id="${group.id}">
           <div class="options-group-header-left">
             <button class="options-group-collapse-btn ${isCollapsed ? 'collapsed' : ''}" data-group-id="${group.id}">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="6 9 12 15 18 9"/>
-              </svg>
+              ${icon('chevronDown')}
             </button>
             <div class="options-group-color-bar" style="background: ${group.color}"></div>
             <div class="options-group-info">
@@ -146,9 +165,7 @@ export function displayRules(rules) {
       <div class="options-group-header ungrouped-header" data-group-id="ungrouped">
         <div class="options-group-header-left">
           <button class="options-group-collapse-btn ${isUngroupedCollapsed ? 'collapsed' : ''}" data-group-id="ungrouped">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="6 9 12 15 18 9"/>
-            </svg>
+            ${icon('chevronDown')}
           </button>
           <div class="options-group-color-bar ungrouped-bar"></div>
           <div class="options-group-info">
@@ -207,17 +224,19 @@ function renderRuleCard(rule, group) {
   ].filter(Boolean).join(' ');
 
   const methodBadges = (rule.methods && rule.methods.length > 0 ? rule.methods : ['*'])
-    .map(m => `<span class="rule-badge method">${m}</span>`)
+    .map(m => `<span class="rule-badge method" data-method="${escapeHtml(m)}">${escapeHtml(m)}</span>`)
     .join('');
+
+  const offChip = rule.enabled ? '' : '<span class="rule-off-chip">Off</span>';
 
   return `
     <div class="${rowClasses}" data-rule-id="${rule.id}" draggable="true">
       <div class="ort-td ort-td-name">
         <span class="drag-handle" title="Drag to move between groups">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="19" r="1.5"/></svg>
+          ${icon('drag', { size: 14 })}
         </span>
         <div class="ort-name-info">
-          <span class="rule-card-title">${escapeHtml(rule.name)}</span>
+          <span class="rule-card-title">${escapeHtml(rule.name)}${offChip}</span>
           ${rule.description ? `<span class="rule-card-description">${escapeHtml(rule.description)}</span>` : ''}
         </div>
       </div>
