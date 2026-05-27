@@ -10,19 +10,21 @@
  * Callers should treat a null return as a failed compilation and avoid
  * applying the pattern.
  */
+import { debug } from './debug.js';
+
 export function safeCompileRegex(pattern, flags) {
   if (!pattern || pattern.length > 1000) {
-    console.error('Regex pattern rejected: too long or empty');
+    debug.error('Regex pattern rejected: too long or empty');
     return null;
   }
   if (/(\(.*[+*]\))[+*?]|(\[[^\]]*\])[+*?][+*?]/.test(pattern)) {
-    console.error('Regex pattern rejected: nested quantifiers detected (ReDoS risk):', pattern);
+    debug.error('Regex pattern rejected: nested quantifiers detected (ReDoS risk):', pattern);
     return null;
   }
   try {
     return new RegExp(pattern, flags);
   } catch (e) {
-    console.error('Regex pattern failed to compile:', e);
+    debug.error('Regex pattern failed to compile:', e);
     return null;
   }
 }

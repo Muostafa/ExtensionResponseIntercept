@@ -1,4 +1,12 @@
-// Content script for displaying toast notifications on web pages
+// Content script for displaying toast notifications on web pages.
+//
+// Content scripts cannot use ES module imports under MV3, so the small helpers
+// below are local copies of their counterparts in shared/. Keep in sync:
+//   - debug          → shared/debug.js
+//   - escapeHtml     → shared/dom.js
+//   - TOAST_DURATION_MS / TOAST_HIDE_ANIMATION_MS / URL_TRUNCATE_LENGTH
+//                    → shared/constants.js
+//   - 'ruleTriggered' literal → shared/messages.js MESSAGES.RULE_TRIGGERED
 (function() {
   'use strict';
 
@@ -7,6 +15,18 @@
     return;
   }
   window.__apiInterceptorContentScriptLoaded = true;
+
+  const DEBUG = false;
+  const PREFIX = '[APIInt]';
+  const debug = {
+    log:   (...a) => { if (DEBUG) console.log(PREFIX, ...a); },
+    warn:  (...a) => { if (DEBUG) console.warn(PREFIX, ...a); },
+    error: (...a) => { console.error(PREFIX, ...a); },
+  };
+
+  const TOAST_DURATION_MS = 4000;
+  const TOAST_HIDE_ANIMATION_MS = 300;
+  const URL_TRUNCATE_LENGTH = 60;
 
   // Toast container element
   let toastContainer = null;
@@ -55,8 +75,8 @@
     const actionIcon = actionIcons[notification.action] || '\u2713';
 
     // Truncate URL for display
-    const displayUrl = notification.url.length > 60
-      ? notification.url.substring(0, 60) + '...'
+    const displayUrl = notification.url.length > URL_TRUNCATE_LENGTH
+      ? notification.url.substring(0, URL_TRUNCATE_LENGTH) + '...'
       : notification.url;
 
     toast.innerHTML = `
@@ -85,10 +105,9 @@
       toast.classList.add('api-interceptor-toast-visible');
     });
 
-    // Auto-remove after 4 seconds
     setTimeout(() => {
       removeToast(toast);
-    }, 4000);
+    }, TOAST_DURATION_MS);
   }
 
   /**
@@ -104,7 +123,7 @@
       if (toast.parentNode) {
         toast.parentNode.removeChild(toast);
       }
-    }, 300);
+    }, TOAST_HIDE_ANIMATION_MS);
   }
 
   /**
@@ -120,8 +139,6 @@
    * Listen for messages from the background script
    */
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    // Content scripts can't statically import ES modules under MV3, so this
-    // literal must stay in sync with shared/messages.js MESSAGES.RULE_TRIGGERED.
     if (message.action === 'ruleTriggered' && message.notification) {
       showToast(message.notification);
       sendResponse({ received: true });
@@ -129,5 +146,5 @@
     return true;
   });
 
-  console.log('API Response Interceptor: Content script loaded');
+  debug.log('Content script loaded');
 })();

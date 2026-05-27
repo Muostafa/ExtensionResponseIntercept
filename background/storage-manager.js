@@ -1,4 +1,6 @@
 import { debounce } from '../shared/debounce.js';
+import { DEBOUNCE_SAVE_MS } from '../shared/constants.js';
+import { debug } from '../shared/debug.js';
 
 // Storage Manager - Handles all storage operations
 export class StorageManager {
@@ -11,13 +13,12 @@ export class StorageManager {
     };
     this.listeners = [];
     this.groupListeners = [];
-    this.QUOTA_WARNING_THRESHOLD = 0.8; // 80% of quota
-    this.QUOTA_BYTES_LIMIT = 10485760; // 10MB in bytes (chrome.storage.local limit)
+    this.QUOTA_WARNING_THRESHOLD = 0.8;
+    this.QUOTA_BYTES_LIMIT = 10485760; // 10MB — chrome.storage.local hard limit
     this._warnedOrphanRuleIds = new Set();
 
-    // Create debounced save methods (500ms delay)
-    this.saveRulesDebounced = debounce(this.saveRules.bind(this), 500);
-    this.saveGroupsDebounced = debounce(this.saveGroups.bind(this), 500);
+    this.saveRulesDebounced = debounce(this.saveRules.bind(this), DEBOUNCE_SAVE_MS);
+    this.saveGroupsDebounced = debounce(this.saveGroups.bind(this), DEBOUNCE_SAVE_MS);
   }
 
   async loadRules() {
@@ -73,9 +74,9 @@ export class StorageManager {
         await this.saveSettings();
       }
 
-      console.log('Rules loaded:', this.rules);
+      debug.log('Rules loaded:', this.rules);
     } catch (error) {
-      console.error('Failed to load rules:', error);
+      debug.error('Failed to load rules:', error);
     }
   }
 
@@ -86,7 +87,7 @@ export class StorageManager {
     try {
       return new Blob([JSON.stringify(data)]).size;
     } catch (error) {
-      console.error('Failed to calculate data size:', error);
+      debug.error('Failed to calculate data size:', error);
       return 0;
     }
   }
@@ -107,7 +108,7 @@ export class StorageManager {
         nearQuota: percentUsed >= (this.QUOTA_WARNING_THRESHOLD * 100)
       };
     } catch (error) {
-      console.error('Failed to get storage usage:', error);
+      debug.error('Failed to get storage usage:', error);
       return null;
     }
   }
@@ -125,7 +126,7 @@ export class StorageManager {
         availableSpace: this.QUOTA_BYTES_LIMIT - dataSize
       };
     } catch (error) {
-      console.error('Failed to check storage quota:', error);
+      debug.error('Failed to check storage quota:', error);
       return { canSave: true, estimatedSize: 0, availableSpace: this.QUOTA_BYTES_LIMIT };
     }
   }
@@ -137,21 +138,21 @@ export class StorageManager {
 
       if (!quotaCheck.canSave) {
         const errorMsg = `Storage quota exceeded! Cannot save rules. Used: ${(quotaCheck.estimatedSize / 1024 / 1024).toFixed(2)}MB / 10MB`;
-        console.error(errorMsg);
+        debug.error(errorMsg);
         throw new Error(errorMsg);
       }
 
       // Warn if approaching quota
       const usage = await this.getStorageUsage();
       if (usage && usage.nearQuota) {
-        console.warn(`Storage usage is at ${usage.percentUsed.toFixed(1)}% (${(usage.bytesUsed / 1024 / 1024).toFixed(2)}MB / 10MB)`);
+        debug.warn(`Storage usage is at ${usage.percentUsed.toFixed(1)}% (${(usage.bytesUsed / 1024 / 1024).toFixed(2)}MB / 10MB)`);
       }
 
       await chrome.storage.local.set({ rules: this.rules });
       this.notifyListeners();
-      console.log('Rules saved successfully');
+      debug.log('Rules saved successfully');
     } catch (error) {
-      console.error('Failed to save rules:', error);
+      debug.error('Failed to save rules:', error);
       throw error; // Re-throw to let caller handle
     }
   }
@@ -159,9 +160,9 @@ export class StorageManager {
   async saveSettings() {
     try {
       await chrome.storage.local.set({ settings: this.settings });
-      console.log('Settings saved');
+      debug.log('Settings saved');
     } catch (error) {
-      console.error('Failed to save settings:', error);
+      debug.error('Failed to save settings:', error);
     }
   }
 
@@ -182,7 +183,7 @@ export class StorageManager {
           // so a developer can see why the rule stopped firing.
           if (!this._warnedOrphanRuleIds.has(rule.id)) {
             this._warnedOrphanRuleIds.add(rule.id);
-            console.warn(
+            debug.warn(
               `Orphaned rule disabled: rule "${rule.name || '(unnamed)'}" (id=${rule.id}) references missing groupId=${rule.groupId}`
             );
           }
@@ -293,7 +294,7 @@ export class StorageManager {
         return `rule_${crypto.randomUUID()}`;
       }
     } catch (error) {
-      console.warn('crypto.randomUUID not available, using fallback');
+      debug.warn('crypto.randomUUID not available, using fallback');
     }
 
     // Fallback for older browsers - use crypto.getRandomValues for better randomness
@@ -361,7 +362,7 @@ export class StorageManager {
         .filter(group => {
           const validation = this.validateGroup(group);
           if (!validation.valid) {
-            console.warn('Skipping invalid group during import:', validation.reason, group);
+            debug.warn('Skipping invalid group during import:', validation.reason, group);
             return false;
           }
           return true;
@@ -389,7 +390,7 @@ export class StorageManager {
         for (const rule of data.rules) {
           const validation = this.validateRule(rule);
           if (!validation.valid) {
-            console.warn('Skipping invalid rule during import:', validation.reason, rule);
+            debug.warn('Skipping invalid rule during import:', validation.reason, rule);
             skippedCount++;
             continue;
           }
@@ -423,7 +424,7 @@ export class StorageManager {
       for (const rule of data.rules) {
         const validation = this.validateRule(rule);
         if (!validation.valid) {
-          console.warn('Skipping invalid rule during import:', validation.reason, rule);
+          debug.warn('Skipping invalid rule during import:', validation.reason, rule);
           skippedCount++;
           continue;
         }
@@ -444,7 +445,7 @@ export class StorageManager {
     }
 
     if (skippedCount > 0) {
-      console.warn(`Import completed: ${importedCount} rules imported, ${skippedCount} rules skipped due to validation errors`);
+      debug.warn(`Import completed: ${importedCount} rules imported, ${skippedCount} rules skipped due to validation errors`);
     }
 
     return { importedCount, importedGroupsCount };
@@ -482,9 +483,9 @@ export class StorageManager {
         ];
         await this.saveGroups();
       }
-      console.log('Groups loaded:', this.groups);
+      debug.log('Groups loaded:', this.groups);
     } catch (error) {
-      console.error('Failed to load groups:', error);
+      debug.error('Failed to load groups:', error);
     }
   }
 
@@ -495,15 +496,15 @@ export class StorageManager {
 
       if (!quotaCheck.canSave) {
         const errorMsg = `Storage quota exceeded! Cannot save groups. Used: ${(quotaCheck.estimatedSize / 1024 / 1024).toFixed(2)}MB / 10MB`;
-        console.error(errorMsg);
+        debug.error(errorMsg);
         throw new Error(errorMsg);
       }
 
       await chrome.storage.local.set({ groups: this.groups });
       this.notifyGroupListeners();
-      console.log('Groups saved successfully');
+      debug.log('Groups saved successfully');
     } catch (error) {
-      console.error('Failed to save groups:', error);
+      debug.error('Failed to save groups:', error);
       throw error; // Re-throw to let caller handle
     }
   }
@@ -611,7 +612,7 @@ export class StorageManager {
         return `group_${crypto.randomUUID()}`;
       }
     } catch (error) {
-      console.warn('crypto.randomUUID not available, using fallback');
+      debug.warn('crypto.randomUUID not available, using fallback');
     }
 
     // Fallback for older browsers - use crypto.getRandomValues for better randomness

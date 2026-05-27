@@ -3,6 +3,7 @@ import { StorageManager } from './storage-manager.js';
 import { RuleEngine } from './rule-engine.js';
 import { ResponseInterceptor } from './interceptor.js';
 import { MESSAGES } from '../shared/messages.js';
+import { debug } from '../shared/debug.js';
 
 const MAX_FETCH_URL_BYTES = 10 * 1024 * 1024; // 10 MB cap for fetchUrlAsBase64
 
@@ -21,7 +22,7 @@ class ServiceWorker {
   }
 
   async init() {
-    console.log('API Response Interceptor - Service Worker initialized');
+    debug.log('API Response Interceptor - Service Worker initialized');
 
     // Load rules and groups from storage
     await this.storageManager.loadRules();
@@ -113,7 +114,7 @@ class ServiceWorker {
 
     // Handle debugger detach — queue re-attach unless user explicitly detached
     chrome.debugger.onDetach.addListener((source, reason) => {
-      console.log(`Debugger detached from tab ${source.tabId}: ${reason}`);
+      debug.log(`Debugger detached from tab ${source.tabId}: ${reason}`);
       this.activeTabs.delete(source.tabId);
       if (reason !== 'canceled_by_user') {
         this.tabsToReattach.add(source.tabId);
@@ -125,7 +126,7 @@ class ServiceWorker {
     try {
       await fn();
     } catch (error) {
-      console.error('handleMessage error:', error);
+      debug.error('handleMessage error:', error);
       sendResponse({ success: false, error: error.message });
     }
   }
@@ -344,7 +345,7 @@ class ServiceWorker {
   async attachDebuggerToTab(tabId) {
     try {
       if (this.activeTabs.has(tabId)) {
-        console.log(`Debugger already attached to tab ${tabId}`);
+        debug.log(`Debugger already attached to tab ${tabId}`);
         return;
       }
 
@@ -371,7 +372,7 @@ class ServiceWorker {
       this.activeTabs.add(tabId);
       this.interceptor.attachToTab(tabId);
 
-      console.log(`Debugger attached to tab ${tabId}`);
+      debug.log(`Debugger attached to tab ${tabId}`);
 
       // Update icon to show active state
       chrome.action.setIcon({
@@ -383,7 +384,7 @@ class ServiceWorker {
         }
       });
     } catch (error) {
-      console.error(`Failed to attach debugger to tab ${tabId}:`, error);
+      debug.error(`Failed to attach debugger to tab ${tabId}:`, error);
     }
   }
 
@@ -397,9 +398,9 @@ class ServiceWorker {
       this.activeTabs.delete(tabId);
       this.interceptor.detachFromTab(tabId);
 
-      console.log(`Debugger detached from tab ${tabId}`);
+      debug.log(`Debugger detached from tab ${tabId}`);
     } catch (error) {
-      console.error(`Failed to detach debugger from tab ${tabId}:`, error);
+      debug.error(`Failed to detach debugger from tab ${tabId}:`, error);
     }
   }
 

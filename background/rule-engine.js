@@ -43,6 +43,9 @@
 
 import { isBinaryContentType } from '../shared/content-types.js';
 import { safeCompileRegex } from '../shared/regex.js';
+import { applyHeaderModifications } from '../shared/headers.js';
+import { compileWildcard } from '../shared/url-matching.js';
+import { debug } from '../shared/debug.js';
 
 export class RuleEngine {
   constructor() {
@@ -59,14 +62,14 @@ export class RuleEngine {
   setRules(rules) {
     // Validate input is an array
     if (!Array.isArray(rules)) {
-      console.error('setRules: rules must be an array, received:', typeof rules);
+      debug.error('setRules: rules must be an array, received:', typeof rules);
       this.rules = [];
       return;
     }
     // Filter to only enabled rules with valid structure
     this.rules = rules.filter(rule => rule && typeof rule === 'object' && rule.enabled);
     this.compilePatterns();
-    console.log(`Rule engine loaded ${this.rules.length} enabled rules`);
+    debug.log(`Rule engine loaded ${this.rules.length} enabled rules`);
   }
 
   /**
@@ -81,20 +84,11 @@ export class RuleEngine {
         if (compiled) {
           this.compiledPatterns.set(rule.id, compiled);
         } else {
-          console.error(`Skipping unsafe/invalid regex for rule ${rule.id}`);
+          debug.error(`Skipping unsafe/invalid regex for rule ${rule.id}`);
         }
       } else if (rule.matchType === 'wildcard') {
-        try {
-          const regexStr = rule.urlPattern
-            .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
-            .replace(/\*\*/g, '<!DW!>')
-            .replace(/\*/g, '[^/]*')
-            .replace(/<!DW!>/g, '.*');
-          const compiled = safeCompileRegex(`^${regexStr}$`);
-          if (compiled) this.compiledPatterns.set(rule.id, compiled);
-        } catch (error) {
-          console.error(`Failed to compile wildcard for rule ${rule.id}:`, error);
-        }
+        const compiled = compileWildcard(rule.urlPattern);
+        if (compiled) this.compiledPatterns.set(rule.id, compiled);
       }
     });
   }
@@ -111,8 +105,10 @@ export class RuleEngine {
       case 'exact':
         return url === pattern;
 
-      case 'wildcard':
-        return this.wildcardMatch(url, pattern);
+      case 'wildcard': {
+        const compiled = compileWildcard(pattern);
+        return compiled ? compiled.test(url) : false;
+      }
 
       case 'regex': {
         const regex = safeCompileRegex(pattern);
@@ -124,36 +120,6 @@ export class RuleEngine {
 
       default:
         return false;
-    }
-  }
-
-  /**
-   * Match URL against a wildcard pattern
-   * @param {string} url - The URL to test
-   * @param {string} pattern - Wildcard pattern (* = any except /, ** = any including /)
-   * @returns {boolean} Whether the URL matches
-   * @private
-   */
-  wildcardMatch(url, pattern) {
-    // Convert wildcard pattern to regex
-    // * matches any characters except /
-    // ** matches any characters including /
-    try {
-      const regexPattern = pattern
-        // First, escape all regex special characters except * (which we'll handle specially)
-        .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
-        // Handle ** (double wildcard) - matches any characters including /
-        .replace(/\*\*/g, '<!DOUBLE_WILDCARD!>')
-        // Handle * (single wildcard) - matches any characters except /
-        .replace(/\*/g, '[^/]*')
-        // Restore double wildcard
-        .replace(/<!DOUBLE_WILDCARD!>/g, '.*');
-
-      const regex = new RegExp(`^${regexPattern}$`);
-      return regex.test(url);
-    } catch (error) {
-      console.error('Invalid wildcard pattern:', error);
-      return false;
     }
   }
 
@@ -219,7 +185,7 @@ export class RuleEngine {
     // Apply rules in order (first matching rule wins for now)
     const rule = matchingRules[0];
 
-    console.log(`Applying rule "${rule.name}" to ${url}`);
+    debug.log(`Applying rule "${rule.name}" to ${url}`);
 
     try {
       const result = {
@@ -245,7 +211,7 @@ export class RuleEngine {
 
       // Apply header modifications if specified
       if (rule.modifyHeaders && Array.isArray(rule.modifyHeaders)) {
-        result.headers = this.applyHeaderModifications(originalHeaders, rule.modifyHeaders);
+        result.headers = applyHeaderModifications(originalHeaders, rule.modifyHeaders);
       }
 
       // Apply status code modification if specified
@@ -255,43 +221,9 @@ export class RuleEngine {
 
       return result;
     } catch (error) {
-      console.error(`Failed to apply rule "${rule.name}":`, error);
+      debug.error(`Failed to apply rule "${rule.name}":`, error);
       return null;
     }
-  }
-
-  /**
-   * Apply header modifications to a set of headers
-   * @param {Object[]} originalHeaders - Original headers array
-   * @param {HeaderModification[]} modifications - Header modifications to apply
-   * @returns {Object[]} Modified headers array
-   */
-  applyHeaderModifications(originalHeaders, modifications) {
-    const headersMap = new Map();
-
-    // Convert original headers to map
-    if (originalHeaders) {
-      originalHeaders.forEach(header => {
-        headersMap.set(header.name.toLowerCase(), header.value);
-      });
-    }
-
-    // Apply modifications
-    modifications.forEach(mod => {
-      const headerName = mod.name.toLowerCase();
-
-      if (mod.action === 'add' || mod.action === 'set') {
-        headersMap.set(headerName, mod.value);
-      } else if (mod.action === 'remove') {
-        headersMap.delete(headerName);
-      }
-    });
-
-    // Convert back to array format
-    return Array.from(headersMap.entries()).map(([name, value]) => ({
-      name,
-      value
-    }));
   }
 
   /**
@@ -305,7 +237,7 @@ export class RuleEngine {
    */
   async applyModification(originalBody, modification, modifyType, contentType) {
     if (isBinaryContentType(contentType) && (modifyType === 'json-path' || modifyType === 'regex')) {
-      console.warn(`modifyType '${modifyType}' is not compatible with binary content type '${contentType}'`);
+      debug.warn(`modifyType '${modifyType}' is not compatible with binary content type '${contentType}'`);
       return null;
     }
 
@@ -320,7 +252,7 @@ export class RuleEngine {
         return this.regexReplace(originalBody, modification);
 
       default:
-        console.warn(`Unknown modify type: ${modifyType}`);
+        debug.warn(`Unknown modify type: ${modifyType}`);
         return null;
     }
   }
@@ -334,7 +266,7 @@ export class RuleEngine {
     // Parse JSON, modify specific paths, return JSON
     try {
       if (!contentType || !contentType.includes('application/json')) {
-        console.warn('Content-Type is not JSON, skipping JSON path modification');
+        debug.warn('Content-Type is not JSON, skipping JSON path modification');
         return null;
       }
 
@@ -346,7 +278,7 @@ export class RuleEngine {
 
       return JSON.stringify(jsonData);
     } catch (error) {
-      console.error('Failed to modify JSON:', error);
+      debug.error('Failed to modify JSON:', error);
       return null;
     }
   }
@@ -354,12 +286,12 @@ export class RuleEngine {
   setNestedProperty(obj, path, value) {
     // Validate inputs
     if (!obj || typeof obj !== 'object') {
-      console.error('setNestedProperty: obj must be a valid object');
+      debug.error('setNestedProperty: obj must be a valid object');
       return;
     }
 
     if (!path || typeof path !== 'string') {
-      console.error('setNestedProperty: path must be a valid string');
+      debug.error('setNestedProperty: path must be a valid string');
       return;
     }
 
@@ -376,7 +308,7 @@ export class RuleEngine {
 
       // Ensure current[key] is an object before proceeding
       if (typeof current[key] !== 'object') {
-        console.warn(`setNestedProperty: Overwriting non-object value at key "${key}"`);
+        debug.warn(`setNestedProperty: Overwriting non-object value at key "${key}"`);
         current[key] = {};
       }
 
@@ -406,7 +338,7 @@ export class RuleEngine {
       if (!regex) return null;
       return originalBody.replace(regex, replacement);
     } catch (error) {
-      console.error('Failed to apply regex replacement:', error);
+      debug.error('Failed to apply regex replacement:', error);
       return null;
     }
   }

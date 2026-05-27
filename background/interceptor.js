@@ -1,4 +1,16 @@
-import { CONTENT_TYPE_PRESETS, isBinaryContentType } from '../shared/content-types.js';
+import { isBinaryContentType } from '../shared/content-types.js';
+import { base64Encode, base64Decode } from '../shared/base64.js';
+import { sleep, withTimeout } from '../shared/async-utils.js';
+import { getContentType, convertHeaders, applyHeaderModifications } from '../shared/headers.js';
+import { debug } from '../shared/debug.js';
+import {
+  REQUEST_TIMEOUT_MS,
+  CLEANUP_INTERVAL_MS,
+  RESPONSE_TRUNCATE_LENGTH,
+  STORAGE_RESPONSE_MAX_LENGTH,
+  MAX_TABS,
+  MAX_LOGS_PER_TAB,
+} from '../shared/constants.js';
 
 // Response Interceptor - Intercepts and modifies network responses using Chrome Debugger API
 export class ResponseInterceptor {
@@ -7,11 +19,9 @@ export class ResponseInterceptor {
     this.storageManager = storageManager;
     this.attachedTabs = new Map();
     this.pendingRequests = new Map();
-    this.networkLogs = new Map(); // Store network logs per tab
-    this.ruleTriggeredCallbacks = []; // Callbacks for rule triggered notifications
-    this.MAX_TABS = 100; // Limit to prevent memory issues
-    this.MAX_LOGS_PER_TAB = 100; // Limit logs per tab
-    this.isLoggingEnabled = true; // Network logging enabled by default
+    this.networkLogs = new Map();
+    this.ruleTriggeredCallbacks = [];
+    this.isLoggingEnabled = true;
     this.setupDebuggerListener();
     this.startPeriodicCleanup();
   }
@@ -40,7 +50,7 @@ export class ResponseInterceptor {
       try {
         callback(notification);
       } catch (error) {
-        console.error('Error in rule triggered callback:', error);
+        debug.error('Error in rule triggered callback:', error);
       }
     });
   }
@@ -57,14 +67,14 @@ export class ResponseInterceptor {
       this.attachedTabs.set(tabId, {
         requests: new Map()
       });
-      console.log(`Response interceptor attached to tab ${tabId}`);
+      debug.log(`Response interceptor attached to tab ${tabId}`);
     }
   }
 
   detachFromTab(tabId) {
     if (this.attachedTabs.has(tabId)) {
       this.attachedTabs.delete(tabId);
-      console.log(`Response interceptor detached from tab ${tabId}`);
+      debug.log(`Response interceptor detached from tab ${tabId}`);
     }
   }
 
@@ -91,7 +101,7 @@ export class ResponseInterceptor {
           break;
       }
     } catch (error) {
-      console.error('Error handling debugger event:', error);
+      debug.error('Error handling debugger event:', error);
     }
   }
 
@@ -102,7 +112,7 @@ export class ResponseInterceptor {
 
     // REQUEST STAGE - intercepting before the request is sent
     if (!responseStatusCode) {
-      console.log(`Intercepted request: ${method} ${url}`);
+      debug.log(`Intercepted request: ${method} ${url}`);
 
       const startTime = Date.now();
 
@@ -129,12 +139,12 @@ export class ResponseInterceptor {
           const rule = matchingRules[0];
 
           // Handle MOCK RESPONSE
-          console.log(`✓ Blocking request and returning mock response for ${url} using rule "${rule.name}"`);
+          debug.log(`✓ Blocking request and returning mock response for ${url} using rule "${rule.name}"`);
 
           // Apply delay if specified
           if (rule.delay && rule.delay > 0) {
-            console.log(`⏱ Delaying response by ${rule.delay}ms`);
-            await this.sleep(rule.delay);
+            debug.log(`⏱ Delaying response by ${rule.delay}ms`);
+            await sleep(rule.delay);
           }
 
           // Generate mock response based on rule
@@ -145,9 +155,9 @@ export class ResponseInterceptor {
           // Encode the mock body (skip if body is already raw base64, e.g. for binary types)
           let base64Body;
           try {
-            base64Body = alreadyBase64 ? mockBody : this.base64Encode(mockBody);
+            base64Body = alreadyBase64 ? mockBody : base64Encode(mockBody);
           } catch (encodeError) {
-            console.error('Failed to encode response body:', encodeError);
+            debug.error('Failed to encode response body:', encodeError);
             // Continue with normal request on encoding failure
             await chrome.debugger.sendCommand(
               { tabId },
@@ -167,7 +177,7 @@ export class ResponseInterceptor {
             {
               requestId,
               responseCode: mockStatusCode,
-              responseHeaders: this.convertHeaders(mockHeaders),
+              responseHeaders: convertHeaders(mockHeaders),
               body: base64Body
             }
           );
@@ -180,7 +190,7 @@ export class ResponseInterceptor {
           );
         }
       } catch (error) {
-        console.error(`Error processing request for ${url}:`, error);
+        debug.error(`Error processing request for ${url}:`, error);
 
         // Continue with normal request on error
         try {
@@ -190,7 +200,7 @@ export class ResponseInterceptor {
             { requestId }
           );
         } catch (continueError) {
-          console.error('Failed to continue request:', continueError);
+          debug.error('Failed to continue request:', continueError);
         }
       }
       return;
@@ -199,7 +209,7 @@ export class ResponseInterceptor {
     // RESPONSE STAGE - intercepting after the response is received
     // Capture the response body for the "Create Rule from Network" feature
     try {
-      const contentType = this.getContentType(responseHeaders);
+      const contentType = getContentType(responseHeaders);
       const isJsonOrText = contentType.includes('json') ||
                            contentType.includes('text') ||
                            contentType.includes('javascript') ||
@@ -208,14 +218,15 @@ export class ResponseInterceptor {
       if (isJsonOrText) {
         // Get the response body
         try {
-          const bodyResponse = await this.withTimeout(
+          const bodyResponse = await withTimeout(
             chrome.debugger.sendCommand({ tabId }, 'Fetch.getResponseBody', { requestId }),
-            5000
+            REQUEST_TIMEOUT_MS,
+            'Fetch.getResponseBody'
           );
 
           if (bodyResponse && bodyResponse.body) {
             const responseBody = bodyResponse.base64Encoded
-              ? this.base64Decode(bodyResponse.body)
+              ? base64Decode(bodyResponse.body)
               : bodyResponse.body;
 
             // Find and update the corresponding log entry
@@ -229,11 +240,11 @@ export class ResponseInterceptor {
           }
         } catch (bodyError) {
           // Some responses may not have a body, that's okay
-          console.log(`Could not get response body for ${url}:`, bodyError.message);
+          debug.log(`Could not get response body for ${url}:`, bodyError.message);
         }
       }
     } catch (error) {
-      console.error(`Error capturing response for ${url}:`, error);
+      debug.error(`Error capturing response for ${url}:`, error);
     }
 
     // Continue with the response
@@ -274,14 +285,14 @@ export class ResponseInterceptor {
         }
 
         case 'regex':
-          console.warn('Regex modification not applicable for blocked requests');
+          debug.warn('Regex modification not applicable for blocked requests');
           return { body: '{}', alreadyBase64: false };
 
         default:
           return { body: '{}', alreadyBase64: false };
       }
     } catch (error) {
-      console.error('Failed to generate mock response:', error);
+      debug.error('Failed to generate mock response:', error);
       return { body: '{}', alreadyBase64: false };
     }
   }
@@ -294,38 +305,10 @@ export class ResponseInterceptor {
     let headers = [{ name: 'content-type', value: rawContentType }];
 
     if (rule.modifyHeaders && rule.modifyHeaders.length > 0) {
-      headers = this.applyHeaderModifications(headers, rule.modifyHeaders);
+      headers = applyHeaderModifications(headers, rule.modifyHeaders);
     }
 
     return headers;
-  }
-
-  applyHeaderModifications(originalHeaders, modifications) {
-    const headersMap = new Map();
-
-    // Convert original headers to map
-    if (originalHeaders) {
-      originalHeaders.forEach(header => {
-        headersMap.set(header.name.toLowerCase(), header.value);
-      });
-    }
-
-    // Apply modifications
-    modifications.forEach(mod => {
-      const headerName = mod.name.toLowerCase();
-
-      if (mod.action === 'add' || mod.action === 'set') {
-        headersMap.set(headerName, mod.value);
-      } else if (mod.action === 'remove') {
-        headersMap.delete(headerName);
-      }
-    });
-
-    // Convert back to array format
-    return Array.from(headersMap.entries()).map(([name, value]) => ({
-      name,
-      value
-    }));
   }
 
   parseValue(value) {
@@ -337,109 +320,17 @@ export class ResponseInterceptor {
     }
   }
 
-  /**
-   * Sleep for a specified duration
-   */
-  sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
-
-  /**
-   * Race a promise against a timeout — rejects with an error if ms elapses first
-   */
-  withTimeout(promise, ms) {
-    return Promise.race([
-      promise,
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error(`Timed out after ${ms}ms`)), ms)
-      )
-    ]);
-  }
-
-  truncateForStorage(text, maxLength = 10000) {
-    // Truncate very large responses to avoid storage issues
+  truncateForStorage(text, maxLength = RESPONSE_TRUNCATE_LENGTH) {
     if (typeof text === 'string' && text.length > maxLength) {
       return text.substring(0, maxLength) + '... [truncated]';
     }
     return text;
   }
 
-  getContentType(headers) {
-    if (!headers) return '';
-
-    for (const header of headers) {
-      if (header.name.toLowerCase() === 'content-type') {
-        return header.value;
-      }
-    }
-
-    return '';
-  }
-
-  convertHeaders(headers) {
-    if (!headers) return [];
-
-    return headers.map(header => ({
-      name: header.name,
-      value: header.value
-    }));
-  }
-
-  base64Encode(str) {
-    // Convert string to base64 using modern TextEncoder API
-    try {
-      // Use TextEncoder for proper UTF-8 handling
-      const bytes = new TextEncoder().encode(str);
-      // Convert Uint8Array to binary string
-      let binaryString = '';
-      for (let i = 0; i < bytes.length; i++) {
-        binaryString += String.fromCharCode(bytes[i]);
-      }
-      return btoa(binaryString);
-    } catch (error) {
-      console.error('Failed to encode base64:', error);
-      // Try fallback for ASCII-only strings
-      try {
-        return btoa(str);
-      } catch (fallbackError) {
-        console.error('Failed to encode base64 (fallback also failed):', fallbackError);
-        // Throw error instead of silently returning empty string
-        throw new Error(`Base64 encoding failed: ${fallbackError.message}`);
-      }
-    }
-  }
-
-  base64Decode(str) {
-    // Convert base64 to string using modern TextDecoder API
-    try {
-      const binaryString = atob(str);
-      // Convert binary string to Uint8Array
-      const bytes = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
-      // Use TextDecoder for proper UTF-8 handling
-      return new TextDecoder().decode(bytes);
-    } catch (error) {
-      console.error('Failed to decode base64:', error);
-      // Fallback to simple atob for ASCII strings
-      try {
-        return atob(str);
-      } catch (fallbackError) {
-        console.error('Failed to decode base64 (fallback also failed):', fallbackError);
-        throw new Error(`Base64 decoding failed: ${fallbackError.message}`);
-      }
-    }
-  }
-
-  /**
-   * Start periodic cleanup to prevent memory leaks
-   */
   startPeriodicCleanup() {
-    // Run cleanup every 5 minutes
     this.cleanupInterval = setInterval(() => {
       this.cleanupStaleTabs();
-    }, 5 * 60 * 1000);
+    }, CLEANUP_INTERVAL_MS);
   }
 
   /**
@@ -447,7 +338,7 @@ export class ResponseInterceptor {
    */
   async cleanupStaleTabs() {
     try {
-      console.log('Running periodic tab cleanup...');
+      debug.log('Running periodic tab cleanup...');
       const tabIds = Array.from(this.attachedTabs.keys());
 
       for (const tabId of tabIds) {
@@ -456,29 +347,29 @@ export class ResponseInterceptor {
           await chrome.tabs.get(tabId);
         } catch (error) {
           // Tab doesn't exist, clean it up
-          console.log(`Cleaning up stale tab ${tabId}`);
+          debug.log(`Cleaning up stale tab ${tabId}`);
           this.attachedTabs.delete(tabId);
           this.pendingRequests.delete(tabId);
         }
       }
 
       // Enforce maximum tab limit using LRU eviction
-      if (this.attachedTabs.size > this.MAX_TABS) {
-        console.warn(`Tab count (${this.attachedTabs.size}) exceeds limit (${this.MAX_TABS}), removing oldest entries`);
-        const excess = this.attachedTabs.size - this.MAX_TABS;
+      if (this.attachedTabs.size > MAX_TABS) {
+        debug.warn(`Tab count (${this.attachedTabs.size}) exceeds limit (${MAX_TABS}), removing oldest entries`);
+        const excess = this.attachedTabs.size - MAX_TABS;
         const iterator = this.attachedTabs.keys();
 
         for (let i = 0; i < excess; i++) {
           const oldestTabId = iterator.next().value;
-          console.log(`Removing oldest tab ${oldestTabId} due to limit`);
+          debug.log(`Removing oldest tab ${oldestTabId} due to limit`);
           this.attachedTabs.delete(oldestTabId);
           this.pendingRequests.delete(oldestTabId);
         }
       }
 
-      console.log(`Cleanup complete. Active tabs: ${this.attachedTabs.size}`);
+      debug.log(`Cleanup complete. Active tabs: ${this.attachedTabs.size}`);
     } catch (error) {
-      console.error('Error during tab cleanup:', error);
+      debug.error('Error during tab cleanup:', error);
     }
   }
 
@@ -532,7 +423,7 @@ export class ResponseInterceptor {
     logs.unshift(logEntry);
 
     // Limit the number of logs per tab
-    if (logs.length > this.MAX_LOGS_PER_TAB) {
+    if (logs.length > MAX_LOGS_PER_TAB) {
       logs.pop();
     }
 
@@ -549,7 +440,7 @@ export class ResponseInterceptor {
     const logEntry = logs.find(log => log.id === logId);
     if (logEntry) {
       // Truncate large responses to avoid memory issues
-      logEntry.responseBody = this.truncateForStorage(responseBody, 50000);
+      logEntry.responseBody = this.truncateForStorage(responseBody, STORAGE_RESPONSE_MAX_LENGTH);
       logEntry.responseStatus = statusCode;
 
       // Try to prettify JSON responses
@@ -608,7 +499,7 @@ export class ResponseInterceptor {
    */
   setNetworkLogging(enabled) {
     this.isLoggingEnabled = enabled;
-    console.log(`Network logging ${enabled ? 'enabled' : 'disabled'}`);
+    debug.log(`Network logging ${enabled ? 'enabled' : 'disabled'}`);
   }
 
   /**
