@@ -283,6 +283,9 @@ header .subtitle {
 .toggle-input:checked + .toggle-label { background: var(--primary); }
 .toggle-input:checked + .toggle-label::before { transform: translateX(16px); }
 .toggle-input:focus-visible + .toggle-label { box-shadow: 0 0 0 3px var(--primary-ring); }
+.toggle-input:disabled + .toggle-label { opacity: 0.4; cursor: not-allowed; }
+
+.status-card-hint { font-size: 11px; color: var(--text-muted); margin-top: 6px; }
 
 /* 6 · Quick Actions ──────────────────────────────────────────── */
 .quick-actions {

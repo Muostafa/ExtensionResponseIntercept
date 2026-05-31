@@ -9,6 +9,45 @@ import { toggleGroup, editGroup, deleteGroup, loadGroups } from './groups.js';
 import { editRule } from './rule-form.js';
 import { showTab } from './navigation.js';
 
+// Per-rule activity stats fetched from the service worker (in-memory there,
+// reset when it unloads). Keyed by ruleId → { count, lastFired }.
+let ruleStats = {};
+
+function formatTimeAgo(timestamp) {
+  if (!timestamp) return '';
+  const seconds = Math.floor((Date.now() - timestamp) / 1000);
+  if (seconds < 5) return 'just now';
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+
+function activityChipHtml(stat) {
+  if (!stat || !stat.count) return '';
+  const plural = stat.count === 1 ? '' : 's';
+  const tip = `Fired ${stat.count} time${plural} since the extension started · last ${formatTimeAgo(stat.lastFired)}`;
+  return `<span class="rule-activity-chip" title="${escapeHtml(tip)}">
+    ${icon('clock', { size: 11 })}
+    <span class="rule-activity-count">${stat.count}</span>
+    <span class="rule-activity-time">· ${escapeHtml(formatTimeAgo(stat.lastFired))}</span>
+  </span>`;
+}
+
+/**
+ * Record a live rule fire (from a RULE_TRIGGERED broadcast) and update just the
+ * affected card's chip in place — no full re-render, so scroll/drag are intact.
+ */
+export function recordRuleFired(ruleId, timestamp) {
+  if (!ruleId) return;
+  const prev = ruleStats[ruleId] || { count: 0, lastFired: 0 };
+  ruleStats[ruleId] = { count: prev.count + 1, lastFired: timestamp || Date.now() };
+  const slot = document.querySelector(`.rule-activity-slot[data-activity-for="${CSS.escape(ruleId)}"]`);
+  if (slot) slot.innerHTML = activityChipHtml(ruleStats[ruleId]);
+}
+
 function renderSkeletonRows(n = 3) {
   const container = document.getElementById('groupedRulesList');
   if (!container || container.dataset.loaded === '1') return;
@@ -29,7 +68,11 @@ function renderSkeletonRows(n = 3) {
 export async function loadRules() {
   renderSkeletonRows();
   try {
-    const response = await chrome.runtime.sendMessage({ action: MESSAGES.GET_RULES });
+    const [response, statsResponse] = await Promise.all([
+      chrome.runtime.sendMessage({ action: MESSAGES.GET_RULES }),
+      chrome.runtime.sendMessage({ action: MESSAGES.GET_RULE_STATS }).catch(() => null),
+    ]);
+    ruleStats = statsResponse?.stats || {};
     const rules = response.rules || [];
     window.currentRules = rules;
     const container = document.getElementById('groupedRulesList');
@@ -238,6 +281,7 @@ function renderRuleCard(rule, group) {
         <div class="ort-name-info">
           <span class="rule-card-title">${escapeHtml(rule.name)}${offChip}</span>
           ${rule.description ? `<span class="rule-card-description">${escapeHtml(rule.description)}</span>` : ''}
+          <span class="rule-activity-slot" data-activity-for="${escapeHtml(rule.id)}">${activityChipHtml(ruleStats[rule.id])}</span>
         </div>
       </div>
       <div class="ort-td ort-td-pattern">

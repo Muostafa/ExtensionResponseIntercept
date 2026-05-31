@@ -5,6 +5,7 @@ import { loadTheme as loadThemeShared, toggleTheme as toggleThemeShared } from '
 import { testUrlPattern } from '../shared/url-matching.js';
 import { SEARCH_DEBOUNCE_MS } from '../shared/constants.js';
 import { confirmModal } from '../shared/confirm-modal.js';
+import { MESSAGES } from '../shared/messages.js';
 
 import { state } from './modules/state.js';
 import { showToast } from './modules/toast.js';
@@ -16,7 +17,9 @@ import {
   collapseAllGroups,
   expandAllGroups,
   filterOptionsRules,
+  recordRuleFired,
 } from './modules/rules-view.js';
+import { loadInterceptionStatus, setupInterceptionStatus } from './modules/status.js';
 import {
   saveRule,
   resetForm,
@@ -51,7 +54,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupKeyboardShortcuts();
   setupKeyboardHints();
   setupJsonEditorListeners();
+  setupInterceptionStatus();
+  setupActivityListener();
+  loadInterceptionStatus();
 });
+
+// Live-update per-rule activity chips when the background broadcasts a fire.
+function setupActivityListener() {
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message.action === MESSAGES.RULE_TRIGGERED && message.notification) {
+      recordRuleFired(message.notification.ruleId, message.notification.timestamp);
+    }
+    return false;
+  });
+}
 
 function updateThemeButton(theme) {
   const themeToggle = document.getElementById('themeToggle');

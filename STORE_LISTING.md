@@ -49,7 +49,7 @@ Mock API responses without touching your backend. Override the body, status code
 
 1. Create rules with URL patterns to match specific API endpoints
 2. Define the mock response (body, status code, headers, delay)
-3. Attach the debugger to a tab
+3. Turn on "Intercept this tab" from the popup
 4. Browse normally — matching requests are answered with your mock response
 
 ### Privacy & Security

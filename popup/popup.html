@@ -40,15 +40,16 @@
       <div class="status-grid">
         <div class="status-card">
           <div class="status-card-header">
-            <span class="status-card-label">Interception</span>
-            <div id="globalStatusIndicator" class="status-indicator"></div>
+            <span class="status-card-label" title="Attaches Chrome's debugger to the current tab so matching requests are mocked">Intercept this tab</span>
+            <div id="tabInterceptIndicator" class="status-indicator"></div>
           </div>
           <div class="status-card-value">
             <div class="toggle-switch">
-              <input type="checkbox" id="globalToggle" class="toggle-input">
-              <label for="globalToggle" class="toggle-label"></label>
+              <input type="checkbox" id="tabInterceptToggle" class="toggle-input">
+              <label for="tabInterceptToggle" class="toggle-label"></label>
             </div>
           </div>
+          <div id="tabInterceptHint" class="status-card-hint" style="display:none"></div>
         </div>
         <div class="status-card">
           <div class="status-card-header">
@@ -61,19 +62,12 @@
     </section>
 
     <section class="quick-actions">
-      <button id="attachTab" class="btn btn-primary">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-          <polyline points="15 3 21 3 21 9"/>
-          <line x1="10" y1="14" x2="21" y2="3"/>
-        </svg>
-        <span id="attachBtnText">Attach Debugger</span>
-      </button>
-      <button id="addRuleBtn" class="btn btn-secondary" title="Add new rule">
+      <button id="addRuleBtn" class="btn btn-primary" title="Add new rule">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <line x1="12" y1="5" x2="12" y2="19"/>
           <line x1="5" y1="12" x2="19" y2="12"/>
         </svg>
+        <span>Add Rule</span>
       </button>
     </section>
 
@@ -227,7 +221,7 @@
           </svg>
         </div>
         <h3>No Network Requests</h3>
-        <p>Attach debugger to start capturing network requests</p>
+        <p>Turn on “Intercept this tab” to start capturing network requests</p>
       </div>
     </section>
 

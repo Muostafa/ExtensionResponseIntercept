@@ -40,7 +40,7 @@ A Chrome extension that lets you mock API responses on the fly. When a request m
 ### Quick Start
 
 1. Click the extension icon in your browser toolbar
-2. Click "Attach Debugger" to enable interception for the current tab
+2. Turn on "Intercept this tab" to enable interception for the current tab
 3. Navigate to the Options page to create rules
 4. Create a new rule:
    - Set a URL pattern (e.g., `*://*/api/*`)
@@ -226,7 +226,7 @@ No build process required - this is a pure JavaScript extension. Simply load it 
 
 **Extension not intercepting requests:**
 
-- Make sure the debugger is attached (click "Attach Debugger" in popup)
+- Make sure interception is on for the tab (toggle "Intercept this tab" in the popup)
 - Check that your rule is enabled
 - Verify the URL pattern matches the request URL
 - Refresh the page after attaching the debugger

@@ -46,7 +46,7 @@ Let's create a simple rule to test the extension:
 ### 4. Test the Extension
 
 1. Click the extension icon in your toolbar
-2. Click **"Attach Debugger"** to enable interception for the current tab
+2. Toggle **"Intercept this tab"** on to enable interception for the current tab
 3. Open a new tab and navigate to: `https://jsonplaceholder.typicode.com/todos/1`
 4. You should see your modified response instead of the original!
 
@@ -128,11 +128,11 @@ Return a mock response with extra headers (e.g. CORS):
 
 ## Advanced Usage
 
-### Auto-attach on Startup
+### Per-Tab Interception
 
-To automatically attach the debugger to tabs:
-1. Keep the "Global Interception" toggle enabled
-2. The extension will attempt to attach to new tabs automatically
+Interception is enabled per tab — there is no global switch:
+1. Open the popup on the tab you want to mock and turn on **"Intercept this tab"**
+2. It stays active on that tab across page navigations until you turn it off
 
 ### Import/Export Rules
 

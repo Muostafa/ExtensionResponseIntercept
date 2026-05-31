@@ -155,6 +155,29 @@
             </div>
           </div>
 
+          <!-- Interception status strip (populated by modules/status.js) -->
+          <div id="interceptionStatus" class="intercept-strip" role="status" aria-live="polite" style="display:none">
+            <div class="intercept-strip-main">
+              <span id="interceptStatusDot" class="intercept-dot"></span>
+              <div class="intercept-strip-text">
+                <span id="interceptStatusTitle" class="intercept-title"></span>
+                <span id="interceptStatusHint" class="intercept-hint"></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- First-run onboarding callout (dismissed via storage flag) -->
+          <div id="onboardingCallout" class="onboarding-callout" style="display:none">
+            <button id="onboardingDismiss" class="onboarding-dismiss" title="Dismiss" aria-label="Dismiss">&times;</button>
+            <div class="onboarding-title">Getting started in 3 steps</div>
+            <ol class="onboarding-steps">
+              <li><strong>Create a rule</strong> — set a URL pattern and the mock response body.</li>
+              <li><strong>Turn on interception</strong> — click the extension icon on the page you want to mock, then switch on <em>Intercept this tab</em>.</li>
+              <li><strong>Reload the page</strong> — matching requests now return your mock.</li>
+            </ol>
+            <button id="onboardingGotIt" class="btn btn-primary btn-small">Got it</button>
+          </div>
+
           <!-- KPI Strip -->
           <div class="kpi-strip">
             <div class="kpi-item">
@@ -788,7 +811,7 @@
                 <li>Create a new rule with a URL pattern to match</li>
                 <li>Enter the mock response body (and optionally status code, headers, delay)</li>
                 <li>
-                  Click the extension icon and attach the debugger to a tab
+                  Click the extension icon and turn on “Intercept this tab”
                 </li>
                 <li>
                   Navigate to URLs matching your pattern to see the mock response
@@ -841,8 +864,8 @@
                 </li>
                 <li>Check the browser console for debugging information</li>
                 <li>
-                  The debugger must be attached to a tab for interception to
-                  work
+                  Interception runs per tab — turn on “Intercept this tab” from
+                  the popup for each tab you want to mock
                 </li>
               </ul>
             </section>

@@ -14,7 +14,7 @@ import {
   loadRecentlyFired,
   loadGroupToggles,
 } from './modules/notifications.js';
-import { loadStatus, updateAttachButton, setupStorageListener } from './modules/status.js';
+import { loadStatus, setupStorageListener } from './modules/status.js';
 import { loadRules, displayRules } from './modules/rules-view.js';
 import {
   setupViewTabs,
@@ -111,30 +111,32 @@ function setupEventListeners() {
     });
   });
 
-  document.getElementById('globalToggle').addEventListener('change', async (e) => {
-    try {
-      await chrome.runtime.sendMessage({ action: MESSAGES.TOGGLE_GLOBAL });
-      const statusIndicator = document.getElementById('globalStatusIndicator');
-      if (statusIndicator) statusIndicator.classList.toggle('active', e.target.checked);
-      showToast(e.target.checked ? 'Interception enabled' : 'Interception disabled', 'success');
-    } catch (error) {
-      debug.error('Failed to toggle global:', error);
-      showToast('Failed to toggle interception', 'error');
+  // Single per-tab switch: toggling it attaches/detaches the debugger on the
+  // current tab. Interception is per-tab — there is no separate global flag.
+  document.getElementById('tabInterceptToggle').addEventListener('change', async (e) => {
+    const wantOn = e.target.checked;
+    const tabId = state.currentTab?.id;
+    if (!tabId) {
+      e.target.checked = !wantOn;
+      showToast('No active tab', 'error');
+      return;
     }
-  });
-
-  document.getElementById('attachTab').addEventListener('click', async () => {
+    const action = wantOn ? MESSAGES.ATTACH_DEBUGGER : MESSAGES.DETACH_DEBUGGER;
     try {
-      const btnText = document.getElementById('attachBtnText');
-      const isAttached = btnText?.textContent === 'Detach';
-      const action = isAttached ? MESSAGES.DETACH_DEBUGGER : MESSAGES.ATTACH_DEBUGGER;
-
-      await chrome.runtime.sendMessage({ action, tabId: state.currentTab?.id });
-      updateAttachButton(!isAttached);
-      showToast(isAttached ? 'Debugger detached' : 'Debugger attached', 'success');
+      await chrome.runtime.sendMessage({ action, tabId });
+      // attachDebuggerToTab resolves success even if attach was refused (e.g.
+      // DevTools open / restricted page), so re-sync from authoritative status.
+      await loadStatus();
+      const actuallyOn = document.getElementById('tabInterceptToggle').checked;
+      if (wantOn && !actuallyOn) {
+        showToast('Could not intercept this tab — is DevTools open on it?', 'error');
+      } else {
+        showToast(actuallyOn ? 'Now intercepting this tab' : 'Stopped intercepting', 'success');
+      }
     } catch (error) {
-      debug.error('Failed to attach/detach debugger:', error);
-      showToast('Failed to attach debugger', 'error');
+      debug.error('Failed to toggle interception:', error);
+      e.target.checked = !wantOn;
+      showToast('Failed to toggle interception', 'error');
     }
   });
 

@@ -12,9 +12,8 @@
  * sync with MESSAGES.RULE_TRIGGERED.
  */
 export const MESSAGES = Object.freeze({
-  // Global status + toggle
+  // Status (per-tab attachment + rules snapshot)
   GET_STATUS: 'getStatus',
-  TOGGLE_GLOBAL: 'toggleGlobal',
 
   // Rules CRUD
   GET_RULES: 'getRules',
@@ -47,6 +46,9 @@ export const MESSAGES = Object.freeze({
   // Recent notifications (rule-trigger toasts)
   GET_RECENT_NOTIFICATIONS: 'getRecentNotifications',
   CLEAR_NOTIFICATIONS: 'clearNotifications',
+
+  // Per-rule activity stats (in-memory: fire count + last-fired time)
+  GET_RULE_STATS: 'getRuleStats',
 
   // Misc
   FETCH_URL_AS_BASE64: 'fetchUrlAsBase64',

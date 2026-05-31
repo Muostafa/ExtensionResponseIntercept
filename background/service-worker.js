@@ -16,6 +16,11 @@ class ServiceWorker {
     this.tabsToReattach = new Set(); // Tabs that need re-attach after navigation
     this.recentNotifications = []; // Store recent rule triggered notifications
     this.MAX_NOTIFICATIONS = 50; // Limit notifications to prevent memory issues
+    // Per-rule activity stats, keyed by ruleId → { count, lastFired }.
+    // Intentionally in-memory only (resets when the service worker unloads) so
+    // we never write storage on the hot interception path. Surfaced as the
+    // "fired N× · ago" chip in the options rules table.
+    this.ruleStats = new Map();
     // Register listeners synchronously so messages aren't dropped while storage loads
     this.setupListeners();
     this.initPromise = this.init();
@@ -52,6 +57,15 @@ class ServiceWorker {
       this.recentNotifications.pop();
     }
 
+    // Tally per-rule activity for the options-page activity chip
+    if (notification.ruleId) {
+      const prev = this.ruleStats.get(notification.ruleId) || { count: 0, lastFired: 0 };
+      this.ruleStats.set(notification.ruleId, {
+        count: prev.count + 1,
+        lastFired: notification.timestamp || Date.now()
+      });
+    }
+
     // Send notification to all extension pages (popup, options)
     this.broadcastNotification(notification);
   }
@@ -80,18 +94,11 @@ class ServiceWorker {
   }
 
   setupListeners() {
-    // Handle extension icon click
-    chrome.action.onClicked.addListener((tab) => {
-      this.toggleInterception(tab);
-    });
-
     // Handle tab updates (navigation) — re-attach on 'complete' for previously-attached tabs
     chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
       if (changeInfo.status === 'complete' && this.tabsToReattach.has(tabId)) {
         this.tabsToReattach.delete(tabId);
-        if (this.storageManager.isGlobalEnabled()) {
-          this.attachDebuggerToTab(tabId);
-        }
+        this.attachDebuggerToTab(tabId);
       }
     });
 
@@ -142,17 +149,9 @@ class ServiceWorker {
       case MESSAGES.GET_STATUS:
         await this.safeHandle(sendResponse, async () => {
           sendResponse({
-            enabled: this.storageManager.isGlobalEnabled(),
             activeTabs: Array.from(this.activeTabs),
             rules: this.storageManager.getRules()
           });
-        });
-        break;
-
-      case MESSAGES.TOGGLE_GLOBAL:
-        await this.safeHandle(sendResponse, async () => {
-          await this.storageManager.toggleGlobalEnabled();
-          sendResponse({ enabled: this.storageManager.isGlobalEnabled() });
         });
         break;
 
@@ -315,6 +314,12 @@ class ServiceWorker {
         });
         break;
 
+      case MESSAGES.GET_RULE_STATS:
+        await this.safeHandle(sendResponse, async () => {
+          sendResponse({ stats: Object.fromEntries(this.ruleStats) });
+        });
+        break;
+
       case MESSAGES.CLEAR_NOTIFICATIONS:
         await this.safeHandle(sendResponse, async () => {
           if (request.tabId) {
@@ -390,6 +395,9 @@ class ServiceWorker {
 
   async detachDebuggerFromTab(tabId) {
     try {
+      // Explicit detach cancels any queued re-attach so an OFF toggle stays OFF.
+      this.tabsToReattach.delete(tabId);
+
       if (!this.activeTabs.has(tabId)) {
         return;
       }
@@ -401,14 +409,6 @@ class ServiceWorker {
       debug.log(`Debugger detached from tab ${tabId}`);
     } catch (error) {
       debug.error(`Failed to detach debugger from tab ${tabId}:`, error);
-    }
-  }
-
-  async toggleInterception(tab) {
-    if (this.activeTabs.has(tab.id)) {
-      await this.detachDebuggerFromTab(tab.id);
-    } else {
-      await this.attachDebuggerToTab(tab.id);
     }
   }
 }

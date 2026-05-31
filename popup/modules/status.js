@@ -3,50 +3,50 @@ import { debug } from '../../shared/debug.js';
 import { state } from './state.js';
 import { loadRules } from './rules-view.js';
 
+// URLs the Chrome debugger cannot attach to. The toggle is disabled on these.
+const RESTRICTED_PREFIXES = ['chrome://', 'chrome-extension://', 'edge://', 'about:', 'devtools://', 'view-source:'];
+
+function isRestrictedUrl(url) {
+  if (!url) return true;
+  return RESTRICTED_PREFIXES.some(p => url.startsWith(p));
+}
+
 export async function loadStatus() {
   try {
     const response = await chrome.runtime.sendMessage({ action: MESSAGES.GET_STATUS });
-
-    const globalToggle = document.getElementById('globalToggle');
-    globalToggle.checked = response.enabled;
-
-    const statusIndicator = document.getElementById('globalStatusIndicator');
-    if (statusIndicator) {
-      statusIndicator.classList.toggle('active', response.enabled);
-    }
-
-    updateAttachButton(response.activeTabs.includes(state.currentTab?.id));
+    const activeTabs = response?.activeTabs || [];
+    const tabId = state.currentTab?.id;
+    const restricted = isRestrictedUrl(state.currentTab?.url);
+    updateTabToggle(activeTabs.includes(tabId), restricted);
   } catch (error) {
     debug.error('Failed to load status:', error);
   }
 }
 
-export function updateAttachButton(isAttached) {
-  const button = document.getElementById('attachTab');
-  const btnText = document.getElementById('attachBtnText');
+/**
+ * Sync the "Intercept this tab" toggle + indicator with the current tab's
+ * attachment state. On restricted pages (chrome://, extension pages, …) the
+ * toggle is disabled with an explanatory hint.
+ */
+export function updateTabToggle(isAttached, restricted = false) {
+  const toggle = document.getElementById('tabInterceptToggle');
+  const indicator = document.getElementById('tabInterceptIndicator');
+  const hint = document.getElementById('tabInterceptHint');
 
-  if (isAttached) {
-    if (btnText) btnText.textContent = 'Detach';
-    button.classList.remove('btn-primary');
-    button.classList.add('btn-primary', 'attached');
-    button.innerHTML = `
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <polyline points="9 11 12 14 22 4"/>
-        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
-      </svg>
-      <span id="attachBtnText">Detach</span>
-    `;
-  } else {
-    if (btnText) btnText.textContent = 'Attach Debugger';
-    button.classList.remove('attached');
-    button.innerHTML = `
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-        <polyline points="15 3 21 3 21 9"/>
-        <line x1="10" y1="14" x2="21" y2="3"/>
-      </svg>
-      <span id="attachBtnText">Attach Debugger</span>
-    `;
+  if (toggle) {
+    toggle.checked = isAttached && !restricted;
+    toggle.disabled = restricted;
+  }
+  if (indicator) {
+    indicator.classList.toggle('active', isAttached && !restricted);
+  }
+  if (hint) {
+    if (restricted) {
+      hint.textContent = 'Not available on this page';
+      hint.style.display = 'block';
+    } else {
+      hint.style.display = 'none';
+    }
   }
 }
 
@@ -63,10 +63,6 @@ export function setupStorageListener() {
           loadRules();
         });
       }
-    }
-
-    if (changes.settings) {
-      loadStatus();
     }
   });
 }

@@ -39,7 +39,6 @@ export class StorageManager {
     this.rules = [];
     this.groups = [];
     this.settings = {
-      globalEnabled: true,
       logging: true
     };
     this.listeners = [];
@@ -293,21 +292,6 @@ export class StorageManager {
       return this.rules[index].enabled;
     }
     return null;
-  }
-
-  isGlobalEnabled() {
-    return this.settings.globalEnabled;
-  }
-
-  async toggleGlobalEnabled() {
-    this.settings.globalEnabled = !this.settings.globalEnabled;
-    await this.saveSettings();
-    return this.settings.globalEnabled;
-  }
-
-  async setGlobalEnabled(enabled) {
-    this.settings.globalEnabled = enabled;
-    await this.saveSettings();
   }
 
   isLoggingEnabled() {
