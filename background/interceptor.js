@@ -266,31 +266,16 @@ export class ResponseInterceptor {
       const isBinary = isBinaryContentType(contentType) ||
         (rule.contentType === '__custom__' && rule.modification?.isBinary === true);
 
-      if (!rule.modifyType || !rule.modification) {
-        return { body: isBinary ? '' : '{}', alreadyBase64: isBinary };
+      // Only full-body replace is supported. Rules with no modification (or any
+      // legacy/unknown modifyType) fall back to an empty mock body.
+      if (rule.modifyType === 'replace' && rule.modification) {
+        return {
+          body: rule.modification.value || (isBinary ? '' : '{}'),
+          alreadyBase64: isBinary
+        };
       }
 
-      switch (rule.modifyType) {
-        case 'replace':
-          return {
-            body: rule.modification.value || (isBinary ? '' : '{}'),
-            alreadyBase64: isBinary
-          };
-
-        case 'json-path': {
-          const jsonData = {};
-          const { path, value } = rule.modification;
-          this.ruleEngine.setNestedProperty(jsonData, path, this.parseValue(value));
-          return { body: JSON.stringify(jsonData), alreadyBase64: false };
-        }
-
-        case 'regex':
-          debug.warn('Regex modification not applicable for blocked requests');
-          return { body: '{}', alreadyBase64: false };
-
-        default:
-          return { body: '{}', alreadyBase64: false };
-      }
+      return { body: isBinary ? '' : '{}', alreadyBase64: isBinary };
     } catch (error) {
       debug.error('Failed to generate mock response:', error);
       return { body: '{}', alreadyBase64: false };
@@ -309,15 +294,6 @@ export class ResponseInterceptor {
     }
 
     return headers;
-  }
-
-  parseValue(value) {
-    // Try to parse as JSON, otherwise return as string
-    try {
-      return JSON.parse(value);
-    } catch {
-      return value;
-    }
   }
 
   truncateForStorage(text, maxLength = RESPONSE_TRUNCATE_LENGTH) {

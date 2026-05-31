@@ -1,29 +1,24 @@
 # API Response Interceptor
 
-A Chrome extension that enables you to intercept and modify API response bodies in real-time, similar to Requestly's functionality.
+A Chrome extension that lets you mock API responses on the fly. When a request matches one of your rules, the extension blocks it and returns a response you define — custom body, status code, and headers — without touching your backend. Useful for testing, prototyping against not-yet-built endpoints, and reproducing error conditions.
 
 ## Features
 
-### Core Interception
+### Core Mocking
 
-- **Real-time Response Interception**: Intercept HTTP responses before they reach your application
-- **Multiple Modification Types**:
-  - Replace entire response body
-  - Modify specific JSON paths
-  - Regex find and replace
-  - Custom JavaScript functions
-- **Flexible URL Matching**: Support for wildcards, regex, exact matches, and contains patterns
+- **Request Mocking**: Matched requests are blocked and answered with a mock response — the real server is never contacted
+- **Custom Response Body**: Return your own JSON, text, or binary (e.g. images) content
+- **Status Code Override**: Return any status code (e.g. 200, 404, 500)
+- **Response Header Control**: Add, set, or remove response headers on the mock
+- **Response Delay**: Simulate slow networks with a configurable delay
+- **Flexible URL Matching**: Wildcards, regex, exact matches, and contains patterns
 - **HTTP Method Filtering**: Target specific methods (GET, POST, PUT, DELETE, PATCH)
 
-### Advanced Modifications
+### Organization & Workflow
 
-- **Response Header Modification**: Add, modify, or remove response headers (e.g., CORS headers)
-- **Status Code Modification**: Change HTTP status codes (e.g., turn 404s into 200s)
-- **Multi-layer Modifications**: Combine body, header, and status code changes in a single rule
-
-### User Experience
-
-- **User-Friendly Interface**: Intuitive popup and options page for managing rules
+- **Rule Groups**: Organize rules into groups and toggle them together
+- **Network Logging**: Inspect requests on the active tab and turn one into a rule ("Create Rule from Network")
+- **User-Friendly Interface**: Popup for quick access and a full options page for managing rules
 - **Import/Export**: Save and share your rule configurations
 
 ## Installation
@@ -49,10 +44,10 @@ A Chrome extension that enables you to intercept and modify API response bodies 
 3. Navigate to the Options page to create rules
 4. Create a new rule:
    - Set a URL pattern (e.g., `*://*/api/*`)
-   - Choose modification type
-   - Define your modification
+   - Choose the match type and HTTP method(s)
+   - Enter the mock response body (and optionally status code, headers, delay)
    - Enable the rule
-5. Refresh your page to see the modifications
+5. Refresh your page to see the mock response
 
 ### Creating Rules
 
@@ -63,36 +58,18 @@ A Chrome extension that enables you to intercept and modify API response bodies 
 - **Exact**: `https://example.com/api/users` - Match exact URLs
 - **Contains**: `/api/data` - Match URLs containing this string
 
-#### Modification Types
+#### Response Body
 
-**1. Replace Entire Body**
+Provide the mock response body returned for matched requests. For JSON content, enter the JSON you want the page to receive:
 
 ```json
 {
   "status": "success",
-  "data": "Modified response"
+  "data": "Mocked response"
 }
 ```
 
-**2. Modify JSON Path**
-
-- Path: `data.status`
-- Value: `"modified"`
-
-**3. Regex Find & Replace**
-
-- Pattern: `"error"`
-- Replacement: `"success"`
-- Flags: `g` (global)
-
-**4. Custom JavaScript Function**
-
-```javascript
-// The 'body' parameter contains the original response
-const data = JSON.parse(body);
-data.modified = true;
-return JSON.stringify(data);
-```
+You can also return plain text or binary content (e.g. an image) by choosing the appropriate Content-Type for the rule.
 
 ### Advanced Rule Configuration
 
@@ -124,11 +101,11 @@ Override the response status code:
 
 ### Example Rules
 
-**Example 1: Mock API Response**
+**Example 1: Mock an API Response**
 
 - URL Pattern: `*://jsonplaceholder.typicode.com/todos/*`
 - Match Type: Wildcard
-- Modification: Replace Body
+- Response Body:
 
 ```json
 {
@@ -139,80 +116,58 @@ Override the response status code:
 }
 ```
 
-**Example 2: Change Status Field**
-
-- URL Pattern: `*/api/status`
-- Match Type: Contains
-- Modification: JSON Path
-- Path: `status`
-- Value: `"online"`
-
-**Example 3: Transform Response**
-
-- URL Pattern: `https://api.example.com/.*`
-- Match Type: Regex
-- Modification: Function
-
-```javascript
-const data = JSON.parse(body);
-data.intercepted = true;
-data.timestamp = Date.now();
-return JSON.stringify(data, null, 2);
-```
-
-**Example 4: CORS Bypass with Headers**
-
-- URL Pattern: `*://external-api.com/*`
-- Match Type: Wildcard
-- Status Code: Keep original
-- Headers:
-  - Set `Access-Control-Allow-Origin` = `*`
-  - Set `Access-Control-Allow-Methods` = `GET, POST, PUT, DELETE`
-  - Set `Access-Control-Allow-Headers` = `*`
-
-**Example 5: Convert Error to Success**
+**Example 2: Simulate a Server Error**
 
 - URL Pattern: `*/api/flaky-endpoint`
 - Match Type: Contains
-- Status Code: 200
-- Modification: Replace Body
+- Status Code: `500`
+- Response Body:
 
 ```json
 {
-  "success": true,
-  "message": "Request succeeded"
+  "error": "Internal Server Error"
 }
 ```
+
+**Example 3: Mock With Custom Headers**
+
+- URL Pattern: `*://api.example.com/*`
+- Match Type: Wildcard
+- Status Code: `200`
+- Headers:
+  - Set `Access-Control-Allow-Origin` = `*`
+  - Set `Cache-Control` = `no-store`
+- Response Body: your mock JSON
+
+> Note: header and status overrides apply to the mock response the extension returns — they do not modify a real server response, since matched requests never reach the server.
 
 ## Technical Details
 
 ### Architecture
 
-The extension uses Chrome's Debugger API to intercept network responses:
+The extension uses Chrome's Debugger API (the Fetch domain) to intercept network requests:
 
-1. **Service Worker** (`background/service-worker.js`): Manages debugger attachment and rule execution
-2. **Interceptor** (`background/interceptor.js`): Handles Fetch API events and response modification
-3. **Rule Engine** (`background/rule-engine.js`): Matches URLs and applies modifications
-4. **Storage Manager** (`background/storage-manager.js`): Persists rules using Chrome Storage API
+1. **Service Worker** (`background/service-worker.js`): Manages debugger attachment and message routing
+2. **Interceptor** (`background/interceptor.js`): Handles Fetch events, returns mock responses, and logs requests
+3. **Rule Engine** (`background/rule-engine.js`): Matches URLs and HTTP methods against rules
+4. **Storage Manager** (`background/storage-manager.js`): Persists rules and groups using the Chrome Storage API
 
 ### How It Works
 
 1. The extension attaches Chrome's debugger to the active tab
 2. It enables the Fetch domain to intercept network requests
-3. When a request is paused at the Response stage:
-   - The original response body is retrieved
-   - Rules are evaluated against the URL
-   - If a match is found, the modification is applied
-   - The modified response is returned to the page
+3. When a request is paused at the Request stage:
+   - Rules are evaluated against the URL and HTTP method
+   - If a match is found, the request is **blocked** and a mock response (body, status code, headers) is returned to the page — the real server is never contacted
+   - If no rule matches, the request continues normally
+4. Responses to unmatched requests can be captured (when logging is on) so you can turn one into a rule
 
 ### Permissions
 
-- `debugger`: Required to intercept and modify responses
-- `storage`: Save rules and settings
-- `tabs`: Access tab information
-- `activeTab`: Interact with the active tab
-- `webRequest`: Monitor network requests
-- `<all_urls>`: Intercept requests to any domain
+- `debugger`: Required to intercept requests and return mock responses
+- `storage`: Save rules and settings locally
+- `activeTab`: Act on the current tab when you click the extension icon
+- `<all_urls>` (host permission): Allow interception on any domain you choose to attach to
 
 ## Development
 
@@ -255,10 +210,9 @@ No build process required - this is a pure JavaScript extension. Simply load it 
 
 ## Limitations
 
-- **Debugger Requirement**: Chrome only allows one debugger per tab, so this extension conflicts with DevTools if they're open
-- **CORS**: The extension doesn't bypass CORS; it modifies responses after they've been received
-- **Performance**: Attaching the debugger adds some overhead; use selectively on tabs where needed
-- **Security**: Custom JavaScript functions execute with extension privileges - use caution
+- **Debugger Requirement**: Chrome only allows one debugger per tab, so this extension conflicts with DevTools if they're open on the same tab
+- **Mock Only**: Matched requests are fully mocked; the extension does not modify a real (passed-through) server response — to change a response you replace its body with a mock
+- **Performance**: Attaching the debugger adds some overhead; attach it only on tabs where you need it
 
 ## Tips
 
@@ -292,11 +246,9 @@ No build process required - this is a pure JavaScript extension. Simply load it 
 
 ## Security Considerations
 
-- This extension can modify any HTTP response on pages where it's enabled
-- Custom JavaScript functions can execute arbitrary code
-- Only install rules from trusted sources
-- Be cautious when importing rule configurations
-- The extension requires powerful permissions - review the code before installing
+- This extension can mock any HTTP response on tabs where you attach the debugger
+- Only import rule configurations from trusted sources
+- The extension requires a powerful permission (debugger access) — review the code before installing
 
 ## Support This Project
 
@@ -338,18 +290,22 @@ Contributions are welcome! Please feel free to submit issues or pull requests.
 
 ## Changelog
 
-### Version 2.0.0 (Current)
+### Version 2.4.0 (Current)
 
-- **NEW**: Response header modification (add, set, remove headers)
-- **NEW**: HTTP status code modification
-- **IMPROVED**: Rule engine now supports multi-layer modifications
-- **IMPROVED**: Better error handling and logging
-- **IMPROVED**: Enhanced UI
+- **CHANGED**: Documentation and in-app help now accurately describe the mock-only model — matched requests are blocked and answered with a mock response (the real server is not contacted)
+- **REMOVED**: The unsupported JSON-path and regex modify types (they never modified real responses); existing rules using them are migrated to a replace body on upgrade
+- **IMPROVED**: Removed dead code from the rule engine and interceptor
+
+### Version 2.0.0
+
+- Response header modification (add, set, remove headers)
+- HTTP status code override
+- Rule grouping and network logging
+- Better error handling and logging
 
 ### Version 1.0.0
 
 - Initial release
-- Basic response interception and modification
-- Support for replace, JSON path, regex, and function modifications
+- Basic response mocking
 - Import/export functionality
 - User-friendly interface

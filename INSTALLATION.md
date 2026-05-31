@@ -92,7 +92,7 @@ Replace a real API endpoint with test data:
 
 - **URL Pattern**: `https://api.example.com/users/*`
 - **Match Type**: Wildcard
-- **Modification**: Replace Body
+- **Response Body**:
 ```json
 {
   "users": [
@@ -102,29 +102,29 @@ Replace a real API endpoint with test data:
 }
 ```
 
-### Example 2: Change Status Flags
+### Example 2: Simulate a Server Error
 
-Modify a specific field in the JSON response:
+Return an error status and body for matching requests:
 
 - **URL Pattern**: `*/api/feature-flags`
 - **Match Type**: Contains
-- **Modification**: JSON Path
-- **Path**: `features.newUI`
-- **Value**: `true`
-
-### Example 3: Transform Response
-
-Use a custom function to modify data:
-
-- **URL Pattern**: `https://api.example.com/.*`
-- **Match Type**: Regex
-- **Modification**: Function
-```javascript
-const data = JSON.parse(body);
-// Add a timestamp to every response
-data.modifiedAt = new Date().toISOString();
-return JSON.stringify(data, null, 2);
+- **Status Code**: `500`
+- **Response Body**:
+```json
+{
+  "error": "Internal Server Error"
+}
 ```
+
+### Example 3: Mock With Custom Headers
+
+Return a mock response with extra headers (e.g. CORS):
+
+- **URL Pattern**: `https://api.example.com/*`
+- **Match Type**: Wildcard
+- **Status Code**: `200`
+- **Headers**: Set `Access-Control-Allow-Origin` = `*`
+- **Response Body**: your mock JSON
 
 ## Advanced Usage
 
@@ -160,8 +160,7 @@ You can share your exported JSON files with team members. They can import them d
 ## Security Notice
 
 This extension has powerful capabilities:
-- It can read and modify all network responses
-- Custom JavaScript functions run with extension privileges
+- It can block matched requests and return mock responses on tabs where you attach the debugger
 - Only use rules from trusted sources
 - Be careful when importing rule configurations
 

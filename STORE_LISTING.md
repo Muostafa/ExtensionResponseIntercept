@@ -8,22 +8,22 @@ Use this content when submitting to the Chrome Web Store.
 API Response Interceptor
 
 ## Short Description (132 characters max)
-Developer tool to intercept and modify API responses in real-time. Test edge cases, mock APIs, and debug integrations easily.
+Mock API responses without touching your backend. Override the body, status code, and headers to test and debug your app.
 
 ## Detailed Description
 
-**API Response Interceptor** is a powerful developer tool that helps web developers test, debug, and mock API responses without modifying backend code.
+**API Response Interceptor** is a developer tool that helps web developers test, debug, and mock API responses without modifying backend code. When a request matches one of your rules, it is answered with a mock response you define — the real server is never contacted.
 
 ### Key Features
 
-**Response Modification**
-- Replace entire response bodies with custom JSON
-- Modify specific JSON fields using JSON path notation
-- Use regex find & replace for text transformations
+**Response Mocking**
+- Replace response bodies with custom JSON, text, or binary content
+- Matched requests are answered with your mock — the real server is not contacted
+- Add a configurable delay to simulate slow networks
 
 **Header Management**
-- Add, modify, or remove response headers
-- Test CORS configurations
+- Add, set, or remove response headers on the mock
+- Set CORS headers for testing
 - Simulate different server behaviors
 
 **Status Code Control**
@@ -48,9 +48,9 @@ Developer tool to intercept and modify API responses in real-time. Test edge cas
 ### How It Works
 
 1. Create rules with URL patterns to match specific API endpoints
-2. Define how responses should be modified
+2. Define the mock response (body, status code, headers, delay)
 3. Attach the debugger to a tab
-4. Browse normally - matching responses are automatically modified
+4. Browse normally — matching requests are answered with your mock response
 
 ### Privacy & Security
 
@@ -71,23 +71,20 @@ English
 
 ## Single Purpose Description (Required by Chrome)
 
-This extension provides developers with the ability to intercept and modify HTTP API responses for testing and debugging web applications during development.
+This extension lets developers mock HTTP API responses by intercepting matching requests and returning a response they define, for testing and debugging web applications during development.
 
 ---
 
 ## Permissions Justification
 
 ### debugger
-Required to intercept network responses using Chrome DevTools Protocol. This is the core mechanism that allows the extension to capture and modify API responses before they reach the web page.
+Required to intercept network requests using the Chrome DevTools Protocol. This is the core mechanism that lets the extension return mock responses for matching requests before they reach the web page.
 
 ### storage
 Used to persist user-created interception rules and extension preferences locally. No data is synced or transmitted externally.
 
 ### activeTab
 Allows the extension to attach the debugger to the currently active tab when the user explicitly clicks the extension icon. This ensures the extension only operates on tabs the user chooses.
-
-### tabs
-Required to track which tabs have an active debugger session and display the correct status in the extension popup.
 
 ### Host Permissions (<all_urls>)
 Since this is a developer tool meant to test APIs on any website or localhost development server, broad host permissions are required. The extension only intercepts requests on tabs where the user has explicitly attached the debugger.
@@ -106,7 +103,7 @@ Example: https://muostafa.github.io/ExtensionResponseIntercept/privacy-policy.ht
 1. **Main Popup** - Show the extension popup with active rules
 2. **Rule Editor** - Show the options page rule creation form
 3. **Network Monitor** - Show the network request capture feature
-4. **Before/After** - Show a modified API response in DevTools
+4. **Mocked Response** - Show a mocked API response in DevTools
 
 ---
 

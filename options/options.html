@@ -786,12 +786,12 @@
               <h3>Getting Started</h3>
               <ol>
                 <li>Create a new rule with a URL pattern to match</li>
-                <li>Choose how you want to modify the response</li>
+                <li>Enter the mock response body (and optionally status code, headers, delay)</li>
                 <li>
                   Click the extension icon and attach the debugger to a tab
                 </li>
                 <li>
-                  Navigate to URLs matching your pattern to see modifications
+                  Navigate to URLs matching your pattern to see the mock response
                 </li>
               </ol>
             </section>
@@ -808,23 +808,26 @@
             </section>
 
             <section class="help-section">
-              <h3>Modification Types</h3>
+              <h3>What a Rule Can Do</h3>
+              <p>
+                When a request matches a rule, it is answered with a mock
+                response &mdash; the real server is not contacted. Each rule can:
+              </p>
               <ul>
                 <li>
-                  <strong>Replace Entire Body:</strong> Replace the complete
-                  response with your custom content
+                  <strong>Replace the response body:</strong> return your own
+                  JSON, text, or binary content
                 </li>
                 <li>
-                  <strong>Modify JSON Path:</strong> Change specific fields in
-                  JSON responses
+                  <strong>Override the status code:</strong> e.g. return 200,
+                  404, or 500
                 </li>
                 <li>
-                  <strong>Regex Find & Replace:</strong> Use regex to find and
-                  replace text patterns
+                  <strong>Add, set, or remove response headers:</strong> e.g.
+                  CORS headers
                 </li>
                 <li>
-                  <strong>Custom Function:</strong> Write JavaScript to
-                  transform the response
+                  <strong>Delay the response:</strong> simulate slow networks
                 </li>
               </ul>
             </section>

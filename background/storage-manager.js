@@ -2,6 +2,37 @@ import { debounce } from '../shared/debounce.js';
 import { DEBOUNCE_SAVE_MS } from '../shared/constants.js';
 import { debug } from '../shared/debug.js';
 
+// --- Legacy rule migration helpers ---------------------------------------
+// Older versions stored rules with 'json-path' and 'regex' modify types that
+// were never applied to real responses. These helpers convert a 'json-path'
+// rule into the equivalent explicit mock body so existing rules keep producing
+// the same output under the mock-only model.
+
+function parseMaybeJson(value) {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+}
+
+function setNestedProperty(obj, path, value) {
+  if (!obj || typeof obj !== 'object' || !path || typeof path !== 'string') {
+    return;
+  }
+  const keys = path.split('.');
+  let current = obj;
+  for (let i = 0; i < keys.length - 1; i++) {
+    const key = keys[i];
+    if (typeof current[key] !== 'object' || current[key] === null) {
+      current[key] = {};
+    }
+    current = current[key];
+  }
+  const lastKey = keys[keys.length - 1];
+  if (lastKey) current[lastKey] = value;
+}
+
 // Storage Manager - Handles all storage operations
 export class StorageManager {
   constructor() {
@@ -38,6 +69,22 @@ export class StorageManager {
           }
           if (!rule.contentType) {
             rule.contentType = 'application/json';
+            needsUpdate = true;
+          }
+          // Migrate legacy modify types to the mock-only 'replace' model.
+          if (rule.modifyType === 'json-path') {
+            const obj = {};
+            setNestedProperty(obj, rule.modification?.path, parseMaybeJson(rule.modification?.value));
+            rule.modifyType = 'replace';
+            rule.modification = { type: 'json', value: JSON.stringify(obj, null, 2) };
+            needsUpdate = true;
+          } else if (rule.modifyType === 'regex') {
+            // The 'regex' modify type never produced a usable mock body. Convert
+            // it to an empty replace body and disable it so the developer notices.
+            rule.modifyType = 'replace';
+            rule.modification = { type: 'json', value: '{}' };
+            rule.enabled = false;
+            debug.warn(`Rule "${rule.name || rule.id}" used the removed 'regex' modify type and has been disabled; set a mock response body to re-enable it.`);
             needsUpdate = true;
           }
         });
