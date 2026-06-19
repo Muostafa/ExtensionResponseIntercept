@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "API Interceptor - Mock & Modify HTTP Responses",
-  "version": "2.4.0",
+  "version": "2.4.1",
   "description": "Mock API responses & intercept HTTP requests. Override JSON, headers, status codes. Free API mocker & debugger for developers.",
   "permissions": ["debugger", "storage", "activeTab", "contextMenus"],
   "host_permissions": ["<all_urls>"],
