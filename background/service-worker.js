@@ -9,6 +9,10 @@ import { debug } from '../shared/debug.js';
 const MAX_FETCH_URL_BYTES = 10 * 1024 * 1024; // 10 MB cap for fetchUrlAsBase64
 const BADGE_ACTIVE_COLOR = '#16a34a'; // green — tab is being intercepted
 const CONTEXT_MENU_TOGGLE_ID = 'toggle-intercept-tab';
+// chrome.storage.session key holding the tabs currently being intercepted.
+// Session storage survives service-worker termination but is cleared on browser
+// restart — the exact lifetime we want for "which tabs were I intercepting".
+const SESSION_ACTIVE_TABS_KEY = 'interceptedTabs';
 
 class ServiceWorker {
   constructor() {
@@ -50,6 +54,12 @@ class ServiceWorker {
     this.interceptor.onRuleTriggered((notification) => {
       this.handleRuleTriggered(notification);
     });
+
+    // Re-adopt any tabs that were being intercepted before this service-worker
+    // generation started. MV3 recycles the worker aggressively; without this a
+    // surviving debugger session would keep pausing requests that nothing
+    // continues, hanging the page.
+    await this.restoreAttachedTabs();
   }
 
   /**
@@ -181,6 +191,7 @@ class ServiceWorker {
         this.setTabBadge(tabId, '');
       }
       this.syncContextMenuToActiveTab();
+      this.persistActiveTabs();
     });
   }
 
@@ -470,7 +481,17 @@ class ServiceWorker {
         return;
       }
 
-      await chrome.debugger.attach({ tabId }, '1.3');
+      try {
+        await chrome.debugger.attach({ tabId }, '1.3');
+      } catch (attachError) {
+        // "Already attached" means our debugger session outlived a previous
+        // service-worker generation (the SW was recycled but Chrome kept the
+        // session live). We can still drive it, so re-adopt instead of bailing.
+        if (!/already attached/i.test(attachError?.message || '')) {
+          throw attachError;
+        }
+        debug.log(`Re-adopting existing debugger session for tab ${tabId}`);
+      }
       try {
         await chrome.debugger.sendCommand({ tabId }, 'Fetch.enable', {
           patterns: [
@@ -493,6 +514,7 @@ class ServiceWorker {
       // Per-tab toolbar feedback: green "ON" until mocks start firing.
       this.setTabBadge(tabId, 'ON');
       this.syncContextMenuToActiveTab();
+      this.persistActiveTabs();
     } catch (error) {
       debug.error(`Failed to attach debugger to tab ${tabId}:`, error);
     }
@@ -513,10 +535,46 @@ class ServiceWorker {
       this.tabMockCounts.delete(tabId);
       this.setTabBadge(tabId, '');
       this.syncContextMenuToActiveTab();
+      this.persistActiveTabs();
 
       debug.log(`Debugger detached from tab ${tabId}`);
     } catch (error) {
       debug.error(`Failed to detach debugger from tab ${tabId}:`, error);
+    }
+  }
+
+  /**
+   * Mirror the current intercepted-tab set into session storage so a recycled
+   * service worker can re-adopt it. Best-effort and never throws into callers.
+   */
+  persistActiveTabs() {
+    if (!chrome.storage?.session) return;
+    chrome.storage.session
+      .set({ [SESSION_ACTIVE_TABS_KEY]: Array.from(this.activeTabs) })
+      .catch((error) => debug.error('Failed to persist active tabs:', error));
+  }
+
+  /**
+   * Re-attach to tabs that were being intercepted before this service-worker
+   * generation started. Runs once on startup. attachDebuggerToTab re-adopts a
+   * surviving session and skips tabs that have since closed or navigated to a
+   * restricted page, so stale ids self-heal out of the persisted set.
+   */
+  async restoreAttachedTabs() {
+    if (!chrome.storage?.session) return;
+    let tabIds = [];
+    try {
+      const stored = await chrome.storage.session.get(SESSION_ACTIVE_TABS_KEY);
+      tabIds = stored[SESSION_ACTIVE_TABS_KEY] || [];
+    } catch (error) {
+      debug.error('Failed to read persisted active tabs:', error);
+      return;
+    }
+    if (!tabIds.length) return;
+
+    debug.log(`Restoring interception for ${tabIds.length} tab(s) after restart`);
+    for (const tabId of tabIds) {
+      await this.attachDebuggerToTab(tabId);
     }
   }
 }

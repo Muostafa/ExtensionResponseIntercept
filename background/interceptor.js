@@ -82,6 +82,23 @@ export class ResponseInterceptor {
     const tabId = source.tabId;
 
     if (!this.attachedTabs.has(tabId)) {
+      // Event for a tab we aren't tracking. After a service-worker restart our
+      // in-memory state is empty while Chrome may still deliver paused requests
+      // from a debugger session that outlived the worker — ignoring them would
+      // hang the page indefinitely. Let any paused request through best-effort;
+      // startup rehydration re-adopts the tab for real interception a moment
+      // later.
+      if (method === 'Fetch.requestPaused' && params?.requestId != null) {
+        try {
+          await chrome.debugger.sendCommand(
+            { tabId },
+            'Fetch.continueRequest',
+            { requestId: params.requestId }
+          );
+        } catch (error) {
+          debug.log(`Fallback continueRequest failed for tab ${tabId}:`, error?.message);
+        }
+      }
       return;
     }
 
