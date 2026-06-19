@@ -86,6 +86,9 @@ Used to persist user-created interception rules and extension preferences locall
 ### activeTab
 Allows the extension to attach the debugger to the currently active tab when the user explicitly clicks the extension icon. This ensures the extension only operates on tabs the user chooses.
 
+### contextMenus
+Adds a single right-click menu item — a checkbox labeled "Intercept this tab" — shown on the page and on the extension's toolbar icon. It lets the user turn interception on or off for the current tab without opening the popup. The item only toggles the extension's own per-tab interception state; it does not read page content or collect any data.
+
 ### Host Permissions (<all_urls>)
 Since this is a developer tool meant to test APIs on any website or localhost development server, broad host permissions are required. The extension only intercepts requests on tabs where the user has explicitly attached the debugger.
 
