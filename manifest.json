@@ -3,11 +3,16 @@
   "name": "API Interceptor - Mock & Modify HTTP Responses",
   "version": "2.4.0",
   "description": "Mock API responses & intercept HTTP requests. Override JSON, headers, status codes. Free API mocker & debugger for developers.",
-  "permissions": ["debugger", "storage", "activeTab"],
+  "permissions": ["debugger", "storage", "activeTab", "contextMenus"],
   "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "background/service-worker.js",
     "type": "module"
+  },
+  "commands": {
+    "toggle-interception": {
+      "description": "Toggle interception on the current tab"
+    }
   },
   "action": {
     "default_popup": "popup/popup.html",

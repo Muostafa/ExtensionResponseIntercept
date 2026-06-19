@@ -234,6 +234,7 @@
                   <option value="modified">Last Modified</option>
                   <option value="created" selected>Date Created</option>
                   <option value="name">Name</option>
+                  <option value="priority">Priority</option>
                 </select>
               </div>
               <div>
@@ -265,6 +266,29 @@
                   Expand All
                 </button>
               </div>
+            </div>
+          </div>
+
+          <!-- URL conflict tester: which rules match a URL, ranked by priority -->
+          <div class="card conflict-tester" style="margin-bottom: 20px">
+            <button type="button" id="conflictTesterToggle" class="conflict-tester-toggle">
+              <svg class="ct-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+              <span>Test a URL against your rules</span>
+              <span class="ct-hint">See which rule wins when patterns overlap</span>
+            </button>
+            <div id="conflictTesterBody" class="conflict-tester-body" style="display:none">
+              <div class="conflict-tester-row">
+                <select id="conflictTestMethod" class="form-control">
+                  <option value="GET">GET</option>
+                  <option value="POST">POST</option>
+                  <option value="PUT">PUT</option>
+                  <option value="DELETE">DELETE</option>
+                  <option value="PATCH">PATCH</option>
+                </select>
+                <input type="text" id="conflictTestUrl" class="form-control" placeholder="https://api.example.com/users/123">
+                <button type="button" id="conflictTestBtn" class="btn btn-primary">Test</button>
+              </div>
+              <div id="conflictTestResults" class="conflict-test-results"></div>
             </div>
           </div>
 

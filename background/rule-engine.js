@@ -25,6 +25,7 @@
  * @property {HeaderModification[]} [modifyHeaders] - Header modifications applied to the mock
  * @property {number} [modifyStatusCode] - Mock response status code
  * @property {number} [delay] - Response delay in milliseconds
+ * @property {number} [priority] - Match priority; higher wins when several rules match (default 0)
  */
 
 /**
@@ -152,6 +153,11 @@ export class RuleEngine {
         matchingRules.push(rule);
       }
     }
+
+    // Highest priority wins. Array.prototype.sort is stable, so equal
+    // priorities keep insertion order — existing rules (all default 0) behave
+    // exactly as before this field existed.
+    matchingRules.sort((a, b) => (b.priority || 0) - (a.priority || 0));
 
     return matchingRules;
   }

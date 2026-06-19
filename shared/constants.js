@@ -23,3 +23,13 @@ export const MAX_LOGS_PER_TAB = 100;
 
 export const STATUS_CODE_MIN = 100;
 export const STATUS_CODE_MAX = 599;
+
+// Pages the Chrome debugger cannot attach to — interception is unavailable here.
+// Shared by the popup (to disable the toggle) and the background (attach guard +
+// keyboard/context-menu toggle) so both agree on which pages are off-limits.
+export const RESTRICTED_PREFIXES = ['chrome://', 'chrome-extension://', 'edge://', 'about:', 'devtools://', 'view-source:'];
+
+export function isRestrictedUrl(url) {
+  if (!url) return true;
+  return RESTRICTED_PREFIXES.some(p => url.startsWith(p));
+}

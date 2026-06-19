@@ -1,15 +1,8 @@
 import { MESSAGES } from '../../shared/messages.js';
+import { isRestrictedUrl } from '../../shared/constants.js';
 import { debug } from '../../shared/debug.js';
 import { state } from './state.js';
 import { loadRules } from './rules-view.js';
-
-// URLs the Chrome debugger cannot attach to. The toggle is disabled on these.
-const RESTRICTED_PREFIXES = ['chrome://', 'chrome-extension://', 'edge://', 'about:', 'devtools://', 'view-source:'];
-
-function isRestrictedUrl(url) {
-  if (!url) return true;
-  return RESTRICTED_PREFIXES.some(p => url.startsWith(p));
-}
 
 export async function loadStatus() {
   try {

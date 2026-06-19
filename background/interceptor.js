@@ -234,7 +234,7 @@ export class ResponseInterceptor {
             const tabPendingRequests = this.pendingRequests.get(tabId);
             if (tabPendingRequests && tabPendingRequests.has(requestKey)) {
               const logId = tabPendingRequests.get(requestKey);
-              this.updateLogResponseBody(tabId, logId, responseBody, responseStatusCode);
+              this.updateLogResponseBody(tabId, logId, responseBody, responseStatusCode, responseHeaders);
               tabPendingRequests.delete(requestKey);
             }
           }
@@ -381,11 +381,13 @@ export class ResponseInterceptor {
       url: requestData.url,
       method: requestData.method,
       headers: requestData.headers || {},
+      postData: requestData.postData || null, // request body, for the detail view + cURL
       timestamp: requestData.timestamp || Date.now(),
       intercepted: false, // Will be updated if rule matches
       ruleName: null,
       responseBody: null, // Will be populated when response is received
-      responseStatus: null
+      responseStatus: null,
+      responseHeaders: null // Will be populated when response is received
     };
 
     // Check if a rule will intercept this request
@@ -407,9 +409,9 @@ export class ResponseInterceptor {
   }
 
   /**
-   * Update a log entry with the response body
+   * Update a log entry with the response body, status, and headers
    */
-  updateLogResponseBody(tabId, logId, responseBody, statusCode) {
+  updateLogResponseBody(tabId, logId, responseBody, statusCode, responseHeaders) {
     const logs = this.networkLogs.get(tabId);
     if (!logs) return;
 
@@ -418,6 +420,10 @@ export class ResponseInterceptor {
       // Truncate large responses to avoid memory issues
       logEntry.responseBody = this.truncateForStorage(responseBody, STORAGE_RESPONSE_MAX_LENGTH);
       logEntry.responseStatus = statusCode;
+      // Fetch domain gives headers as [{ name, value }]; cap the count defensively.
+      if (Array.isArray(responseHeaders)) {
+        logEntry.responseHeaders = responseHeaders.slice(0, 50);
+      }
 
       // Try to prettify JSON responses
       if (logEntry.responseBody) {

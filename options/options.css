@@ -872,7 +872,7 @@ body {
 
 /* 11 · Options Rules Table ───────────────────────────────────── */
 .options-rules-table {
-  --ort-cols: 1.4fr 1.6fr 110px 90px 60px 218px;
+  --ort-cols: 1.4fr 1.6fr 110px 90px 70px 60px 218px;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   overflow: hidden;
@@ -1016,12 +1016,15 @@ body {
   justify-content: center;
   align-items: center;
 }
-.ort-td-code {
+.ort-td-code,
+.ort-td-priority {
   display: flex;
   align-items: flex-start;
 }
+.ort-td-priority { justify-content: center; }
 
-.ort-status-input {
+.ort-status-input,
+.ort-priority-input {
   width: 68px;
   padding: 3px 6px;
   border: 1px dashed var(--border-color);
@@ -1038,20 +1041,25 @@ body {
   -moz-appearance: textfield;
   cursor: text;
 }
+.ort-priority-input { width: 52px; }
 
 .ort-status-input::-webkit-outer-spin-button,
-.ort-status-input::-webkit-inner-spin-button {
+.ort-status-input::-webkit-inner-spin-button,
+.ort-priority-input::-webkit-outer-spin-button,
+.ort-priority-input::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
 
-.ort-status-input:hover:not(:disabled) {
+.ort-status-input:hover:not(:disabled),
+.ort-priority-input:hover:not(:disabled) {
   border-style: solid;
   border-color: var(--primary);
   background: var(--primary-subtle);
 }
 
-.ort-status-input:focus {
+.ort-status-input:focus,
+.ort-priority-input:focus {
   outline: none;
   border-style: solid;
   border-color: var(--primary);
@@ -1059,13 +1067,98 @@ body {
   box-shadow: 0 0 0 2px var(--primary-ring);
 }
 
-.ort-status-input:disabled {
+.ort-status-input:disabled,
+.ort-priority-input:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
-.ort-status-input::placeholder {
+.ort-status-input::placeholder,
+.ort-priority-input::placeholder {
   color: var(--text-muted);
   font-weight: 400;
+}
+
+/* URL conflict tester */
+.conflict-tester { padding: 0; overflow: hidden; }
+.conflict-tester-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 18px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-align: left;
+}
+.conflict-tester-toggle .ct-hint {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+.conflict-tester-toggle .ct-chevron {
+  transition: transform var(--t-fast);
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.conflict-tester-toggle.open .ct-chevron { transform: rotate(180deg); }
+
+.conflict-tester-body { padding: 0 18px 16px; }
+.conflict-tester-row { display: flex; gap: 8px; align-items: center; }
+.conflict-tester-row #conflictTestMethod { width: auto; flex-shrink: 0; }
+.conflict-tester-row #conflictTestUrl { flex: 1; font-family: "SF Mono", "Consolas", monospace; }
+
+.conflict-test-results { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
+.ct-empty { color: var(--text-muted); font-style: italic; font-size: 13px; }
+.ct-note { color: var(--text-secondary); font-size: 12px; margin-top: 4px; }
+
+.ct-result {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-secondary);
+  font-size: 13px;
+}
+.ct-result.win { border-color: var(--success); background: var(--primary-subtle); }
+.ct-result.shadowed { opacity: 0.85; }
+.ct-result.muted { opacity: 0.55; }
+
+.ct-tag {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 7px;
+  border-radius: var(--radius-xs);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  min-width: 64px;
+  text-align: center;
+}
+.ct-result.win .ct-tag { background: var(--success); color: #fff; }
+.ct-result.shadowed .ct-tag { background: var(--warning); color: #fff; }
+
+.ct-name {
+  font-weight: 600; color: var(--text-primary); flex-shrink: 0;
+  max-width: 30%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ct-pattern {
+  font-family: "SF Mono", "Consolas", monospace; font-size: 12px;
+  color: var(--text-secondary); flex: 1;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ct-prio {
+  flex-shrink: 0; font-family: "SF Mono", "Consolas", monospace;
+  font-size: 11px; font-weight: 700; color: var(--text-muted);
 }
 
 .ort-td-actions {

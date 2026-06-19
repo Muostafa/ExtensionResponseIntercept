@@ -101,6 +101,8 @@ function sortAndFilterRules(rules) {
       comparison = (a.createdAt || 0) - (b.createdAt || 0);
     } else if (sortBy === 'name') {
       comparison = (a.name || '').localeCompare(b.name || '');
+    } else if (sortBy === 'priority') {
+      comparison = (a.priority || 0) - (b.priority || 0);
     }
 
     return sortOrder === 'desc' ? -comparison : comparison;
@@ -191,6 +193,7 @@ export function displayRules(rules) {
                 <div class="ort-th">URL Pattern</div>
                 <div class="ort-th">Methods</div>
                 <div class="ort-th">Status Code</div>
+                <div class="ort-th ort-th-center">Priority</div>
                 <div class="ort-th ort-th-center">On/Off</div>
                 <div class="ort-th">Actions</div>
               </div>
@@ -292,6 +295,12 @@ function renderRuleCard(rule, group) {
         <input type="number" class="ort-status-input" data-rule-id="${rule.id}"
           value="${rule.modifyStatusCode || ''}" placeholder="—"
           min="100" max="599" ${isGroupDisabled ? 'disabled' : ''}>
+      </div>
+      <div class="ort-td ort-td-priority">
+        <input type="number" class="ort-priority-input" data-rule-id="${rule.id}"
+          value="${rule.priority || ''}" placeholder="0"
+          min="0" max="999" ${isGroupDisabled ? 'disabled' : ''}
+          title="Match priority — higher wins when several rules match the same request">
       </div>
       <div class="ort-td ort-td-toggle">
         <div class="toggle-switch-small">
@@ -455,6 +464,47 @@ function attachRuleEventListeners() {
       if (e.key === 'Escape') {
         const rule = (window.currentRules || []).find(r => r.id === e.target.dataset.ruleId);
         e.target.value = rule?.modifyStatusCode || '';
+        e.target.blur();
+      }
+    });
+  });
+
+  document.querySelectorAll('.ort-priority-input').forEach(input => {
+    const save = async (e) => {
+      const ruleId = e.target.dataset.ruleId;
+      const raw = e.target.value.trim();
+      const rule = (window.currentRules || []).find(r => r.id === ruleId);
+      if (!rule) return;
+
+      const updated = { ...rule };
+      if (!raw) {
+        updated.priority = 0;
+      } else {
+        const p = parseInt(raw, 10);
+        if (isNaN(p) || p < 0 || p > 999) {
+          e.target.value = rule.priority || '';
+          showToast('Priority must be 0–999', 'error');
+          return;
+        }
+        updated.priority = p;
+      }
+
+      try {
+        await chrome.runtime.sendMessage({ action: MESSAGES.UPDATE_RULE, ruleId, rule: updated });
+        const idx = (window.currentRules || []).findIndex(r => r.id === ruleId);
+        if (idx !== -1) window.currentRules[idx] = updated;
+        showToast('Priority saved', 'success');
+      } catch (err) {
+        showToast('Failed to save priority', 'error');
+      }
+    };
+
+    input.addEventListener('change', save);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') e.target.blur();
+      if (e.key === 'Escape') {
+        const rule = (window.currentRules || []).find(r => r.id === e.target.dataset.ruleId);
+        e.target.value = rule?.priority || '';
         e.target.blur();
       }
     });

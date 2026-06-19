@@ -3,11 +3,12 @@
 import { debounce } from '../shared/debounce.js';
 import { loadTheme as loadThemeShared, toggleTheme as toggleThemeShared } from '../shared/theme.js';
 import { testUrlPattern } from '../shared/url-matching.js';
+import { escapeHtml } from '../shared/dom.js';
 import { SEARCH_DEBOUNCE_MS } from '../shared/constants.js';
 import { confirmModal } from '../shared/confirm-modal.js';
 import { MESSAGES } from '../shared/messages.js';
 
-import { state } from './modules/state.js';
+import { state, groupsState } from './modules/state.js';
 import { showToast } from './modules/toast.js';
 import { setupNavigation, showTab } from './modules/navigation.js';
 import { loadGroups, openGroupModal, saveGroup, closeGroupModal, closeDeleteGroupModal, confirmDeleteGroup } from './modules/groups.js';
@@ -252,6 +253,79 @@ function setupEventListeners() {
   document.getElementById('testUrlBtn')?.addEventListener('click', runUrlTest);
   document.getElementById('testUrlInput')?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') { e.preventDefault(); runUrlTest(); }
+  });
+
+  // URL conflict tester — list every rule that matches a URL, ranked by the
+  // same priority order the engine uses, so overlaps/shadowing are visible.
+  const conflictToggle = document.getElementById('conflictTesterToggle');
+  conflictToggle?.addEventListener('click', () => {
+    const body = document.getElementById('conflictTesterBody');
+    if (!body) return;
+    const isHidden = body.style.display === 'none';
+    body.style.display = isHidden ? 'block' : 'none';
+    conflictToggle.classList.toggle('open', isHidden);
+  });
+
+  function ruleIsEffective(rule) {
+    if (!rule.enabled) return false;
+    if (rule.groupId) {
+      const g = groupsState.list.find(x => x.id === rule.groupId);
+      if (!g || !g.enabled) return false;
+    }
+    return true;
+  }
+
+  function runConflictTest() {
+    const url = document.getElementById('conflictTestUrl')?.value.trim();
+    const method = document.getElementById('conflictTestMethod')?.value || 'GET';
+    const resultsEl = document.getElementById('conflictTestResults');
+    if (!resultsEl) return;
+
+    if (!url) {
+      resultsEl.innerHTML = '<div class="ct-empty">Enter a URL to test.</div>';
+      return;
+    }
+
+    const matches = (window.currentRules || [])
+      .filter(r => {
+        const methodOk = !r.methods || r.methods.length === 0 || r.methods.includes(method);
+        return methodOk && testUrlPattern(url, r.urlPattern, r.matchType) === true;
+      })
+      .sort((a, b) => (b.priority || 0) - (a.priority || 0)); // higher wins, stable
+
+    if (matches.length === 0) {
+      resultsEl.innerHTML = '<div class="ct-empty">No rules match this request.</div>';
+      return;
+    }
+
+    let winnerFound = false;
+    let rows = matches.map(r => {
+      const effective = ruleIsEffective(r);
+      let tag, cls;
+      if (effective && !winnerFound) { tag = 'Wins'; cls = 'win'; winnerFound = true; }
+      else if (effective) { tag = 'Shadowed'; cls = 'shadowed'; }
+      else if (!r.enabled) { tag = 'Disabled'; cls = 'muted'; }
+      else { tag = 'Group off'; cls = 'muted'; }
+      return `
+        <div class="ct-result ${cls}">
+          <span class="ct-tag">${tag}</span>
+          <span class="ct-name">${escapeHtml(r.name)}</span>
+          <span class="ct-pattern">${escapeHtml(r.urlPattern)}</span>
+          <span class="ct-prio" title="Priority">P${r.priority || 0}</span>
+        </div>`;
+    }).join('');
+
+    if (!winnerFound) {
+      rows += '<div class="ct-note">All matching rules are disabled — nothing would be mocked.</div>';
+    } else if (matches.length > 1) {
+      rows += '<div class="ct-note">Only the “Wins” rule is served. Raise a rule’s Priority to make it win.</div>';
+    }
+    resultsEl.innerHTML = rows;
+  }
+
+  document.getElementById('conflictTestBtn')?.addEventListener('click', runConflictTest);
+  document.getElementById('conflictTestUrl')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); runConflictTest(); }
   });
 
   // Add new rule + empty-state buttons

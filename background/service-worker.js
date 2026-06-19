@@ -3,9 +3,12 @@ import { StorageManager } from './storage-manager.js';
 import { RuleEngine } from './rule-engine.js';
 import { ResponseInterceptor } from './interceptor.js';
 import { MESSAGES } from '../shared/messages.js';
+import { isRestrictedUrl } from '../shared/constants.js';
 import { debug } from '../shared/debug.js';
 
 const MAX_FETCH_URL_BYTES = 10 * 1024 * 1024; // 10 MB cap for fetchUrlAsBase64
+const BADGE_ACTIVE_COLOR = '#16a34a'; // green — tab is being intercepted
+const CONTEXT_MENU_TOGGLE_ID = 'toggle-intercept-tab';
 
 class ServiceWorker {
   constructor() {
@@ -21,6 +24,10 @@ class ServiceWorker {
     // we never write storage on the hot interception path. Surfaced as the
     // "fired N× · ago" chip in the options rules table.
     this.ruleStats = new Map();
+    // Per-tab count of mocks served, keyed by tabId. Drives the toolbar badge
+    // ("ON" until the first mock, then the running count). In-memory only and
+    // reset when a tab loads a new document.
+    this.tabMockCounts = new Map();
     // Register listeners synchronously so messages aren't dropped while storage loads
     this.setupListeners();
     this.initPromise = this.init();
@@ -66,6 +73,13 @@ class ServiceWorker {
       });
     }
 
+    // Surface live activity on the toolbar badge for the tab that fired.
+    if (notification.tabId != null && this.activeTabs.has(notification.tabId)) {
+      const count = (this.tabMockCounts.get(notification.tabId) || 0) + 1;
+      this.tabMockCounts.set(notification.tabId, count);
+      this.setTabBadge(notification.tabId, String(count));
+    }
+
     // Send notification to all extension pages (popup, options)
     this.broadcastNotification(notification);
   }
@@ -94,17 +108,31 @@ class ServiceWorker {
   }
 
   setupListeners() {
-    // Handle tab updates (navigation) — re-attach on 'complete' for previously-attached tabs
+    // Create / refresh the right-click toggle (idempotent: removeAll first).
+    this.setupContextMenu();
+
+    // Handle tab updates (navigation)
     chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-      if (changeInfo.status === 'complete' && this.tabsToReattach.has(tabId)) {
+      if (changeInfo.status !== 'complete') return;
+      if (this.tabsToReattach.has(tabId)) {
+        // Re-attach on 'complete' for previously-attached tabs
         this.tabsToReattach.delete(tabId);
         this.attachDebuggerToTab(tabId);
+      } else if (this.activeTabs.has(tabId)) {
+        // New document on an already-attached tab → reset the per-page mock count.
+        this.tabMockCounts.set(tabId, 0);
+        this.setTabBadge(tabId, 'ON');
       }
+      if (tab?.active) this.syncContextMenuToActiveTab();
     });
+
+    // Keep the context-menu checkbox in sync with whichever tab is active.
+    chrome.tabs.onActivated.addListener(() => this.syncContextMenuToActiveTab());
 
     // Handle tab removal
     chrome.tabs.onRemoved.addListener((tabId) => {
       this.tabsToReattach.delete(tabId);
+      this.tabMockCounts.delete(tabId);
       this.detachDebuggerFromTab(tabId);
     });
 
@@ -114,6 +142,26 @@ class ServiceWorker {
       return true; // Keep channel open for async response
     });
 
+    // Keyboard shortcut (Alt+Shift+I) — toggle interception on the active tab.
+    chrome.commands?.onCommand.addListener(async (command) => {
+      if (command !== 'toggle-interception') return;
+      try {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        await this.toggleInterceptionForTab(tab);
+      } catch (error) {
+        debug.error('Command toggle-interception failed:', error);
+      }
+    });
+
+    // Right-click toggle — acts on the tab the menu was invoked from.
+    chrome.contextMenus?.onClicked.addListener(async (info, tab) => {
+      if (info.menuItemId !== CONTEXT_MENU_TOGGLE_ID) return;
+      await this.toggleInterceptionForTab(tab);
+    });
+
+    // (Re)create the context menu on install/update.
+    chrome.runtime.onInstalled.addListener(() => this.setupContextMenu());
+
     // Flush debounced saves before the service worker is suspended
     chrome.runtime.onSuspend.addListener(() => {
       this.storageManager.flushPendingSaves();
@@ -121,12 +169,74 @@ class ServiceWorker {
 
     // Handle debugger detach — queue re-attach unless user explicitly detached
     chrome.debugger.onDetach.addListener((source, reason) => {
-      debug.log(`Debugger detached from tab ${source.tabId}: ${reason}`);
-      this.activeTabs.delete(source.tabId);
+      const tabId = source.tabId;
+      if (tabId == null) return;
+      debug.log(`Debugger detached from tab ${tabId}: ${reason}`);
+      this.activeTabs.delete(tabId);
+      this.tabMockCounts.delete(tabId);
       if (reason !== 'canceled_by_user') {
-        this.tabsToReattach.add(source.tabId);
+        this.tabsToReattach.add(tabId);
+      } else {
+        // DevTools/user took over the debugger — reflect OFF on the badge.
+        this.setTabBadge(tabId, '');
       }
+      this.syncContextMenuToActiveTab();
     });
+  }
+
+  /**
+   * Set (or clear, with text='') the per-tab toolbar badge. Never throws into
+   * the caller — the tab may already be gone.
+   */
+  setTabBadge(tabId, text) {
+    chrome.action.setBadgeText({ tabId, text }).catch(() => {});
+    if (text) {
+      chrome.action.setBadgeBackgroundColor({ tabId, color: BADGE_ACTIVE_COLOR }).catch(() => {});
+    }
+  }
+
+  /** Create the single checkbox context-menu item (idempotent). */
+  setupContextMenu() {
+    if (!chrome.contextMenus) return;
+    chrome.contextMenus.removeAll(() => {
+      void chrome.runtime.lastError; // ignore "no items" on first run
+      chrome.contextMenus.create({
+        id: CONTEXT_MENU_TOGGLE_ID,
+        title: 'Intercept this tab',
+        type: 'checkbox',
+        checked: false,
+        contexts: ['action', 'page']
+      }, () => void chrome.runtime.lastError);
+    });
+  }
+
+  /** Reflect the active tab's real attachment state in the context-menu checkbox. */
+  async syncContextMenuToActiveTab() {
+    if (!chrome.contextMenus) return;
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!tab?.id) return;
+      await chrome.contextMenus.update(CONTEXT_MENU_TOGGLE_ID, {
+        checked: this.activeTabs.has(tab.id)
+      });
+    } catch {
+      // Menu not created yet or update failed — non-fatal.
+    }
+  }
+
+  /** Toggle interception for a tab, respecting restricted pages. Per-tab only. */
+  async toggleInterceptionForTab(tab) {
+    if (!tab?.id) return;
+    if (isRestrictedUrl(tab.url)) {
+      debug.log('Interception toggle ignored on restricted page:', tab.url);
+      this.syncContextMenuToActiveTab(); // revert any optimistic checkbox flip
+      return;
+    }
+    if (this.activeTabs.has(tab.id)) {
+      await this.detachDebuggerFromTab(tab.id);
+    } else {
+      await this.attachDebuggerToTab(tab.id);
+    }
   }
 
   async safeHandle(sendResponse, fn) {
@@ -356,7 +466,7 @@ class ServiceWorker {
 
       // Skip protected URLs that reject debugger attachment
       const tab = await chrome.tabs.get(tabId).catch(() => null);
-      if (!tab || tab.url?.startsWith('chrome://') || tab.url?.startsWith('chrome-extension://')) {
+      if (!tab || isRestrictedUrl(tab.url)) {
         return;
       }
 
@@ -376,18 +486,13 @@ class ServiceWorker {
 
       this.activeTabs.add(tabId);
       this.interceptor.attachToTab(tabId);
+      this.tabMockCounts.set(tabId, 0);
 
       debug.log(`Debugger attached to tab ${tabId}`);
 
-      // Update icon to show active state
-      chrome.action.setIcon({
-        tabId: tabId,
-        path: {
-          16: 'icons/icon16.png',
-          48: 'icons/icon48.png',
-          128: 'icons/icon128.png'
-        }
-      });
+      // Per-tab toolbar feedback: green "ON" until mocks start firing.
+      this.setTabBadge(tabId, 'ON');
+      this.syncContextMenuToActiveTab();
     } catch (error) {
       debug.error(`Failed to attach debugger to tab ${tabId}:`, error);
     }
@@ -405,6 +510,9 @@ class ServiceWorker {
       await chrome.debugger.detach({ tabId });
       this.activeTabs.delete(tabId);
       this.interceptor.detachFromTab(tabId);
+      this.tabMockCounts.delete(tabId);
+      this.setTabBadge(tabId, '');
+      this.syncContextMenuToActiveTab();
 
       debug.log(`Debugger detached from tab ${tabId}`);
     } catch (error) {

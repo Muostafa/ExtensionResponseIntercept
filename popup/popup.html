@@ -208,6 +208,24 @@
         <input type="text" id="networkSearchInput" class="search-input" placeholder="Filter by URL or method...">
       </div>
 
+      <div class="network-filter-chips" id="networkFilterChips">
+        <div class="nfc-group" data-filter="method">
+          <button type="button" class="nfc-chip active" data-method="">All</button>
+          <button type="button" class="nfc-chip" data-method="GET">GET</button>
+          <button type="button" class="nfc-chip" data-method="POST">POST</button>
+          <button type="button" class="nfc-chip" data-method="PUT">PUT</button>
+          <button type="button" class="nfc-chip" data-method="DELETE">DEL</button>
+          <button type="button" class="nfc-chip" data-method="PATCH">PATCH</button>
+        </div>
+        <div class="nfc-group" data-filter="status">
+          <button type="button" class="nfc-chip active" data-status="">Any</button>
+          <button type="button" class="nfc-chip" data-status="2xx">2xx</button>
+          <button type="button" class="nfc-chip" data-status="3xx">3xx</button>
+          <button type="button" class="nfc-chip" data-status="4xx">4xx</button>
+          <button type="button" class="nfc-chip" data-status="5xx">5xx</button>
+        </div>
+      </div>
+
       <div id="networkLogsList" class="network-logs-list">
         <!-- Network logs will be populated here -->
       </div>
