@@ -1,16 +1,21 @@
 import { isBinaryContentType } from '../shared/content-types.js';
 import { base64Encode, base64Decode } from '../shared/base64.js';
 import { sleep, withTimeout } from '../shared/async-utils.js';
-import { getContentType, convertHeaders, applyHeaderModifications } from '../shared/headers.js';
+import { getContentType, convertHeaders, headersToArray, applyHeaderModifications } from '../shared/headers.js';
 import { debug } from '../shared/debug.js';
+import { debounce } from '../shared/debounce.js';
 import {
   REQUEST_TIMEOUT_MS,
   CLEANUP_INTERVAL_MS,
-  RESPONSE_TRUNCATE_LENGTH,
   STORAGE_RESPONSE_MAX_LENGTH,
   MAX_TABS,
   MAX_LOGS_PER_TAB,
+  NETWORK_LOG_PERSIST_DEBOUNCE_MS,
+  SESSION_RESPONSE_MAX_LENGTH,
+  SESSION_LOGS_MAX_CHARS,
 } from '../shared/constants.js';
+
+const SESSION_LOGS_KEY = 'networkLogs';
 
 // Response Interceptor - Intercepts and modifies network responses using Chrome Debugger API
 export class ResponseInterceptor {
@@ -18,10 +23,20 @@ export class ResponseInterceptor {
     this.ruleEngine = ruleEngine;
     this.storageManager = storageManager;
     this.attachedTabs = new Map();
+    // tabId -> Map<cdpRequestId, { logId, startedAt, status, headers, mimeType }>
+    // Keyed by the CDP request id, not url+method — two concurrent identical
+    // requests (StrictMode double-fetch, polling) used to collide and lose a body.
     this.pendingRequests = new Map();
+    // tabId -> Map<cdpRequestId, ruleName>, for mocks whose Network event hasn't
+    // arrived yet. See markLogIntercepted().
+    this.interceptMarks = new Map();
     this.networkLogs = new Map();
     this.ruleTriggeredCallbacks = [];
     this.isLoggingEnabled = true;
+    this.persistLogsDebounced = debounce(
+      () => this.persistNetworkLogs(),
+      NETWORK_LOG_PERSIST_DEBOUNCE_MS
+    );
     this.setupDebuggerListener();
     this.startPeriodicCleanup();
   }
@@ -74,8 +89,19 @@ export class ResponseInterceptor {
   detachFromTab(tabId) {
     if (this.attachedTabs.has(tabId)) {
       this.attachedTabs.delete(tabId);
+      this.forgetInFlight(tabId);
       debug.log(`Response interceptor detached from tab ${tabId}`);
     }
+  }
+
+  /**
+   * Drop the in-flight request bookkeeping for a tab (but keep its logs — the
+   * user may still want to mock from them). Anything keyed by CDP requestId is
+   * meaningless once the debugger session for the tab is gone.
+   */
+  forgetInFlight(tabId) {
+    this.pendingRequests.delete(tabId);
+    this.interceptMarks.delete(tabId);
   }
 
   async handleDebuggerEvent(source, method, params) {
@@ -104,17 +130,25 @@ export class ResponseInterceptor {
 
     try {
       switch (method) {
+        // Fetch domain: mocking only. Requests are paused here, so the work in
+        // this branch is on the page's critical path — keep it minimal.
         case 'Fetch.requestPaused':
           await this.handleRequestPaused(tabId, params);
           break;
 
-        case 'Fetch.authRequired':
-          // Continue with auth if needed
-          await chrome.debugger.sendCommand(
-            { tabId },
-            'Fetch.continueWithAuth',
-            { requestId: params.requestId, authChallengeResponse: { response: 'Default' } }
-          );
+        // Network domain: observation only. Nothing here blocks the page, so
+        // this is where all the logging lives.
+        case 'Network.requestWillBeSent':
+          this.handleNetworkRequestWillBeSent(tabId, params);
+          break;
+        case 'Network.responseReceived':
+          this.handleNetworkResponseReceived(tabId, params);
+          break;
+        case 'Network.loadingFinished':
+          await this.handleNetworkLoadingFinished(tabId, params);
+          break;
+        case 'Network.loadingFailed':
+          this.handleNetworkLoadingFailed(tabId, params);
           break;
       }
     } catch (error) {
@@ -122,154 +156,248 @@ export class ResponseInterceptor {
     }
   }
 
+  // ── Fetch domain: mock or get out of the way ───────────────────────────
+  //
+  // Only the Request stage is enabled (see service-worker attachDebuggerToTab).
+  // The Response stage used to be enabled purely so we could read bodies for the
+  // network log — but that held *every* response while awaiting
+  // Fetch.getResponseBody behind a 5s timeout, which never resolves for a
+  // stream, so SSE / long-poll / video stalled for the full timeout. Logging now
+  // happens on the Network domain instead, and nothing is paused to read a body.
+
   async handleRequestPaused(tabId, params) {
-    const { requestId, request, responseStatusCode, responseHeaders } = params;
+    const { requestId, request, networkId } = params;
     const url = request.url;
     const method = request.method;
 
-    // REQUEST STAGE - intercepting before the request is sent
-    if (!responseStatusCode) {
-      debug.log(`Intercepted request: ${method} ${url}`);
+    try {
+      const matchingRules = this.ruleEngine.findMatchingRules(url, method);
 
-      const startTime = Date.now();
+      if (matchingRules.length === 0) {
+        await chrome.debugger.sendCommand({ tabId }, 'Fetch.continueRequest', { requestId });
+        return;
+      }
 
-      // Log the network request for "Create Rule from Network" feature
-      const logId = this.logNetworkRequest(tabId, {
-        url,
-        method,
-        headers: request.headers,
-        postData: request.postData,
-        timestamp: startTime
+      const rule = matchingRules[0];
+      debug.log(`✓ Mocking ${method} ${url} with rule "${rule.name}"`);
+
+      // Requests that a page's own service worker originates arrive with no
+      // networkId, so the Network domain never saw them — log them from here.
+      this.markLogIntercepted(tabId, networkId, rule.name, {
+        url, method, headers: request.headers, postData: request.postData
       });
 
-      // Track this request so we can update the log with response body later
-      if (!this.pendingRequests.has(tabId)) {
-        this.pendingRequests.set(tabId, new Map());
+      if (rule.delay && rule.delay > 0) {
+        debug.log(`⏱ Delaying response by ${rule.delay}ms`);
+        await sleep(rule.delay);
       }
-      this.pendingRequests.get(tabId).set(url + '|' + method, logId);
 
+      const { body: mockBody, alreadyBase64 } = await this.generateMockResponse(rule, url, method);
+      const mockStatusCode = rule.modifyStatusCode || 200;
+      const mockHeaders = this.buildResponseHeaders(rule);
+
+      // Binary bodies arrive as raw base64 and must not be re-encoded.
+      let base64Body;
       try {
-        // Check if any rules match this request
-        const matchingRules = this.ruleEngine.findMatchingRules(url, method);
+        base64Body = alreadyBase64 ? mockBody : base64Encode(mockBody);
+      } catch (encodeError) {
+        debug.error('Failed to encode response body:', encodeError);
+        await chrome.debugger.sendCommand({ tabId }, 'Fetch.continueRequest', { requestId });
+        return;
+      }
 
-        if (matchingRules.length > 0) {
-          const rule = matchingRules[0];
+      this.notifyRuleTriggered(tabId, rule, url, 'intercepted', method);
 
-          // Handle MOCK RESPONSE
-          debug.log(`✓ Blocking request and returning mock response for ${url} using rule "${rule.name}"`);
+      await chrome.debugger.sendCommand({ tabId }, 'Fetch.fulfillRequest', {
+        requestId,
+        responseCode: mockStatusCode,
+        responseHeaders: convertHeaders(mockHeaders),
+        body: base64Body
+      });
+    } catch (error) {
+      debug.error(`Error processing request for ${url}:`, error);
+      // Never leave a request hanging — the page would stall forever.
+      try {
+        await chrome.debugger.sendCommand({ tabId }, 'Fetch.continueRequest', { requestId });
+      } catch (continueError) {
+        debug.error('Failed to continue request:', continueError);
+      }
+    }
+  }
 
-          // Apply delay if specified
-          if (rule.delay && rule.delay > 0) {
-            debug.log(`⏱ Delaying response by ${rule.delay}ms`);
-            await sleep(rule.delay);
-          }
+  // ── Network domain: passive logging ────────────────────────────────────
 
-          // Generate mock response based on rule
-          const { body: mockBody, alreadyBase64 } = await this.generateMockResponse(rule, url, method);
-          const mockStatusCode = rule.modifyStatusCode || 200;
-          const mockHeaders = this.buildResponseHeaders(rule);
+  /** Index of CDP requestId -> in-flight log state, per tab. */
+  getRequestIndex(tabId) {
+    if (!this.pendingRequests.has(tabId)) this.pendingRequests.set(tabId, new Map());
+    return this.pendingRequests.get(tabId);
+  }
 
-          // Encode the mock body (skip if body is already raw base64, e.g. for binary types)
-          let base64Body;
-          try {
-            base64Body = alreadyBase64 ? mockBody : base64Encode(mockBody);
-          } catch (encodeError) {
-            debug.error('Failed to encode response body:', encodeError);
-            // Continue with normal request on encoding failure
-            await chrome.debugger.sendCommand(
-              { tabId },
-              'Fetch.continueRequest',
-              { requestId }
-            );
-            return;
-          }
+  handleNetworkRequestWillBeSent(tabId, params) {
+    // A redirect leg re-uses the same requestId and carries no body of its own.
+    if (params.redirectResponse) return;
 
-          // Notify about the interception
-          this.notifyRuleTriggered(tabId, rule, url, 'intercepted', method);
+    const { request } = params;
+    if (!request?.url) return;
 
-          // Fulfill with mock response immediately (no server request made)
-          await chrome.debugger.sendCommand(
-            { tabId },
-            'Fetch.fulfillRequest',
-            {
-              requestId,
-              responseCode: mockStatusCode,
-              responseHeaders: convertHeaders(mockHeaders),
-              body: base64Body
-            }
-          );
-        } else {
-          // No rules match, continue with normal request
-          await chrome.debugger.sendCommand(
-            { tabId },
-            'Fetch.continueRequest',
-            { requestId }
-          );
-        }
-      } catch (error) {
-        debug.error(`Error processing request for ${url}:`, error);
+    const logId = this.logNetworkRequest(tabId, {
+      url: request.url,
+      method: request.method,
+      headers: request.headers,
+      postData: request.postData || null,
+      // wallTime is seconds since epoch; timestamp is a monotonic clock we keep
+      // for computing duration against loadingFinished.
+      timestamp: params.wallTime ? Math.round(params.wallTime * 1000) : Date.now(),
+    });
+    if (!logId) return; // logging disabled
 
-        // Continue with normal request on error
-        try {
-          await chrome.debugger.sendCommand(
-            { tabId },
-            'Fetch.continueRequest',
-            { requestId }
-          );
-        } catch (continueError) {
-          debug.error('Failed to continue request:', continueError);
-        }
+    this.getRequestIndex(tabId).set(params.requestId, {
+      logId,
+      startedAt: params.timestamp,
+    });
+
+    // A large request body isn't inlined on the event — it has to be asked for.
+    // Best-effort: it only feeds the detail view and "Copy as cURL".
+    if (request.hasPostData && !request.postData) {
+      this.fetchRequestPostData(tabId, params.requestId, logId);
+    }
+
+    // Fetch.requestPaused may have already decided to mock this one — CDP
+    // doesn't order the two events. Pick up the flag it left us.
+    const marks = this.getInterceptMarks(tabId);
+    const ruleName = marks.get(params.requestId);
+    if (ruleName !== undefined) {
+      marks.delete(params.requestId);
+      this.applyToLog(tabId, logId, (entry) => {
+        entry.intercepted = true;
+        entry.ruleName = ruleName;
+      });
+    }
+  }
+
+  async fetchRequestPostData(tabId, requestId, logId) {
+    try {
+      const res = await chrome.debugger.sendCommand(
+        { tabId }, 'Network.getRequestPostData', { requestId }
+      );
+      if (res?.postData) {
+        this.applyToLog(tabId, logId, (entry) => {
+          entry.postData = this.truncateForStorage(res.postData, STORAGE_RESPONSE_MAX_LENGTH);
+        });
+      }
+    } catch (error) {
+      debug.log(`No request post data for ${requestId}:`, error?.message);
+    }
+  }
+
+  handleNetworkResponseReceived(tabId, params) {
+    const pending = this.getRequestIndex(tabId).get(params.requestId);
+    if (!pending) return;
+
+    const response = params.response || {};
+    pending.status = response.status;
+    // Network gives headers as an object map; the popup expects [{name, value}].
+    pending.headers = headersToArray(response.headers);
+    pending.mimeType = response.mimeType || '';
+  }
+
+  async handleNetworkLoadingFinished(tabId, params) {
+    const index = this.getRequestIndex(tabId);
+    const pending = index.get(params.requestId);
+    if (!pending) return;
+    index.delete(params.requestId);
+
+    const duration = pending.startedAt != null && params.timestamp != null
+      ? Math.max(0, Math.round((params.timestamp - pending.startedAt) * 1000))
+      : null;
+
+    // Only text-ish bodies are worth capturing — they're what you'd mock.
+    const contentType = pending.mimeType || getContentType(pending.headers || []);
+    const isTextual = /json|text|javascript|xml/i.test(contentType);
+
+    if (!isTextual) {
+      this.updateLogResponseBody(tabId, pending.logId, null, pending.status, pending.headers, duration);
+      return;
+    }
+
+    try {
+      // Must be called on loadingFinished — on responseReceived the body isn't
+      // in the buffer yet, and after a navigation it's already been evicted.
+      const body = await withTimeout(
+        chrome.debugger.sendCommand({ tabId }, 'Network.getResponseBody', { requestId: params.requestId }),
+        REQUEST_TIMEOUT_MS,
+        'Network.getResponseBody'
+      );
+
+      const responseBody = body?.base64Encoded ? base64Decode(body.body) : body?.body;
+      this.updateLogResponseBody(tabId, pending.logId, responseBody || null, pending.status, pending.headers, duration);
+    } catch (error) {
+      // Evicted, streamed, or otherwise unavailable. Record what we do have —
+      // unlike the old Fetch path, failing here costs the page nothing.
+      debug.log(`No response body for request ${params.requestId}:`, error?.message);
+      this.updateLogResponseBody(tabId, pending.logId, null, pending.status, pending.headers, duration);
+    }
+  }
+
+  handleNetworkLoadingFailed(tabId, params) {
+    const index = this.getRequestIndex(tabId);
+    const pending = index.get(params.requestId);
+    if (!pending) return;
+    index.delete(params.requestId);
+    this.updateLogResponseBody(tabId, pending.logId, null, pending.status ?? null, pending.headers ?? null, null);
+  }
+
+  /**
+   * Flag the log entry for a mocked request.
+   *
+   * `networkId` on Fetch.requestPaused is the same id as Network's requestId —
+   * that's the join between the two domains. Two wrinkles:
+   *
+   *  - CDP does NOT guarantee that Network.requestWillBeSent arrives before
+   *    Fetch.requestPaused (Puppeteer keeps maps for both orderings for exactly
+   *    this reason). If we get here first, leave a mark for the Network handler
+   *    to pick up rather than logging a second, duplicate entry.
+   *  - Requests a page's own service worker originates have no networkId at
+   *    all, so the Network domain never sees them. Those we log from here.
+   */
+  markLogIntercepted(tabId, networkId, ruleName, requestData) {
+    if (networkId == null) {
+      const logId = this.logNetworkRequest(tabId, { ...requestData, timestamp: Date.now() });
+      if (logId) {
+        this.applyToLog(tabId, logId, (entry) => {
+          entry.intercepted = true;
+          entry.ruleName = ruleName;
+        });
       }
       return;
     }
 
-    // RESPONSE STAGE - intercepting after the response is received
-    // Capture the response body for the "Create Rule from Network" feature
-    try {
-      const contentType = getContentType(responseHeaders);
-      const isJsonOrText = contentType.includes('json') ||
-                           contentType.includes('text') ||
-                           contentType.includes('javascript') ||
-                           contentType.includes('xml');
-
-      if (isJsonOrText) {
-        // Get the response body
-        try {
-          const bodyResponse = await withTimeout(
-            chrome.debugger.sendCommand({ tabId }, 'Fetch.getResponseBody', { requestId }),
-            REQUEST_TIMEOUT_MS,
-            'Fetch.getResponseBody'
-          );
-
-          if (bodyResponse && bodyResponse.body) {
-            const responseBody = bodyResponse.base64Encoded
-              ? base64Decode(bodyResponse.body)
-              : bodyResponse.body;
-
-            // Find and update the corresponding log entry
-            const requestKey = url + '|' + method;
-            const tabPendingRequests = this.pendingRequests.get(tabId);
-            if (tabPendingRequests && tabPendingRequests.has(requestKey)) {
-              const logId = tabPendingRequests.get(requestKey);
-              this.updateLogResponseBody(tabId, logId, responseBody, responseStatusCode, responseHeaders);
-              tabPendingRequests.delete(requestKey);
-            }
-          }
-        } catch (bodyError) {
-          // Some responses may not have a body, that's okay
-          debug.log(`Could not get response body for ${url}:`, bodyError.message);
-        }
-      }
-    } catch (error) {
-      debug.error(`Error capturing response for ${url}:`, error);
+    const pending = this.getRequestIndex(tabId).get(networkId);
+    if (pending) {
+      this.applyToLog(tabId, pending.logId, (entry) => {
+        entry.intercepted = true;
+        entry.ruleName = ruleName;
+      });
+      return;
     }
 
-    // Continue with the response
-    await chrome.debugger.sendCommand(
-      { tabId },
-      'Fetch.continueRequest',
-      { requestId }
-    );
+    // We beat the Network event — hand the flag off to it.
+    this.getInterceptMarks(tabId).set(networkId, ruleName);
+  }
+
+  /** networkId -> ruleName, for mocks whose Network.requestWillBeSent hasn't landed yet. */
+  getInterceptMarks(tabId) {
+    if (!this.interceptMarks.has(tabId)) this.interceptMarks.set(tabId, new Map());
+    return this.interceptMarks.get(tabId);
+  }
+
+  /** Mutate a log entry in place by id, then persist. */
+  applyToLog(tabId, logId, mutate) {
+    const logs = this.networkLogs.get(tabId);
+    const entry = logs?.find(l => l.id === logId);
+    if (!entry) return;
+    mutate(entry);
+    this.persistLogsDebounced();
   }
 
   async generateMockResponse(rule, url, method) {
@@ -313,7 +441,7 @@ export class ResponseInterceptor {
     return headers;
   }
 
-  truncateForStorage(text, maxLength = RESPONSE_TRUNCATE_LENGTH) {
+  truncateForStorage(text, maxLength = STORAGE_RESPONSE_MAX_LENGTH) {
     if (typeof text === 'string' && text.length > maxLength) {
       return text.substring(0, maxLength) + '... [truncated]';
     }
@@ -342,7 +470,10 @@ export class ResponseInterceptor {
           // Tab doesn't exist, clean it up
           debug.log(`Cleaning up stale tab ${tabId}`);
           this.attachedTabs.delete(tabId);
-          this.pendingRequests.delete(tabId);
+          this.forgetInFlight(tabId);
+          // networkLogs used to be left behind here — a slow memory leak, and a
+          // storage-budget leak now that the logs are mirrored to session storage.
+          this.networkLogs.delete(tabId);
         }
       }
 
@@ -356,9 +487,12 @@ export class ResponseInterceptor {
           const oldestTabId = iterator.next().value;
           debug.log(`Removing oldest tab ${oldestTabId} due to limit`);
           this.attachedTabs.delete(oldestTabId);
-          this.pendingRequests.delete(oldestTabId);
+          this.forgetInFlight(oldestTabId);
+          this.networkLogs.delete(oldestTabId);
         }
       }
+
+      this.persistLogsDebounced();
 
       debug.log(`Cleanup complete. Active tabs: ${this.attachedTabs.size}`);
     } catch (error) {
@@ -404,7 +538,8 @@ export class ResponseInterceptor {
       ruleName: null,
       responseBody: null, // Will be populated when response is received
       responseStatus: null,
-      responseHeaders: null // Will be populated when response is received
+      responseHeaders: null, // Will be populated when response is received
+      duration: null // ms, from Network.loadingFinished
     };
 
     // Check if a rule will intercept this request
@@ -422,22 +557,28 @@ export class ResponseInterceptor {
       logs.pop();
     }
 
+    this.persistLogsDebounced();
     return logEntry.id;
   }
 
   /**
-   * Update a log entry with the response body, status, and headers
+   * Update a log entry with the response body, status, headers and duration.
+   * `responseBody` may be null — a request with no capturable body (binary,
+   * streamed, evicted) should still record its status and timing.
    */
-  updateLogResponseBody(tabId, logId, responseBody, statusCode, responseHeaders) {
+  updateLogResponseBody(tabId, logId, responseBody, statusCode, responseHeaders, duration = null) {
     const logs = this.networkLogs.get(tabId);
     if (!logs) return;
 
     const logEntry = logs.find(log => log.id === logId);
     if (logEntry) {
       // Truncate large responses to avoid memory issues
-      logEntry.responseBody = this.truncateForStorage(responseBody, STORAGE_RESPONSE_MAX_LENGTH);
-      logEntry.responseStatus = statusCode;
-      // Fetch domain gives headers as [{ name, value }]; cap the count defensively.
+      logEntry.responseBody = responseBody
+        ? this.truncateForStorage(responseBody, STORAGE_RESPONSE_MAX_LENGTH)
+        : null;
+      logEntry.responseStatus = statusCode ?? null;
+      if (duration != null) logEntry.duration = duration;
+      // Headers are normalized to [{ name, value }] before they get here.
       if (Array.isArray(responseHeaders)) {
         logEntry.responseHeaders = responseHeaders.slice(0, 50);
       }
@@ -451,7 +592,108 @@ export class ResponseInterceptor {
           // Not JSON, keep as-is
         }
       }
+
+      this.persistLogsDebounced();
     }
+  }
+
+  // ── Session persistence ────────────────────────────────────────────────
+  // The logs Map is the source of truth; chrome.storage.session is a mirror so
+  // a service-worker recycle doesn't wipe the user's capture out from under
+  // them (the popup polls these every 2s).
+
+  /**
+   * Flatten to a { [tabId]: logEntry[] } object, trimmed to the session budget.
+   *
+   * Budgeting walks the entries in global timestamp order, not per-tab order:
+   * dropping the globally-oldest first means a chatty background tab can't
+   * starve the tab the user is actually looking at.
+   */
+  serializeNetworkLogs() {
+    const flat = [];
+    for (const [tabId, logs] of this.networkLogs) {
+      for (const log of logs) flat.push({ tabId, log });
+    }
+    flat.sort((a, b) => b.log.timestamp - a.log.timestamp);
+
+    const out = {};
+    let budget = SESSION_LOGS_MAX_CHARS;
+
+    for (const { tabId, log } of flat) {
+      const trimmed = log.responseBody
+        ? { ...log, responseBody: this.truncateForStorage(log.responseBody, SESSION_RESPONSE_MAX_LENGTH) }
+        : log;
+
+      const cost = JSON.stringify(trimmed).length;
+      if (cost > budget) break;
+      budget -= cost;
+
+      // Object keys stringify to strings; hydrate() turns them back into numbers.
+      const key = String(tabId);
+      if (!out[key]) out[key] = [];
+      out[key].push(trimmed);
+    }
+
+    return out;
+  }
+
+  persistNetworkLogs() {
+    if (!chrome.storage?.session) return;
+    chrome.storage.session
+      .set({ [SESSION_LOGS_KEY]: this.serializeNetworkLogs() })
+      .catch(error => debug.error('Failed to persist network logs:', error));
+  }
+
+  /**
+   * Restore logs saved by a previous service-worker generation.
+   *
+   * Merges rather than replaces: debugger events are not gated on initPromise,
+   * so a live request can land in the fresh Map while this is still awaiting.
+   */
+  async hydrateNetworkLogs() {
+    if (!chrome.storage?.session) return;
+
+    try {
+      const stored = await chrome.storage.session.get(SESSION_LOGS_KEY);
+      const saved = stored?.[SESSION_LOGS_KEY];
+      if (!saved || typeof saved !== 'object') return;
+
+      for (const [tabIdKey, logs] of Object.entries(saved)) {
+        if (!Array.isArray(logs)) continue;
+        // JSON object keys are strings, but networkLogs is keyed by number —
+        // skip the Number() and every lookup silently misses.
+        const tabId = Number(tabIdKey);
+        if (!Number.isInteger(tabId)) continue;
+
+        const live = this.networkLogs.get(tabId) || [];
+        const byId = new Map();
+        for (const log of [...live, ...logs]) {
+          if (log?.id && !byId.has(log.id)) byId.set(log.id, log);
+        }
+
+        const merged = Array.from(byId.values())
+          .sort((a, b) => b.timestamp - a.timestamp)
+          .slice(0, MAX_LOGS_PER_TAB);
+
+        this.networkLogs.set(tabId, merged);
+      }
+
+      debug.log(`Restored network logs for ${this.networkLogs.size} tab(s)`);
+    } catch (error) {
+      debug.error('Failed to restore network logs:', error);
+    }
+  }
+
+  /** Write out immediately — for onSuspend, where a debounced write would be lost. */
+  flushNetworkLogs() {
+    this.persistLogsDebounced.flush();
+  }
+
+  /** Drop everything we hold for a tab. Called when the tab goes away. */
+  clearNetworkLogsForTab(tabId) {
+    this.networkLogs.delete(tabId);
+    this.forgetInFlight(tabId);
+    this.persistLogsDebounced();
   }
 
   /**
@@ -484,6 +726,7 @@ export class ResponseInterceptor {
     } else {
       this.networkLogs.clear();
     }
+    this.persistLogsDebounced();
   }
 
   /**
@@ -499,52 +742,5 @@ export class ResponseInterceptor {
   setNetworkLogging(enabled) {
     this.isLoggingEnabled = enabled;
     debug.log(`Network logging ${enabled ? 'enabled' : 'disabled'}`);
-  }
-
-  /**
-   * Generate a suggested rule from a network request
-   */
-  generateRuleFromRequest(logEntry) {
-    // Parse URL to create a smart pattern
-    const url = new URL(logEntry.url);
-    const pathname = url.pathname;
-
-    // Create a wildcard pattern from the URL
-    // Replace numeric segments with wildcards (e.g., /users/123 -> /users/*)
-    const patternPath = pathname.replace(/\/\d+/g, '/*');
-    const pattern = `*://${url.host}${patternPath}*`;
-
-    // Generate a name based on the URL
-    const pathParts = pathname.split('/').filter(p => p && !/^\d+$/.test(p));
-    const suggestedName = pathParts.length > 0
-      ? `${logEntry.method} ${pathParts.slice(-2).join('/')}`
-      : `${logEntry.method} ${url.host}`;
-
-    // Use the captured response body as default, or a placeholder
-    let defaultResponseBody = '{\n  "message": "Intercepted response"\n}';
-    if (logEntry.responseBody) {
-      defaultResponseBody = logEntry.responseBody;
-    }
-
-    const rule = {
-      name: suggestedName,
-      description: `Auto-generated from ${logEntry.url}`,
-      urlPattern: pattern,
-      matchType: 'wildcard',
-      methods: [logEntry.method],
-      enabled: true,
-      modifyType: 'replace',
-      modification: {
-        type: 'json',
-        value: defaultResponseBody
-      }
-    };
-
-    // Add status code if we captured one
-    if (logEntry.responseStatus) {
-      rule.modifyStatusCode = logEntry.responseStatus;
-    }
-
-    return rule;
   }
 }

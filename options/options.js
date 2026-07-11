@@ -24,6 +24,7 @@ import { loadInterceptionStatus, setupInterceptionStatus } from './modules/statu
 import {
   saveRule,
   resetForm,
+  populateForm,
   updateResponseTypeUI,
   fileToBase64,
   fetchUrlAsBase64,
@@ -44,6 +45,7 @@ import {
 } from './modules/import-export.js';
 import { setupJsonEditorListeners } from './modules/json-editor.js';
 import { setupKeyboardHints } from './modules/keyboard-hints.js';
+import { setupPasteCurl } from './modules/paste-curl.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
   loadTheme();
@@ -57,8 +59,86 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupJsonEditorListeners();
   setupInterceptionStatus();
   setupActivityListener();
+  setupPasteCurl();
+  setupRuleDraftListener();
+  setupAdvancedSettings();
   loadInterceptionStatus();
+
+  // loadGroups() has already run, so the group <select> is populated and
+  // populateForm() can set its value.
+  await applyPendingRuleDraft();
 });
+
+// Kill-switch for the narrowed CDP Fetch patterns. If a rule ever stops firing
+// under them, the user needs a way back to "pause everything" without a
+// reinstall — that's what this is.
+async function setupAdvancedSettings() {
+  const checkbox = document.getElementById('narrowInterceptPatterns');
+  if (!checkbox) return;
+
+  try {
+    const response = await chrome.runtime.sendMessage({ action: MESSAGES.GET_SETTINGS });
+    checkbox.checked = response?.settings?.narrowInterceptPatterns !== false;
+  } catch {
+    // Leave the markup's default (checked).
+  }
+
+  checkbox.addEventListener('change', async () => {
+    try {
+      await chrome.runtime.sendMessage({
+        action: MESSAGES.UPDATE_SETTINGS,
+        settings: { narrowInterceptPatterns: checkbox.checked },
+      });
+      showToast(
+        checkbox.checked
+          ? 'Only rule-matching requests will be paused'
+          : 'All requests will be paused on intercepted tabs',
+        'success'
+      );
+    } catch {
+      checkbox.checked = !checkbox.checked;
+      showToast('Failed to update setting', 'error');
+    }
+  });
+}
+
+// The popup's create-rule modal can hand a draft here via storage.session
+// ("Full editor"). Two paths in, because chrome.runtime.openOptionsPage() only
+// *focuses* an already-open options tab — DOMContentLoaded won't fire again, so
+// a storage listener is what catches the draft in that case.
+function setupRuleDraftListener() {
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'session' && changes.ruleDraft?.newValue) {
+      applyPendingRuleDraft();
+    }
+  });
+}
+
+async function applyPendingRuleDraft() {
+  let draft;
+  try {
+    // Read *and clear* before applying, so the two entry points above can't
+    // both apply the same draft.
+    const stored = await chrome.storage.session.get('ruleDraft');
+    draft = stored?.ruleDraft;
+    if (!draft) return;
+    await chrome.storage.session.remove('ruleDraft');
+  } catch {
+    return;
+  }
+
+  await loadGroups();
+
+  // showTab('new-rule') calls resetForm(), so populate after it.
+  state.currentEditingRuleId = null;
+  showTab('new-rule');
+  populateForm(draft);
+
+  const formTitle = document.getElementById('formTitle');
+  if (formTitle) formTitle.textContent = 'Create New Rule';
+
+  showToast('Draft loaded from the popup — review and save', 'success');
+}
 
 // Live-update per-rule activity chips when the background broadcasts a fire.
 function setupActivityListener() {

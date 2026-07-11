@@ -3426,3 +3426,62 @@ body:has(.kbd-hints-overlay[style*="flex"]) .toast {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* 41 · Advanced settings rows ────────────────────────────────── */
+.settings-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.settings-row input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  flex-shrink: 0;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
+.settings-row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.settings-row-text strong {
+  font-size: 14px;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.settings-row-text span {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+/* 42 · Paste cURL Modal ──────────────────────────────────────── */
+.pcm-textarea {
+  font-family: 'SF Mono', 'Consolas', monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  resize: vertical;
+  /* A cURL command is long, wrapped lines — let it scroll rather than reflow. */
+  white-space: pre;
+  overflow-wrap: normal;
+  overflow-x: auto;
+}
+
+.pcm-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 10px;
+  line-height: 1.6;
+}
+
+.pcm-hint strong {
+  color: var(--text-secondary);
+  font-weight: 600;
+}

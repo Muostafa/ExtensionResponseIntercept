@@ -149,6 +149,9 @@
               <button id="addNewGroupBtn" class="btn btn-secondary">
                 + New Group
               </button>
+              <button id="pasteCurlBtn" class="btn btn-secondary" title="Paste a cURL command or a URL">
+                Paste cURL
+              </button>
               <button id="addNewRuleBtn" class="btn btn-primary">
                 + New Rule
               </button>
@@ -555,6 +558,13 @@
                   </div>
                 </div>
 
+                <!-- Priority -->
+                <div class="rf-field">
+                  <label for="rulePriority" class="rf-label">Priority</label>
+                  <input type="number" id="rulePriority" class="form-control" min="0" max="999" placeholder="0" />
+                  <div class="rf-match-hint">Higher wins when several rules match the same request.</div>
+                </div>
+
                 <!-- Description (collapsible) -->
                 <div class="rf-field rf-field-collapsible">
                   <button type="button" class="rf-collapse-trigger" id="toggleDescription">
@@ -778,6 +788,21 @@
             </div>
           </div>
 
+          <div class="card">
+            <h3>Advanced</h3>
+            <label class="settings-row">
+              <input type="checkbox" id="narrowInterceptPatterns" checked />
+              <span class="settings-row-text">
+                <strong>Only pause requests your rules can match</strong>
+                <span
+                  >Faster browsing on intercepted tabs — unrelated requests go
+                  straight through instead of being routed via the debugger.
+                  Turn this off if a rule ever stops firing.</span
+                >
+              </span>
+            </label>
+          </div>
+
           <div class="card danger">
             <h3>Clear All Rules</h3>
             <p>
@@ -974,6 +999,35 @@
           </div>
         </div>
       </main>
+    </div>
+
+    <!-- Paste cURL / URL Modal — kept outside the tab containers so a hidden
+         tab's display:none can't swallow it. -->
+    <div id="pasteCurlModal" class="modal" style="display: none">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Paste cURL or URL</h3>
+          <button class="modal-close" id="closePasteCurlModal">&times;</button>
+        </div>
+        <div class="modal-body">
+          <textarea
+            id="pasteCurlInput"
+            class="form-control pcm-textarea"
+            rows="10"
+            spellcheck="false"
+            placeholder="curl 'https://api.example.com/users' -H 'accept: application/json'"
+          ></textarea>
+          <div class="pcm-hint">
+            In DevTools &rarr; Network, right-click a request &rarr;
+            <strong>Copy</strong> &rarr; <strong>Copy as cURL</strong>. Or just paste a URL.
+            We'll prefill the rule form from it.
+          </div>
+        </div>
+        <div class="modal-footer" style="display:flex;justify-content:flex-end;gap:10px;padding:16px;">
+          <button id="cancelPasteCurlBtn" class="btn btn-secondary">Cancel</button>
+          <button id="confirmPasteCurlBtn" class="btn btn-primary">Continue</button>
+        </div>
+      </div>
     </div>
 
     <div id="toast" class="toast"></div>

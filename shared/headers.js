@@ -15,6 +15,14 @@ export function convertHeaders(headers) {
   return headers.map(header => ({ name: header.name, value: header.value }));
 }
 
+// CDP's Network domain reports headers as a plain { name: value } map, while
+// the Fetch domain (and everything downstream — getContentType, the popup's
+// detail view) uses [{ name, value }]. Normalize on the way in.
+export function headersToArray(headers) {
+  if (!headers || typeof headers !== 'object') return [];
+  return Object.entries(headers).map(([name, value]) => ({ name, value: String(value) }));
+}
+
 // Apply add/set/remove modifications to a header list. Header names are
 // case-insensitive, so we normalize to lowercase via a Map.
 export function applyHeaderModifications(originalHeaders, modifications) {

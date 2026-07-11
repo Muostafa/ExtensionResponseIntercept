@@ -248,7 +248,14 @@ export function collectFormData() {
     errors.push({ fieldId: 'ruleDelay', message: 'Delay must be between 0 and 30000 ms' });
   }
 
-  const ruleData = { name, description, urlPattern, matchType, methods, enabled };
+  const priorityValue = document.getElementById('rulePriority').value.trim();
+  const priority = priorityValue ? parseInt(priorityValue, 10) : 0;
+
+  if (Number.isNaN(priority) || priority < 0 || priority > 999) {
+    errors.push({ fieldId: 'rulePriority', message: 'Priority must be between 0 and 999' });
+  }
+
+  const ruleData = { name, description, urlPattern, matchType, methods, enabled, priority };
 
   if (delay !== null) {
     ruleData.delay = delay;
@@ -356,6 +363,7 @@ export function populateForm(rule) {
   });
 
   setValue('ruleDelay', rule.delay !== undefined && rule.delay !== null ? rule.delay : '');
+  setValue('rulePriority', rule.priority ? rule.priority : '');
 
   const ruleContentType = rule.contentType || 'application/json';
   setValue('responseContentType', ruleContentType);

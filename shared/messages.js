@@ -18,6 +18,7 @@ export const MESSAGES = Object.freeze({
   // Rules CRUD
   GET_RULES: 'getRules',
   ADD_RULE: 'addRule',
+  ADD_RULES: 'addRules',
   UPDATE_RULE: 'updateRule',
   DELETE_RULE: 'deleteRule',
 
@@ -39,16 +40,16 @@ export const MESSAGES = Object.freeze({
   GET_NETWORK_LOGGING_STATUS: 'getNetworkLoggingStatus',
   SET_NETWORK_LOGGING: 'setNetworkLogging',
 
-  // Generate rule from captured request
-  GENERATE_RULE_FROM_REQUEST: 'generateRuleFromRequest',
-  CREATE_RULE_FROM_REQUEST: 'createRuleFromRequest',
-
   // Recent notifications (rule-trigger toasts)
   GET_RECENT_NOTIFICATIONS: 'getRecentNotifications',
   CLEAR_NOTIFICATIONS: 'clearNotifications',
 
   // Per-rule activity stats (in-memory: fire count + last-fired time)
   GET_RULE_STATS: 'getRuleStats',
+
+  // Settings
+  GET_SETTINGS: 'getSettings',
+  UPDATE_SETTINGS: 'updateSettings',
 
   // Misc
   FETCH_URL_AS_BASE64: 'fetchUrlAsBase64',

@@ -14,10 +14,17 @@ A Chrome extension that lets you mock API responses on the fly. When a request m
 - **Flexible URL Matching**: Wildcards, regex, exact matches, and contains patterns
 - **HTTP Method Filtering**: Target specific methods (GET, POST, PUT, DELETE, PATCH)
 
+### Three Ways to Add an API
+
+- **From the network log**: Turn on "Intercept this tab", browse, then hit **+ Rule** on any captured request — the mock is prefilled with the response the server actually returned. Tick several rows to mock them all at once.
+- **Paste a cURL command or a URL**: In DevTools → Network, right-click a request → **Copy** → **Copy as cURL**, then paste it into **Paste cURL**. Works with the bash, cmd, and PowerShell flavors, or with a bare URL.
+- **The full rule editor**: Build a rule from scratch on the Options page. Any prefilled draft from the popup can be handed over to it with **Full editor**.
+
 ### Organization & Workflow
 
 - **Rule Groups**: Organize rules into groups and toggle them together
-- **Network Logging**: Inspect requests on the active tab and turn one into a rule ("Create Rule from Network")
+- **Rule Priority**: Higher priority wins when several rules match the same request
+- **Network Logging**: Inspect requests on intercepted tabs — URL, status, duration, headers, and captured response bodies. Logs survive a service-worker restart and are cleared when the tab or browser closes.
 - **User-Friendly Interface**: Popup for quick access and a full options page for managing rules
 - **Import/Export**: Save and share your rule configurations
 
@@ -145,22 +152,30 @@ Override the response status code:
 
 ### Architecture
 
-The extension uses Chrome's Debugger API (the Fetch domain) to intercept network requests:
+The extension uses Chrome's Debugger API to intercept network requests. It drives two CDP domains, with a strict split of responsibilities:
 
-1. **Service Worker** (`background/service-worker.js`): Manages debugger attachment and message routing
-2. **Interceptor** (`background/interceptor.js`): Handles Fetch events, returns mock responses, and logs requests
-3. **Rule Engine** (`background/rule-engine.js`): Matches URLs and HTTP methods against rules
-4. **Storage Manager** (`background/storage-manager.js`): Persists rules and groups using the Chrome Storage API
+- **Fetch** — mocking only. It is the only thing that pauses a request.
+- **Network** — observation only. It feeds the network log and never blocks the page.
+
+Modules:
+
+1. **Service Worker** (`background/service-worker.js`): Manages debugger attachment, message routing, and which URLs Fetch is pointed at
+2. **Interceptor** (`background/interceptor.js`): Serves mocks on Fetch events; logs requests from Network events
+3. **Rule Engine** (`background/rule-engine.js`): Matches URLs and HTTP methods against rules, highest priority first
+4. **Fetch Patterns** (`background/fetch-patterns.js`): Compiles the enabled rules into CDP url patterns
+5. **Storage Manager** (`background/storage-manager.js`): Persists rules and groups using the Chrome Storage API
 
 ### How It Works
 
-1. The extension attaches Chrome's debugger to the active tab
-2. It enables the Fetch domain to intercept network requests
-3. When a request is paused at the Request stage:
-   - Rules are evaluated against the URL and HTTP method
-   - If a match is found, the request is **blocked** and a mock response (body, status code, headers) is returned to the page — the real server is never contacted
-   - If no rule matches, the request continues normally
-4. Responses to unmatched requests can be captured (when logging is on) so you can turn one into a rule
+1. The extension attaches Chrome's debugger to the tab you turn on
+2. It enables **Network** (to observe) and **Fetch** (to mock)
+3. Fetch is pointed only at the URLs your enabled rules could actually match, so unrelated requests are never routed through the debugger. If any enabled rule uses a `regex` match type — which can't be expressed as a CDP url pattern — the tab falls back to pausing everything. With no enabled rules, Fetch is disabled entirely and the tab is purely in record mode.
+4. When a request *is* paused, rules are re-evaluated precisely:
+   - On a match, the request is **blocked** and a mock response (body, status code, headers) is returned to the page — the real server is never contacted
+   - Otherwise it continues untouched
+5. Independently, the Network domain records every request on the tab — matched or not — including status, duration, and the response body, so you can turn any of them into a rule
+
+If a rule ever stops firing, **Options → Import/Export → Advanced** has a switch to go back to pausing every request.
 
 ### Permissions
 
@@ -177,21 +192,34 @@ The extension uses Chrome's Debugger API (the Fetch domain) to intercept network
 extension-response-intercept/
 ├── manifest.json                 # Extension configuration
 ├── background/
-│   ├── service-worker.js        # Main service worker
-│   ├── interceptor.js           # Response interception logic
-│   ├── rule-engine.js           # Rule matching and modification
-│   └── storage-manager.js       # Storage operations
+│   ├── service-worker.js        # Debugger lifecycle, message routing, badge
+│   ├── interceptor.js           # Serves mocks (Fetch); logs requests (Network)
+│   ├── fetch-patterns.js        # Compiles enabled rules -> CDP url patterns
+│   ├── rule-engine.js           # Rule matching + priority
+│   └── storage-manager.js       # Rules, groups, and settings storage
+├── shared/                       # Imported by every page and the worker
+│   ├── curl.js                  # toCurl (export) + parseCurl (import)
+│   ├── rule-suggest.js          # Captured request -> suggested rule
+│   ├── url-matching.js          # The wildcard/regex/exact/contains matcher
+│   ├── messages.js              # Registry of chrome.runtime message actions
+│   └── ...                      # constants, headers, base64, theme, toast, ...
 ├── popup/
-│   ├── popup.html               # Extension popup UI
-│   ├── popup.js                 # Popup logic
-│   └── popup.css                # Popup styles
+│   ├── popup.html/.js/.css
+│   └── modules/                 # rules-view, network, create-rule-modal,
+│                                #   paste-curl-modal, notifications, ...
 ├── options/
-│   ├── options.html             # Options page UI
-│   ├── options.js               # Options page logic
-│   └── options.css              # Options page styles
-├── icons/                        # Extension icons
-└── README.md                     # This file
+│   ├── options.html/.js/.css
+│   └── modules/                 # rule-form, rules-view, groups, import-export,
+│                                #   paste-curl, json-editor, ...
+├── content/                      # In-page toast when a rule fires
+├── icons/
+└── README.md
 ```
+
+The whole extension is plain JavaScript loaded as native ES modules — there is no
+bundler and no `package.json`. `shared/` exists so the popup, options page, and
+service worker can agree on one implementation of things like URL matching and
+cURL parsing rather than drifting apart.
 
 ### Building
 

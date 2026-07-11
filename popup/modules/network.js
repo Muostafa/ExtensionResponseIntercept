@@ -5,7 +5,7 @@ import { NETWORK_REFRESH_INTERVAL_MS } from '../../shared/constants.js';
 import { toCurl } from '../../shared/curl.js';
 import { state } from './state.js';
 import { showToast } from './toast.js';
-import { openCreateRuleModal } from './create-rule-modal.js';
+import { openCreateRuleModal, openBulkCreateRuleModal } from './create-rule-modal.js';
 
 export function setupViewTabs() {
   document.getElementById('rulesTabBtn')?.addEventListener('click', () => switchView('rules'));
@@ -255,10 +255,65 @@ async function copyText(text, label) {
   }
 }
 
+function formatDuration(ms) {
+  if (ms < 1000) return `${ms} ms`;
+  return `${(ms / 1000).toFixed(2)} s`;
+}
+
+/**
+ * The "N selected — Mock selected" bar above the list. Only rendered when
+ * something is ticked, so it costs nothing in the common case.
+ */
+function renderBulkBar() {
+  const bar = document.getElementById('networkBulkBar');
+  if (!bar) return;
+
+  const count = state.selectedLogIds.size;
+  if (count === 0) {
+    bar.style.display = 'none';
+    bar.innerHTML = '';
+    return;
+  }
+
+  bar.style.display = 'flex';
+  bar.innerHTML = `
+    <span class="nlb-count">${count} selected</span>
+    <div class="nlb-actions">
+      <button class="btn btn-secondary btn-small" id="nlbClear">Clear</button>
+      <button class="btn btn-primary btn-small" id="nlbMock">Mock selected (${count})</button>
+    </div>
+  `;
+
+  document.getElementById('nlbClear')?.addEventListener('click', () => {
+    state.selectedLogIds.clear();
+    displayNetworkLogs(state.networkLogs);
+  });
+
+  document.getElementById('nlbMock')?.addEventListener('click', () => {
+    const selected = state.networkLogs.filter(l => state.selectedLogIds.has(l.id));
+    if (selected.length === 0) {
+      showToast('Those requests are no longer in the log', 'error');
+      return;
+    }
+    if (selected.length === 1) {
+      openCreateRuleModal(selected[0]);
+      return;
+    }
+    openBulkCreateRuleModal(selected);
+  });
+}
+
 function displayNetworkLogs(logs) {
   const networkLogsList = document.getElementById('networkLogsList');
   const networkEmptyState = document.getElementById('networkEmptyState');
   if (!networkLogsList) return;
+
+  // Logs roll off the 100-entry cap, so a selected id can vanish under us.
+  const liveIds = new Set(logs.map(l => l.id));
+  for (const id of state.selectedLogIds) {
+    if (!liveIds.has(id)) state.selectedLogIds.delete(id);
+  }
+  renderBulkBar();
 
   const filteredLogs = filterLogs(logs);
 
@@ -292,9 +347,13 @@ function displayNetworkLogs(logs) {
     const statusClass = log.responseStatus ? (log.responseStatus >= 400 ? 'error' : 'success') : '';
     const expanded = state.expandedLogIds.has(log.id);
 
+    const selected = state.selectedLogIds.has(log.id);
+
     return `
-      <div class="network-log-item ${log.intercepted ? 'intercepted' : ''} ${hasResponse ? 'has-response' : ''} ${expanded ? 'expanded' : ''}" data-log-id="${log.id}">
+      <div class="network-log-item ${log.intercepted ? 'intercepted' : ''} ${hasResponse ? 'has-response' : ''} ${expanded ? 'expanded' : ''} ${selected ? 'selected' : ''}" data-log-id="${log.id}">
         <div class="network-log-header" role="button" tabindex="0" aria-expanded="${expanded}">
+          <input type="checkbox" class="network-log-select" data-log-id="${log.id}" ${selected ? 'checked' : ''}
+            title="Select for bulk mocking" aria-label="Select this request">
           <span class="network-log-chevron" aria-hidden="true">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
           </span>
@@ -303,6 +362,7 @@ function displayNetworkLogs(logs) {
               <span class="network-log-method ${log.method}">${log.method}</span>
               ${log.responseStatus ? `<span class="network-log-status ${statusClass}">${log.responseStatus}</span>` : '<span class="network-log-status pending">...</span>'}
               <span class="network-log-time">${time}</span>
+              ${log.duration != null ? `<span class="network-log-duration">${formatDuration(log.duration)}</span>` : ''}
             </div>
             <span class="network-log-url" title="${escapeHtml(log.url)}">${escapeHtml(shortUrl)}</span>
             <div class="network-log-meta">
@@ -345,11 +405,21 @@ function attachNetworkLogListeners() {
     if (!logId) return;
     const toggle = (e) => {
       if (e.target.closest('.network-log-actions')) return; // let the Rule button do its thing
+      if (e.target.closest('.network-log-select')) return;  // ...and the select checkbox
       toggleLogExpanded(logId);
     };
     header.addEventListener('click', toggle);
     header.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleLogExpanded(logId); }
+    });
+  });
+
+  document.querySelectorAll('.network-log-select').forEach(cb => {
+    cb.addEventListener('change', (e) => {
+      const { logId } = e.currentTarget.dataset;
+      if (e.currentTarget.checked) state.selectedLogIds.add(logId);
+      else state.selectedLogIds.delete(logId);
+      displayNetworkLogs(state.networkLogs);
     });
   });
 

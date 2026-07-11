@@ -69,6 +69,13 @@
         </svg>
         <span>Add Rule</span>
       </button>
+      <button id="pasteCurlBtn" class="btn btn-secondary" title="Paste a cURL command or a URL">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+        </svg>
+        <span>Paste cURL</span>
+      </button>
     </section>
 
     <section class="view-tabs">
@@ -226,6 +233,9 @@
         </div>
       </div>
 
+      <!-- Bulk selection bar (shown by network.js only when rows are ticked) -->
+      <div id="networkBulkBar" class="nlb-bar" style="display: none;"></div>
+
       <div id="networkLogsList" class="network-logs-list">
         <!-- Network logs will be populated here -->
       </div>
@@ -298,8 +308,69 @@
           </div>
         </div>
         <div class="modal-footer">
+          <button id="openInFullEditor" class="btn btn-secondary btn-footer-link" title="Open this draft in the full rule editor">Full editor</button>
           <button id="cancelCreateRule" class="btn btn-secondary">Cancel</button>
           <button id="confirmCreateRule" class="btn btn-primary">Create Rule</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bulk Create Rules Modal (2+ requests selected in the network list) -->
+    <div id="bulkCreateRuleModal" class="modal" style="display: none;">
+      <div class="modal-overlay"></div>
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 id="bulkModalTitle">Create Rules from Requests</h3>
+          <button id="closeBulkModal" class="btn-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="bulkGroupSelect">Add to group</label>
+            <select id="bulkGroupSelect" class="form-control">
+              <option value="">No group</option>
+            </select>
+          </div>
+          <div id="bulkRuleRows" class="crm-rows"></div>
+        </div>
+        <div class="modal-footer">
+          <button id="cancelBulkCreate" class="btn btn-secondary">Cancel</button>
+          <button id="confirmBulkCreate" class="btn btn-primary">Create Rules</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Paste cURL / URL Modal -->
+    <div id="pasteCurlModal" class="modal" style="display: none;">
+      <div class="modal-overlay"></div>
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Paste cURL or URL</h3>
+          <button id="closePasteCurlModal" class="btn-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <textarea id="pasteCurlInput" class="pcm-textarea" rows="7" spellcheck="false"
+              placeholder="curl 'https://api.example.com/users' \
+  -H 'accept: application/json'"></textarea>
+            <div class="pcm-hint">
+              In DevTools &rarr; Network, right-click a request &rarr; <strong>Copy</strong> &rarr; <strong>Copy as cURL</strong>.
+              Or just paste a URL.
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="cancelPasteCurl" class="btn btn-secondary">Cancel</button>
+          <button id="confirmPasteCurl" class="btn btn-primary">Continue</button>
         </div>
       </div>
     </div>

@@ -10,8 +10,11 @@ export const state = {
   networkSearchQuery: '',
   currentView: 'rules', // 'rules' or 'network'
   selectedLogEntry: null,
+  suggestedMatchType: null,    // match type the suggester picked for the open create-rule modal
+  bulkDrafts: [],              // [{ rule, hadBody, entry }] backing the bulk-create modal
   networkLogs: [],
   expandedLogIds: new Set(),   // network rows currently expanded (survives the 2s refresh)
+  selectedLogIds: new Set(),   // network rows ticked for bulk mocking (survives the 2s refresh)
   networkMethodFilter: '',     // '', 'GET', 'POST', 'PUT', 'DELETE', 'PATCH'
   networkStatusFilter: '',     // '', '2xx', '3xx', '4xx', '5xx'
   networkRefreshInterval: null,

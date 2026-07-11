@@ -23,6 +23,7 @@ import {
   stopNetworkRefresh,
 } from './modules/network.js';
 import { setupCreateRuleModal } from './modules/create-rule-modal.js';
+import { setupPasteCurlModal } from './modules/paste-curl-modal.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -40,6 +41,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupViewTabs();
   setupNetworkSection();
   setupCreateRuleModal();
+  setupPasteCurlModal();
   setupNotificationListener();
 
   startNetworkRefresh();

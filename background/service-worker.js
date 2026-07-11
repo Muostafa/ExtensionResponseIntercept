@@ -2,8 +2,10 @@
 import { StorageManager } from './storage-manager.js';
 import { RuleEngine } from './rule-engine.js';
 import { ResponseInterceptor } from './interceptor.js';
+import { buildFetchPatterns } from './fetch-patterns.js';
 import { MESSAGES } from '../shared/messages.js';
-import { isRestrictedUrl } from '../shared/constants.js';
+import { isRestrictedUrl, FETCH_PATTERN_REFRESH_DEBOUNCE_MS } from '../shared/constants.js';
+import { debounce } from '../shared/debounce.js';
 import { debug } from '../shared/debug.js';
 
 const MAX_FETCH_URL_BYTES = 10 * 1024 * 1024; // 10 MB cap for fetchUrlAsBase64
@@ -32,6 +34,10 @@ class ServiceWorker {
     // ("ON" until the first mock, then the running count). In-memory only and
     // reset when a tab loads a new document.
     this.tabMockCounts = new Map();
+    this.refreshFetchPatternsDebounced = debounce(
+      () => this.refreshFetchPatternsOnAllTabs(),
+      FETCH_PATTERN_REFRESH_DEBOUNCE_MS
+    );
     // Register listeners synchronously so messages aren't dropped while storage loads
     this.setupListeners();
     this.initPromise = this.init();
@@ -45,15 +51,23 @@ class ServiceWorker {
     await this.storageManager.loadGroups();
     this.ruleEngine.setRules(this.storageManager.getEnabledRules());
 
-    // Listen for settings changes
+    // Fires on every rule AND group mutation (add/update/delete/toggle) — the
+    // single place that has to know the enabled set changed, so it's also where
+    // the Fetch patterns get re-pointed.
     this.storageManager.onRulesChanged((rules) => {
       this.ruleEngine.setRules(rules);
+      this.refreshFetchPatternsDebounced();
     });
 
     // Set up rule triggered notifications
     this.interceptor.onRuleTriggered((notification) => {
       this.handleRuleTriggered(notification);
     });
+
+    // Bring back the network capture from the previous service-worker
+    // generation. Must happen before restoreAttachedTabs() re-adopts the tabs
+    // and new requests start landing in the (still empty) logs Map.
+    await this.interceptor.hydrateNetworkLogs();
 
     // Re-adopt any tabs that were being intercepted before this service-worker
     // generation started. MV3 recycles the worker aggressively; without this a
@@ -143,6 +157,7 @@ class ServiceWorker {
     chrome.tabs.onRemoved.addListener((tabId) => {
       this.tabsToReattach.delete(tabId);
       this.tabMockCounts.delete(tabId);
+      this.interceptor.clearNetworkLogsForTab(tabId);
       this.detachDebuggerFromTab(tabId);
     });
 
@@ -175,6 +190,7 @@ class ServiceWorker {
     // Flush debounced saves before the service worker is suspended
     chrome.runtime.onSuspend.addListener(() => {
       this.storageManager.flushPendingSaves();
+      this.interceptor.flushNetworkLogs();
     });
 
     // Handle debugger detach — queue re-attach unless user explicitly detached
@@ -283,6 +299,13 @@ class ServiceWorker {
         });
         break;
 
+      case MESSAGES.ADD_RULES:
+        await this.safeHandle(sendResponse, async () => {
+          const newRules = await this.storageManager.addRules(request.rules);
+          sendResponse({ success: true, count: newRules.length, rules: newRules });
+        });
+        break;
+
       case MESSAGES.UPDATE_RULE:
         await this.safeHandle(sendResponse, async () => {
           await this.storageManager.updateRule(request.ruleId, request.rule);
@@ -387,19 +410,18 @@ class ServiceWorker {
         });
         break;
 
-      case MESSAGES.GENERATE_RULE_FROM_REQUEST:
+      case MESSAGES.GET_SETTINGS:
         await this.safeHandle(sendResponse, async () => {
-          const suggestedRule = this.interceptor.generateRuleFromRequest(request.logEntry);
-          sendResponse({ rule: suggestedRule });
+          sendResponse({ success: true, settings: this.storageManager.getSettings() });
         });
         break;
 
-      case MESSAGES.CREATE_RULE_FROM_REQUEST:
+      case MESSAGES.UPDATE_SETTINGS:
         await this.safeHandle(sendResponse, async () => {
-          const ruleFromRequest = this.interceptor.generateRuleFromRequest(request.logEntry);
-          const finalRule = { ...ruleFromRequest, ...request.modifications };
-          await this.storageManager.addRule(finalRule);
-          sendResponse({ success: true, rule: finalRule });
+          const settings = await this.storageManager.updateSettings(request.settings || {});
+          // narrowInterceptPatterns changes what Fetch is pointed at.
+          await this.refreshFetchPatternsOnAllTabs();
+          sendResponse({ success: true, settings });
         });
         break;
 
@@ -493,14 +515,22 @@ class ServiceWorker {
         debug.log(`Re-adopting existing debugger session for tab ${tabId}`);
       }
       try {
-        await chrome.debugger.sendCommand({ tabId }, 'Fetch.enable', {
-          patterns: [
-            { urlPattern: '*', requestStage: 'Request' },
-            { urlPattern: '*', requestStage: 'Response' }
-          ]
+        // Network: passive observation, drives the network log. Nothing here
+        // pauses the page.
+        await chrome.debugger.sendCommand({ tabId }, 'Network.enable', {
+          maxResourceBufferSize: 5 * 1024 * 1024,
+          maxTotalBufferSize: 20 * 1024 * 1024,
         });
+
+        // Fetch: mocking only, and only at the Request stage. The Response
+        // stage used to be enabled so we could read bodies for the log, but
+        // that paused every response while awaiting Fetch.getResponseBody —
+        // which never resolves for a stream, so SSE/long-poll/video stalled for
+        // the full 5s timeout. Network.getResponseBody does that job without
+        // holding the response.
+        await this.applyFetchPatterns(tabId);
       } catch (enableError) {
-        // Fetch.enable failed — detach so we don't leave an orphaned debugger session
+        // Enable failed — detach so we don't leave an orphaned debugger session
         try { await chrome.debugger.detach({ tabId }); } catch {}
         throw enableError;
       }
@@ -517,6 +547,47 @@ class ServiceWorker {
       this.persistActiveTabs();
     } catch (error) {
       debug.error(`Failed to attach debugger to tab ${tabId}:`, error);
+    }
+  }
+
+  /**
+   * Point Fetch at only the URLs an enabled rule could match, so unrelated
+   * requests are never paused. See background/fetch-patterns.js for why the
+   * generated globs are always a safe superset of what the rule engine matches.
+   *
+   * Zero enabled rules -> Fetch.disable, i.e. a true zero-pause record-only
+   * mode (the Network domain keeps logging).
+   */
+  async applyFetchPatterns(tabId) {
+    const narrow = this.storageManager.isNarrowInterceptEnabled();
+    const enabledRules = this.storageManager.getEnabledRules();
+
+    const { patterns, wide } = narrow
+      ? buildFetchPatterns(enabledRules)
+      : { patterns: [{ urlPattern: '*', requestStage: 'Request' }], wide: true };
+
+    if (patterns.length === 0) {
+      debug.log(`Tab ${tabId}: no enabled rules — Fetch.disable (record-only)`);
+      await chrome.debugger.sendCommand({ tabId }, 'Fetch.disable');
+      return;
+    }
+
+    debug.log(
+      `Tab ${tabId}: Fetch.enable on ${patterns.length} pattern(s)` +
+      `${wide ? ' (wide — regex rule or kill-switch off)' : ''}:`,
+      patterns.map(p => p.urlPattern)
+    );
+    await chrome.debugger.sendCommand({ tabId }, 'Fetch.enable', { patterns });
+  }
+
+  /** Re-point Fetch on every intercepted tab. Debounced — rules change in bursts. */
+  async refreshFetchPatternsOnAllTabs() {
+    for (const tabId of this.activeTabs) {
+      try {
+        await this.applyFetchPatterns(tabId);
+      } catch (error) {
+        debug.error(`Failed to refresh Fetch patterns on tab ${tabId}:`, error);
+      }
     }
   }
 

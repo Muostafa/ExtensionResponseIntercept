@@ -235,6 +235,7 @@ export function displayRules(rules) {
               <div class="ort-th">URL Pattern</div>
               <div class="ort-th">Methods</div>
               <div class="ort-th">Status Code</div>
+              <div class="ort-th ort-th-center">Priority</div>
               <div class="ort-th ort-th-center">On/Off</div>
               <div class="ort-th">Actions</div>
             </div>

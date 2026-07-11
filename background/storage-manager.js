@@ -39,7 +39,12 @@ export class StorageManager {
     this.rules = [];
     this.groups = [];
     this.settings = {
-      logging: true
+      logging: true,
+      // Restrict CDP Fetch interception to URLs that an enabled rule could
+      // actually match, instead of pausing every request on the tab. Off =
+      // pause everything — an escape hatch if a rule ever stops firing under
+      // the narrowed patterns. See background/fetch-patterns.js.
+      narrowInterceptPatterns: true
     };
     this.listeners = [];
     this.groupListeners = [];
@@ -115,7 +120,10 @@ export class StorageManager {
       }
 
       if (data.settings) {
-        this.settings = data.settings;
+        // Merge rather than replace: a settings object written by an older
+        // version won't have keys added since, and those must keep their
+        // defaults instead of coming back undefined.
+        this.settings = { ...this.settings, ...data.settings };
       } else {
         await this.saveSettings();
       }
@@ -256,6 +264,33 @@ export class StorageManager {
     return newRule;
   }
 
+  /**
+   * Add several rules in one write.
+   *
+   * Not a loop over addRule(): saveRules() runs checkStorageQuota() +
+   * getStorageUsage(), each a full chrome.storage.local.get(null). Adding N
+   * rules one at a time would mean 2N full-storage reads.
+   *
+   * @param {object[]} rules
+   * @returns {object[]} the created rules, with ids
+   */
+  async addRules(rules) {
+    if (!Array.isArray(rules) || rules.length === 0) return [];
+
+    const now = Date.now();
+    const created = rules.map(rule => ({
+      ...rule,
+      id: this.generateId(),
+      enabled: rule.enabled !== undefined ? rule.enabled : true,
+      createdAt: now,
+      modifiedAt: now
+    }));
+
+    this.rules.push(...created);
+    await this.saveRules();
+    return created;
+  }
+
   async updateRule(ruleId, updates) {
     const index = this.rules.findIndex(r => r.id === ruleId);
     if (index !== -1) {
@@ -302,6 +337,20 @@ export class StorageManager {
     this.settings.logging = !this.settings.logging;
     await this.saveSettings();
     return this.settings.logging;
+  }
+
+  getSettings() {
+    return { ...this.settings };
+  }
+
+  async updateSettings(updates) {
+    this.settings = { ...this.settings, ...updates };
+    await this.saveSettings();
+    return this.getSettings();
+  }
+
+  isNarrowInterceptEnabled() {
+    return this.settings.narrowInterceptPatterns !== false;
   }
 
   onRulesChanged(callback) {
