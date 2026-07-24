@@ -3,6 +3,7 @@ import { isRestrictedUrl } from '../../shared/constants.js';
 import { debug } from '../../shared/debug.js';
 import { state } from './state.js';
 import { loadRules } from './rules-view.js';
+import { refreshHintBanner } from './hint-banner.js';
 
 export async function loadStatus() {
   try {
@@ -11,9 +12,22 @@ export async function loadStatus() {
     const tabId = state.currentTab?.id;
     const restricted = isRestrictedUrl(state.currentTab?.url);
     updateTabToggle(activeTabs.includes(tabId), restricted);
+    await refreshHintBanner({ attached: activeTabs.includes(tabId) && !restricted });
   } catch (error) {
     debug.error('Failed to load status:', error);
   }
+}
+
+/** Show which tab the per-tab toggle actually acts on. */
+export function showCurrentTabHost() {
+  const el = document.getElementById('tabInterceptHost');
+  if (!el) return;
+  try {
+    el.textContent = new URL(state.currentTab?.url || '').host;
+  } catch {
+    el.textContent = ''; // no URL yet, or not a parseable one
+  }
+  el.title = state.currentTab?.url || '';
 }
 
 /**

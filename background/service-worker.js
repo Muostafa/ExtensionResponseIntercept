@@ -46,9 +46,11 @@ class ServiceWorker {
   async init() {
     debug.log('API Response Interceptor - Service Worker initialized');
 
-    // Load rules and groups from storage
-    await this.storageManager.loadRules();
+    // Groups first: loadRules() can trigger a migration save, and saveRules()
+    // notifies listeners with getEnabledRules(), which treats every grouped rule
+    // as orphaned while this.groups is still empty.
     await this.storageManager.loadGroups();
+    await this.storageManager.loadRules();
     this.ruleEngine.setRules(this.storageManager.getEnabledRules());
 
     // Fires on every rule AND group mutation (add/update/delete/toggle) — the
@@ -187,9 +189,9 @@ class ServiceWorker {
     // (Re)create the context menu on install/update.
     chrome.runtime.onInstalled.addListener(() => this.setupContextMenu());
 
-    // Flush debounced saves before the service worker is suspended
+    // Rules and groups are written synchronously on every mutation, so only the
+    // debounced network-log mirror can still have work in flight here.
     chrome.runtime.onSuspend.addListener(() => {
-      this.storageManager.flushPendingSaves();
       this.interceptor.flushNetworkLogs();
     });
 
@@ -200,6 +202,11 @@ class ServiceWorker {
       debug.log(`Debugger detached from tab ${tabId}: ${reason}`);
       this.activeTabs.delete(tabId);
       this.tabMockCounts.delete(tabId);
+      // The session is gone, so everything keyed by its CDP request ids is dead
+      // weight. Without this the in-flight maps leak for the whole life of the
+      // tab — which is exactly what happens every time someone opens DevTools on
+      // an intercepted tab. Network logs are deliberately kept.
+      this.interceptor.detachFromTab(tabId);
       if (reason !== 'canceled_by_user') {
         this.tabsToReattach.add(tabId);
       } else {
@@ -392,8 +399,10 @@ class ServiceWorker {
 
       case MESSAGES.CLEAR_NETWORK_LOGS:
         await this.safeHandle(sendResponse, async () => {
-          this.interceptor.clearNetworkLogs(request.tabId);
-          sendResponse({ success: true });
+          const cleared = this.interceptor.clearNetworkLogs(request.tabId, { all: request.all === true });
+          sendResponse(cleared
+            ? { success: true }
+            : { success: false, error: 'No tab specified' });
         });
         break;
 

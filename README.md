@@ -25,6 +25,8 @@ A Chrome extension that lets you mock API responses on the fly. When a request m
 - **Rule Groups**: Organize rules into groups and toggle them together
 - **Rule Priority**: Higher priority wins when several rules match the same request
 - **Network Logging**: Inspect requests on intercepted tabs — URL, status, duration, headers, and captured response bodies. Logs survive a service-worker restart and are cleared when the tab or browser closes.
+- **Guidance Strip**: The popup tells you when your rules can't fire — tab not intercepted, page not reloaded since attaching, or nothing enabled — with a one-click fix for each
+- **Keyboard Shortcuts**: `Alt+Shift+I` toggles interception on the current tab from anywhere; `/`, `Esc`, and `Ctrl+Enter` drive the popup
 - **User-Friendly Interface**: Popup for quick access and a full options page for managing rules
 - **Import/Export**: Save and share your rule configurations
 
@@ -47,14 +49,27 @@ A Chrome extension that lets you mock API responses on the fly. When a request m
 ### Quick Start
 
 1. Click the extension icon in your browser toolbar
-2. Turn on "Intercept this tab" to enable interception for the current tab
-3. Navigate to the Options page to create rules
-4. Create a new rule:
-   - Set a URL pattern (e.g., `*://*/api/*`)
-   - Choose the match type and HTTP method(s)
-   - Enter the mock response body (and optionally status code, headers, delay)
-   - Enable the rule
-5. Refresh your page to see the mock response
+2. Turn on "Intercept this tab" (or press `Alt+Shift+I`) to enable interception for the current tab
+3. **Reload the page** — requests it already made can't be mocked retroactively
+4. Open the **Network** tab in the popup and hit **+ Rule** on the request you want to fake. The mock is prefilled with the response the server actually returned
+5. Edit the body/status and save — the rule takes effect on the next matching request
+
+Prefer to start from scratch? Use **Paste cURL** in the popup, or build a rule field-by-field on the Options page.
+
+The strip under the toggle tells you whenever something is stopping your rules
+from firing (tab not intercepted, page not reloaded, no rules enabled) and gives
+you the button that fixes it.
+
+### Keyboard Shortcuts
+
+| Key | Where | Does |
+| --- | --- | --- |
+| `Alt+Shift+I` | Anywhere in Chrome | Toggle interception on the current tab |
+| `/` | Popup | Focus the search box |
+| `Esc` | Popup | Close the open dialog, or clear the search |
+| `Ctrl/Cmd+Enter` | Popup dialogs | Submit |
+
+Re-bind the Chrome-wide shortcut at `chrome://extensions/shortcuts`.
 
 ### Creating Rules
 
@@ -206,7 +221,9 @@ extension-response-intercept/
 ├── popup/
 │   ├── popup.html/.js/.css
 │   └── modules/                 # rules-view, network, create-rule-modal,
-│                                #   paste-curl-modal, notifications, ...
+│       │                        #   paste-curl-modal, notifications, ...
+│       ├── hint-banner.js       # "why nothing is firing" strip + its fix action
+│       └── keyboard.js          # popup-wide shortcuts (/, Esc, Ctrl+Enter)
 ├── options/
 │   ├── options.html/.js/.css
 │   └── modules/                 # rule-form, rules-view, groups, import-export,
@@ -254,8 +271,10 @@ No build process required - this is a pure JavaScript extension. Simply load it 
 
 **Extension not intercepting requests:**
 
+- Open the popup and read the strip under the toggle — it names the specific
+  thing that's blocking you and offers the fix
 - Make sure interception is on for the tab (toggle "Intercept this tab" in the popup)
-- Check that your rule is enabled
+- Check that your rule is enabled, *and* that its group is enabled
 - Verify the URL pattern matches the request URL
 - Refresh the page after attaching the debugger
 
@@ -318,7 +337,28 @@ Contributions are welcome! Please feel free to submit issues or pull requests.
 
 ## Changelog
 
-### Version 2.4.0 (Current)
+### Version 2.5.0 (Current)
+
+- **ADDED**: Right-click any page to toggle interception on that tab from the context menu
+- **ADDED**: Bulk-mock from the network log — select several captured requests and turn them all into rules at once
+- **ADDED**: A guidance strip in the popup that names whatever is stopping rules from firing — tab not intercepted, page not reloaded since the debugger attached, or no rules enabled — each with a one-click fix
+- **ADDED**: `Alt+Shift+I` is now bound out of the box (the command existed but shipped unassigned); `/` focuses search, `Esc` closes dialogs, `Ctrl/Cmd+Enter` submits them
+- **ADDED**: The intercept card shows which host the per-tab toggle acts on
+- **IMPROVED**: Empty states lead with the fastest path (record → **+ Rule**, or **Paste cURL**) instead of only linking to the blank full editor
+- **IMPROVED**: "Recently Fired" is hidden until something fires, rather than showing an empty box
+- **FIXED**: Clearing **Status Code**, **Delay**, or **Response Headers** on a rule silently kept the old value — the form couldn't distinguish "left empty" from "not supplied", so the shallow merge in `updateRule` could only ever add or change a field, never clear one. Applies to the full editor and both inline status-code editors
+- **FIXED**: Detaching the debugger (opening DevTools on an intercepted tab, most often) left the interceptor's per-tab request bookkeeping in memory for the life of the tab
+- **FIXED**: A regex rule the engine rejects no longer forces the whole tab to pause *every* request on behalf of a rule that can never match; the rule editor now reports the rejection instead of failing silently in the service-worker console
+- **FIXED**: The ReDoS guard rejected ordinary patterns like `/users/(\d+)?/profile`, `[a-z]+?\.js` and `(foo)*bar(baz)+`, while missing `((X+))+` — a group nested one level deeper, and just as catastrophic. It now walks the pattern and pairs each `)` with its own `(` instead of pattern-matching on it, so it catches every repeated group whose body already repeats and leaves the rest alone. `(X+)?` stays allowed: it can match at most once, so it's linear
+- **FIXED**: Paste cURL rejected a bare `localhost:3000/api` — the host sniffer required a dot, which ruled out the one host a local dev pastes most. `localhost` and any `host:port` are now accepted; `hello` and `12:30` still aren't
+- **FIXED**: Paste cURL left a stray backslash before every embedded quote in bodies and header values from **Copy as cURL (cmd)** — Windows escapes a `"` as `^\^"`, and the parser decoded that one character at a time
+- **FIXED**: Clearing the network log wiped every tab's capture instead of the current tab's when the popup couldn't resolve its tab id
+- **FIXED**: Importing a pre-2.4 export left legacy `json-path` rules serving `{}` until the next service-worker restart; the migration now runs on import too
+- **FIXED**: The network bulk-select bar's buttons rendered at full size — `.btn-small` was never defined in the popup stylesheet
+- **FIXED**: One oversized entry could truncate every older entry when mirroring network logs to session storage
+- **REMOVED**: Dead group-toggle code in the popup that targeted elements not present in the markup, and the never-invoked debounced rule/group savers whose `onSuspend` flush was a no-op
+
+### Version 2.4.0
 
 - **CHANGED**: Documentation and in-app help now accurately describe the mock-only model — matched requests are blocked and answered with a mock response (the real server is not contacted)
 - **REMOVED**: The unsupported JSON-path and regex modify types (they never modified real responses); existing rules using them are migrated to a replace body on upgrade

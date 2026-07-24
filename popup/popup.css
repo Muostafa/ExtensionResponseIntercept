@@ -287,6 +287,68 @@ header .subtitle {
 
 .status-card-hint { font-size: 11px; color: var(--text-muted); margin-top: 6px; }
 
+/* The intercept card shows which tab it acts on — the toggle is per-tab, and
+   "this tab" is ambiguous once you have a few windows open. */
+.status-card-value-row { display: flex; align-items: center; gap: 8px; }
+
+.status-card-host {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 5b · Hint banner ───────────────────────────────────────────── */
+.hint-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  font-size: 11.5px;
+  line-height: 1.4;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+}
+
+.hint-banner-icon { display: flex; flex-shrink: 0; }
+.hint-banner-text { flex: 1; min-width: 0; }
+
+.hint-banner-action {
+  flex-shrink: 0;
+  border: 1px solid currentColor;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  transition: background var(--t-fast);
+}
+
+.hint-banner-action:hover { background: rgba(0,0,0,0.06); }
+[data-theme="dark"] .hint-banner-action:hover { background: rgba(255,255,255,0.08); }
+
+.hint-banner.tone-warn {
+  background: rgba(217,119,6,0.08);
+  border-color: rgba(217,119,6,0.32);
+  color: var(--warning);
+}
+
+.hint-banner.tone-info {
+  background: var(--primary-subtle);
+  border-color: var(--primary-ring);
+  color: var(--primary);
+}
+
+/* tone-neutral deliberately keeps the base styling — it states a fact
+   ("not available here") rather than asking for anything. */
+.hint-banner.tone-neutral { color: var(--text-secondary); }
+
 /* 6 · Quick Actions ──────────────────────────────────────────── */
 .quick-actions {
   padding: 10px 16px;
@@ -463,6 +525,13 @@ header .subtitle {
   color: var(--text-secondary);
 }
 
+/* Used by the network bulk-select bar. Mirrors the options-page definition —
+   without it those buttons inherit full .btn sizing and overflow the bar. */
+.btn-small {
+  padding: 5px 10px;
+  font-size: 12px;
+}
+
 /* 10 · Search ────────────────────────────────────────────────── */
 .search-container {
   position: relative;
@@ -498,6 +567,28 @@ header .subtitle {
   color: var(--text-muted);
   pointer-events: none;
 }
+
+/* "/" focus hint — fades out once the field is in use so it never sits on
+   top of what you typed. */
+.search-kbd {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 1px 6px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-xs);
+  background: var(--bg-primary);
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 10px;
+  line-height: 1.5;
+  pointer-events: none;
+  transition: opacity var(--t-fast);
+}
+
+.search-input:focus ~ .search-kbd,
+.search-input:not(:placeholder-shown) ~ .search-kbd { opacity: 0; }
 
 /* 11 · Filter Options ────────────────────────────────────────── */
 .filter-options {
@@ -1120,6 +1211,31 @@ header .subtitle {
 }
 
 .empty-state p { font-size: 12px; color: var(--text-muted); margin-bottom: 14px; }
+.empty-state p strong { color: var(--text-secondary); font-weight: 600; }
+
+.empty-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.empty-actions:empty { display: none; }
+
+.empty-link {
+  margin-top: 10px;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.empty-link:hover { color: var(--primary); }
 
 /* 18 · Footer ────────────────────────────────────────────────── */
 .actions-section {
@@ -1785,50 +1901,6 @@ select:focus:not(:focus-visible) { outline: none; }
 .rf-badge.badge-delayed     { background: rgba(217,119,6,0.10);  color: var(--warning); }
 
 .rf-time { font-size: 10px; color: var(--text-muted); margin-left: auto; }
-
-.recently-fired-empty {
-  padding: 14px;
-  text-align: center;
-  color: var(--text-muted);
-  font-size: 12px;
-  background: var(--bg-secondary);
-  border: 1px dashed var(--border-color);
-  border-radius: var(--radius-sm);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 5px;
-}
-
-/* Group Toggles */
-.group-toggles-section { border-top: 1px solid var(--border-color); padding: 5px 0; }
-
-.group-toggles-header {
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-muted);
-  padding: 2px 12px 5px;
-}
-
-.group-toggle-item { display: flex; align-items: center; justify-content: space-between; padding: 4px 12px; }
-
-.group-toggle-name {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex: 1;
-  margin-right: 8px;
-}
-
-.toggle-switch-sm { position: relative; width: 28px; height: 16px; flex-shrink: 0; }
-.toggle-switch-sm .toggle-label { border-radius: 999px; }
-.toggle-switch-sm .toggle-label::before { width: 10px; height: 10px; left: 3px; top: 3px; }
-.toggle-switch-sm .toggle-input:checked + .toggle-label::before { transform: translateX(12px); }
 
 .kbd {
   display: inline-block;

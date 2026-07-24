@@ -309,7 +309,7 @@
               </svg>
             </div>
             <h3 class="empty-state-heading">No Rules Yet</h3>
-            <p class="empty-state-subtext">Create your first rule to start intercepting and modifying API responses. Rules let you mock, delay, or transform any network request.</p>
+            <p class="empty-state-subtext">Create your first rule to start mocking API responses. A matching request is answered with your mock instead of going to the server — you can set the body, status code, headers, and an artificial delay.</p>
             <div class="empty-state-actions">
               <button id="emptyStateCreateRuleBtn" class="empty-action-card">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -945,8 +945,41 @@
                   <span class="shortcut-desc">Quick tab navigation</span>
                 </div>
               </div>
+
+              <h4 class="shortcuts-subhead">Anywhere in Chrome</h4>
+              <div class="shortcuts-list">
+                <div class="shortcut-item">
+                  <span class="shortcut-keys"
+                    ><kbd>Alt</kbd> + <kbd>Shift</kbd> + <kbd>I</kbd></span
+                  >
+                  <span class="shortcut-desc"
+                    >Toggle interception on the current tab</span
+                  >
+                </div>
+              </div>
+
+              <h4 class="shortcuts-subhead">In the popup</h4>
+              <div class="shortcuts-list">
+                <div class="shortcut-item">
+                  <span class="shortcut-keys"><kbd>/</kbd></span>
+                  <span class="shortcut-desc">Focus the search box</span>
+                </div>
+                <div class="shortcut-item">
+                  <span class="shortcut-keys"><kbd>Esc</kbd></span>
+                  <span class="shortcut-desc">Close a dialog / clear search</span>
+                </div>
+                <div class="shortcut-item">
+                  <span class="shortcut-keys"
+                    ><kbd>Ctrl</kbd> + <kbd>Enter</kbd></span
+                  >
+                  <span class="shortcut-desc">Submit the open dialog</span>
+                </div>
+              </div>
+
               <small class="form-hint" style="margin-top: 8px; display: block"
-                >Use <kbd>Cmd</kbd> instead of <kbd>Ctrl</kbd> on Mac</small
+                >Use <kbd>Cmd</kbd> instead of <kbd>Ctrl</kbd> on Mac. Re-bind the
+                Chrome-wide shortcut at
+                <code>chrome://extensions/shortcuts</code>.</small
               >
             </section>
 

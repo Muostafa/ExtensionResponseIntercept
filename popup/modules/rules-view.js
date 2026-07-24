@@ -5,6 +5,7 @@ import { STATUS_CODE_MIN, STATUS_CODE_MAX } from '../../shared/constants.js';
 import { icon } from '../../shared/icons.js';
 import { state } from './state.js';
 import { showToast } from './toast.js';
+import { refreshHintBanner } from './hint-banner.js';
 
 // Valid HTTP status codes for the inline status-code editor's "non-standard" warning.
 const VALID_STATUS_CODES = [
@@ -99,6 +100,10 @@ export async function displayRules(rules) {
   if (enabledRulesText) {
     enabledRulesText.textContent = `${enabledCount} enabled`;
   }
+
+  // Enabling/disabling a rule or group can flip the "nothing will be mocked"
+  // hint, so re-resolve it whenever the list re-renders.
+  await refreshHintBanner();
 
   if (rules.length === 0) {
     rulesList.innerHTML = '';
@@ -528,11 +533,11 @@ async function saveJsonEdit(ruleId) {
     }
 
     if (statusInput) {
-      if (statusInput.value === '') {
-        delete rule.modifyStatusCode;
-      } else {
-        rule.modifyStatusCode = parseInt(statusInput.value);
-      }
+      // null, not delete: an absent key means "leave it alone" on the way
+      // through updateRule, so deleting here would keep the old code.
+      rule.modifyStatusCode = statusInput.value === ''
+        ? null
+        : parseInt(statusInput.value);
     }
 
     await chrome.runtime.sendMessage({

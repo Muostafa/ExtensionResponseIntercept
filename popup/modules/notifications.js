@@ -1,7 +1,5 @@
 import { MESSAGES } from '../../shared/messages.js';
 import { escapeHtml } from '../../shared/dom.js';
-import { debug } from '../../shared/debug.js';
-import { icon as renderIcon } from '../../shared/icons.js';
 import { state } from './state.js';
 
 function formatTimeAgo(timestamp) {
@@ -23,18 +21,15 @@ export async function loadRecentlyFired() {
     const list = document.getElementById('recentlyFiredList');
     if (!section || !list) return;
 
-    section.style.display = 'block';
-
+    // Nothing has fired: stay hidden rather than spend ~70px of a 380px popup
+    // on an empty box. The hint strip already explains why nothing is firing.
     if (notifications.length === 0) {
-      list.innerHTML = `
-        <div class="recently-fired-empty">
-          ${renderIcon('clock', { size: 20 })}
-          <span>No rules fired yet</span>
-          <span style="font-size:11px;">Visit a page with a matching URL to see activity here.</span>
-        </div>
-      `;
+      section.style.display = 'none';
+      list.innerHTML = '';
       return;
     }
+
+    section.style.display = 'block';
 
     list.innerHTML = notifications.map(n => {
       const timeAgo = formatTimeAgo(n.timestamp);
@@ -64,46 +59,6 @@ export function setupRecentlyFiredToggle() {
     if (list) list.style.display = state.recentlyFiredCollapsed ? 'none' : 'block';
     if (arrow) arrow.style.transform = state.recentlyFiredCollapsed ? 'rotate(-90deg)' : '';
   });
-}
-
-export async function loadGroupToggles() {
-  try {
-    const response = await chrome.runtime.sendMessage({ action: MESSAGES.GET_GROUPS });
-    const groups = response?.groups || [];
-    const section = document.getElementById('groupTogglesSection');
-    const list = document.getElementById('groupTogglesList');
-    if (!section || !list) return;
-
-    if (groups.length === 0) {
-      section.style.display = 'none';
-      return;
-    }
-
-    section.style.display = 'block';
-    list.innerHTML = groups.map(g => `
-      <div class="group-toggle-item">
-        <span class="group-toggle-name">${escapeHtml(g.name)}</span>
-        <div class="toggle-switch toggle-switch-sm">
-          <input type="checkbox" id="group-toggle-${g.id}" class="toggle-input group-toggle-input"
-            data-group-id="${g.id}" ${g.enabled ? 'checked' : ''}>
-          <label for="group-toggle-${g.id}" class="toggle-label"></label>
-        </div>
-      </div>
-    `).join('');
-
-    list.querySelectorAll('.group-toggle-input').forEach(input => {
-      input.addEventListener('change', async (e) => {
-        const groupId = e.target.dataset.groupId;
-        try {
-          await chrome.runtime.sendMessage({ action: MESSAGES.TOGGLE_GROUP, groupId });
-        } catch (err) {
-          debug.error('Failed to toggle group:', err);
-        }
-      });
-    });
-  } catch (e) {
-    // Ignore
-  }
 }
 
 export function handleRuleTriggeredNotification(notification) {

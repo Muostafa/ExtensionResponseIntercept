@@ -6,6 +6,7 @@ import { toCurl } from '../../shared/curl.js';
 import { state } from './state.js';
 import { showToast } from './toast.js';
 import { openCreateRuleModal, openBulkCreateRuleModal } from './create-rule-modal.js';
+import { refreshHintBanner } from './hint-banner.js';
 
 export function setupViewTabs() {
   document.getElementById('rulesTabBtn')?.addEventListener('click', () => switchView('rules'));
@@ -62,13 +63,20 @@ export function setupNetworkSection() {
   if (clearNetworkLogsBtn) {
     clearNetworkLogsBtn.addEventListener('click', async () => {
       try {
-        await chrome.runtime.sendMessage({
+        const response = await chrome.runtime.sendMessage({
           action: MESSAGES.CLEAR_NETWORK_LOGS,
           tabId: state.currentTab?.id
         });
+        if (!response?.success) throw new Error(response?.error || 'Clear failed');
         state.networkLogs = [];
         state.expandedLogIds.clear();
+        state.selectedLogIds.clear();
+        // The baseline counted logs that no longer exist. Leaving it set would
+        // hold the "reload the page" hint up until the count climbed back past
+        // it, on a tab that is already intercepting fine.
+        state.interceptLogBaseline = 0;
         displayNetworkLogs([]);
+        refreshHintBanner();
         showToast('Network logs cleared', 'success');
       } catch (error) {
         debug.error('Failed to clear network logs:', error);
@@ -163,6 +171,8 @@ async function loadNetworkLogs() {
     });
     state.networkLogs = response.logs || [];
     displayNetworkLogs(state.networkLogs);
+    // The log count decides whether the "reload the page" hint applies.
+    refreshHintBanner();
 
     const countBadge = document.getElementById('networkLogsCount');
     if (countBadge) {
@@ -303,6 +313,56 @@ function renderBulkBar() {
   });
 }
 
+/**
+ * Rewrite the network empty state, with the one action that unblocks you baked
+ * in — telling someone to "turn on Intercept this tab" is less useful than a
+ * button that does it.
+ * @param {'reload'|'turnOn'|null} action
+ */
+function setNetworkEmptyState(title, body, action) {
+  const emptyState = document.getElementById('networkEmptyState');
+  if (!emptyState) return;
+
+  emptyState.querySelector('h3').textContent = title;
+  emptyState.querySelector('p').textContent = body;
+
+  const actions = document.getElementById('networkEmptyActions');
+  if (!actions) return;
+
+  const toggle = document.getElementById('tabInterceptToggle');
+  const wanted = !action || (action === 'turnOn' && toggle?.disabled) ? '' : action;
+  // Called on every 2s refresh — rebuilding an unchanged button would drop a
+  // click that straddles the rebuild. Only touch the DOM when it differs.
+  if (actions.dataset.action === wanted) return;
+  actions.dataset.action = wanted;
+
+  if (!wanted) {
+    actions.innerHTML = '';
+    return;
+  }
+
+  if (action === 'turnOn') {
+    actions.innerHTML = '<button class="btn btn-primary" id="netEmptyTurnOn">Turn on interception</button>';
+    document.getElementById('netEmptyTurnOn')?.addEventListener('click', () => {
+      if (!toggle) return;
+      toggle.checked = true;
+      toggle.dispatchEvent(new Event('change'));
+    });
+  } else {
+    actions.innerHTML = '<button class="btn btn-primary" id="netEmptyReload">Reload page</button>';
+    document.getElementById('netEmptyReload')?.addEventListener('click', async () => {
+      const tabId = state.currentTab?.id;
+      if (!tabId) return;
+      try {
+        await chrome.tabs.reload(tabId);
+        window.close();
+      } catch (error) {
+        debug.error('Failed to reload tab:', error);
+      }
+    });
+  }
+}
+
 function displayNetworkLogs(logs) {
   const networkLogsList = document.getElementById('networkLogsList');
   const networkEmptyState = document.getElementById('networkEmptyState');
@@ -322,11 +382,19 @@ function displayNetworkLogs(logs) {
     if (networkEmptyState) {
       networkEmptyState.style.display = 'block';
       if (logs.length > 0 && hasActiveNetworkFilter()) {
-        networkEmptyState.querySelector('h3').textContent = 'No Results';
-        networkEmptyState.querySelector('p').textContent = 'No requests match your filter';
+        setNetworkEmptyState('No Results', 'No requests match your filter', null);
+      } else if (document.getElementById('tabInterceptToggle')?.checked) {
+        setNetworkEmptyState(
+          'Nothing Captured Yet',
+          'Reload the page so its requests run through the extension.',
+          'reload'
+        );
       } else {
-        networkEmptyState.querySelector('h3').textContent = 'No Network Requests';
-        networkEmptyState.querySelector('p').textContent = 'Turn on “Intercept this tab” to start capturing requests';
+        setNetworkEmptyState(
+          'No Network Requests',
+          'Turn on interception for this tab to start capturing requests.',
+          'turnOn'
+        );
       }
     }
     return;

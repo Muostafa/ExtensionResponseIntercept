@@ -438,7 +438,9 @@ function attachRuleEventListeners() {
 
       const updated = { ...rule };
       if (!raw) {
-        delete updated.modifyStatusCode;
+        // null, not delete: an absent key means "leave it alone" on the way
+        // through updateRule, so deleting here would keep the old code.
+        updated.modifyStatusCode = null;
       } else {
         const code = parseInt(raw, 10);
         if (isNaN(code) || code < STATUS_CODE_MIN || code > STATUS_CODE_MAX) {

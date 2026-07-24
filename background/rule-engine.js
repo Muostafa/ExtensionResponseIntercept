@@ -127,6 +127,13 @@ export class RuleEngine {
     if (compiled) {
       return compiled.test(url);
     }
+    // 'regex' and 'wildcard' are always pre-compiled in compilePatterns(), so a
+    // missing entry means compilation was *rejected* — the rule can never match.
+    // Falling through would recompile it (and re-log the rejection) on every
+    // single request, only to arrive at the same false.
+    if (rule.matchType === 'regex' || rule.matchType === 'wildcard') {
+      return false;
+    }
     // Fallback for exact/contains (no pre-compilation needed)
     return this.matchUrl(url, rule.urlPattern, rule.matchType);
   }

@@ -17,17 +17,10 @@ export function setupPasteCurlModal() {
   document.getElementById('cancelPasteCurl')?.addEventListener('click', closePasteCurlModal);
   overlay?.addEventListener('click', closePasteCurlModal);
   document.getElementById('confirmPasteCurl')?.addEventListener('click', confirmPasteCurl);
-
-  // Ctrl/Cmd+Enter to submit — the textarea swallows plain Enter.
-  document.getElementById('pasteCurlInput')?.addEventListener('keydown', (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-      e.preventDefault();
-      confirmPasteCurl();
-    }
-  });
+  // Ctrl/Cmd+Enter to submit is handled globally — see modules/keyboard.js.
 }
 
-function openPasteCurlModal() {
+export function openPasteCurlModal() {
   const input = document.getElementById('pasteCurlInput');
   if (input) input.value = '';
   const modal = document.getElementById('pasteCurlModal');

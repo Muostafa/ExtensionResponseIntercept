@@ -12,29 +12,36 @@ import {
   setupNotificationListener,
   setupRecentlyFiredToggle,
   loadRecentlyFired,
-  loadGroupToggles,
 } from './modules/notifications.js';
-import { loadStatus, setupStorageListener } from './modules/status.js';
+import { loadStatus, setupStorageListener, showCurrentTabHost } from './modules/status.js';
 import { loadRules, displayRules } from './modules/rules-view.js';
 import {
   setupViewTabs,
+  switchView,
   setupNetworkSection,
   startNetworkRefresh,
   stopNetworkRefresh,
 } from './modules/network.js';
 import { setupCreateRuleModal } from './modules/create-rule-modal.js';
-import { setupPasteCurlModal } from './modules/paste-curl-modal.js';
+import { setupPasteCurlModal, openPasteCurlModal } from './modules/paste-curl-modal.js';
+import { primeLogCount, refreshHintBanner } from './modules/hint-banner.js';
+import { setupKeyboardShortcuts } from './modules/keyboard.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
   state.currentTab = tabs[0];
 
   loadTheme();
+  showCurrentTabHost();
 
-  await loadStatus();
+  // Independent round-trips — run them together so the popup paints sooner.
+  // primeLogCount is here because the hint strip needs the tab's log count to
+  // tell "attached but the page hasn't reloaded" apart from "attached and
+  // working", and we can't wait for the user to open the Network tab for it.
+  await Promise.all([primeLogCount(), loadStatus(), loadRecentlyFired()]);
+  // Last: displayRules() renders the hint strip, and by now it can see both the
+  // attachment state and the log count.
   await loadRules();
-  await loadRecentlyFired();
-  await loadGroupToggles();
 
   setupEventListeners();
   setupStorageListener();
@@ -43,6 +50,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupCreateRuleModal();
   setupPasteCurlModal();
   setupNotificationListener();
+  setupKeyboardShortcuts();
 
   startNetworkRefresh();
   window.addEventListener('unload', stopNetworkRefresh);
@@ -128,12 +136,20 @@ function setupEventListeners() {
       await chrome.runtime.sendMessage({ action, tabId });
       // attachDebuggerToTab resolves success even if attach was refused (e.g.
       // DevTools open / restricted page), so re-sync from authoritative status.
+      // Anything already logged predates this attach — don't let it count as
+      // proof the page is running through the extension.
+      state.interceptLogBaseline = wantOn ? state.networkLogs.length : 0;
       await loadStatus();
       const actuallyOn = document.getElementById('tabInterceptToggle').checked;
       if (wantOn && !actuallyOn) {
+        state.interceptLogBaseline = 0;
+        await refreshHintBanner();
         showToast('Could not intercept this tab — is DevTools open on it?', 'error');
       } else {
-        showToast(actuallyOn ? 'Now intercepting this tab' : 'Stopped intercepting', 'success');
+        showToast(
+          actuallyOn ? 'Intercepting — reload the page to apply' : 'Stopped intercepting',
+          'success'
+        );
       }
     } catch (error) {
       debug.error('Failed to toggle interception:', error);
@@ -141,6 +157,11 @@ function setupEventListeners() {
       showToast('Failed to toggle interception', 'error');
     }
   });
+
+  // The empty state points at the two fast paths first; "from scratch" (the
+  // options form) is the fallback link underneath them.
+  document.getElementById('emptyRecordBtn')?.addEventListener('click', () => switchView('network'));
+  document.getElementById('emptyPasteCurlBtn')?.addEventListener('click', openPasteCurlModal);
 
   const optionsButtons = [
     document.getElementById('addRuleBtn'),

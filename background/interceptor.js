@@ -477,7 +477,10 @@ export class ResponseInterceptor {
         }
       }
 
-      // Enforce maximum tab limit using LRU eviction
+      // Enforce the maximum tab limit, evicting in insertion order (oldest
+      // attach first — not true LRU, since attachment isn't re-touched on use).
+      // Note this only drops our bookkeeping; the debugger stays attached to the
+      // tab, so events from it fall through to the untracked-tab path.
       if (this.attachedTabs.size > MAX_TABS) {
         debug.warn(`Tab count (${this.attachedTabs.size}) exceeds limit (${MAX_TABS}), removing oldest entries`);
         const excess = this.attachedTabs.size - MAX_TABS;
@@ -624,8 +627,10 @@ export class ResponseInterceptor {
         ? { ...log, responseBody: this.truncateForStorage(log.responseBody, SESSION_RESPONSE_MAX_LENGTH) }
         : log;
 
+      // Skip rather than stop: one oversized entry shouldn't discard every
+      // older entry behind it that would still have fit.
       const cost = JSON.stringify(trimmed).length;
-      if (cost > budget) break;
+      if (cost > budget) continue;
       budget -= cost;
 
       // Object keys stringify to strings; hydrate() turns them back into numbers.
@@ -718,15 +723,25 @@ export class ResponseInterceptor {
   }
 
   /**
-   * Clear network logs for a specific tab
+   * Clear network logs for one tab, or for every tab when `all` is set.
+   *
+   * Wiping everything is deliberately opt-in: this used to treat a missing
+   * tabId as "clear all", so a popup that couldn't resolve its own tab id
+   * silently destroyed every other tab's capture.
+   *
+   * @returns {boolean} false if the request was ignored for lack of a target
    */
-  clearNetworkLogs(tabId) {
-    if (tabId) {
+  clearNetworkLogs(tabId, { all = false } = {}) {
+    if (all) {
+      this.networkLogs.clear();
+    } else if (tabId != null) {
       this.networkLogs.delete(tabId);
     } else {
-      this.networkLogs.clear();
+      debug.warn('clearNetworkLogs called with no tabId and no { all } — ignoring');
+      return false;
     }
     this.persistLogsDebounced();
+    return true;
   }
 
   /**

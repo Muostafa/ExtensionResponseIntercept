@@ -21,4 +21,10 @@ export const state = {
   collapsedGroups: new Set(),
   isNetworkLoggingEnabled: true,
   recentlyFiredCollapsed: false,
+  // Log count at the moment interception was turned on in this popup session.
+  // Entries at or below this line predate the attach, so they don't prove the
+  // page is actually running through the extension — the hint strip keeps
+  // asking for a reload until the count climbs past it. 0 is the right default
+  // for a tab that was already attached when the popup opened.
+  interceptLogBaseline: 0,
 };

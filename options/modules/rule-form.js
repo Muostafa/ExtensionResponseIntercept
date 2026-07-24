@@ -4,6 +4,7 @@ import { escapeHtml } from '../../shared/dom.js';
 import { debug } from '../../shared/debug.js';
 import { STATUS_CODE_MIN, STATUS_CODE_MAX } from '../../shared/constants.js';
 import { icon } from '../../shared/icons.js';
+import { safeCompileRegex } from '../../shared/regex.js';
 import { state, BODY_PLACEHOLDERS, MATCH_TYPE_HINTS } from './state.js';
 import { showToast } from './toast.js';
 import { loadGroups } from './groups.js';
@@ -184,14 +185,17 @@ export async function saveRule() {
     }
 
     if (savedRule) {
-      const expectedDelay = ruleData.delay;
-      const actualDelay = savedRule.delay;
-      if (expectedDelay !== undefined && actualDelay !== expectedDelay) {
+      // "no delay" is null coming out of the form and an absent key once stored,
+      // so normalize both sides before comparing — otherwise clearing the field
+      // reads as a failed save.
+      const expectedDelay = ruleData.delay ?? null;
+      const actualDelay = savedRule.delay ?? null;
+      if (actualDelay !== expectedDelay) {
         debug.error(`Delay verification failed! Expected: ${expectedDelay}, Got: ${actualDelay}`);
         showToast(`Warning: Delay value was not saved correctly. Expected ${expectedDelay}ms but got ${actualDelay}ms`, 'error');
         return;
       }
-      if (expectedDelay !== undefined) {
+      if (expectedDelay !== null) {
         debug.log(`Rule saved successfully with delay: ${actualDelay}ms`);
       }
     } else {
@@ -239,12 +243,22 @@ export function collectFormData() {
   if (!name) errors.push({ fieldId: 'ruleName', message: 'Rule name is required' });
   if (!urlPattern) errors.push({ fieldId: 'urlPattern', message: 'URL pattern is required' });
 
+  // A regex the engine won't accept produces a rule that can never match, and
+  // the rejection previously only reached the service-worker console. Catch it
+  // here, while the user is still looking at the field.
+  if (urlPattern && matchType === 'regex' && !safeCompileRegex(urlPattern)) {
+    errors.push({
+      fieldId: 'urlPattern',
+      message: 'This regex was rejected — check the syntax, and avoid a repeated group that already repeats, like (\\d+)+',
+    });
+  }
+
   const methods = Array.from(document.querySelectorAll('input[name="methods"]:checked')).map(cb => cb.value);
 
   const delayValue = document.getElementById('ruleDelay').value.trim();
   const delay = delayValue ? parseInt(delayValue, 10) : null;
 
-  if (delay !== null && (delay < 0 || delay > 30000)) {
+  if (delay !== null && (Number.isNaN(delay) || delay < 0 || delay > 30000)) {
     errors.push({ fieldId: 'ruleDelay', message: 'Delay must be between 0 and 30000 ms' });
   }
 
@@ -257,17 +271,20 @@ export function collectFormData() {
 
   const ruleData = { name, description, urlPattern, matchType, methods, enabled, priority };
 
-  if (delay !== null) {
-    ruleData.delay = delay;
-    debug.log(`Setting delay value: ${delay}ms`);
-  }
+  // Always send the key. null means "the user emptied this field" — omitting it
+  // would leave the previously saved delay in place (see storage-manager's
+  // dropNullFields). Same for modifyStatusCode and modifyHeaders below.
+  ruleData.delay = delay;
+  if (delay !== null) debug.log(`Setting delay value: ${delay}ms`);
 
   const contentTypeEl = document.getElementById('responseContentType');
   const contentType = contentTypeEl?.value || 'application/json';
   ruleData.contentType = contentType;
-  if (contentType === '__custom__') {
-    ruleData.customContentType = document.getElementById('customContentType')?.value.trim() || 'application/octet-stream';
-  }
+  // Clear the custom type when switching back to a standard one, so a stale
+  // value can't resurface if the user later switches to Custom again.
+  ruleData.customContentType = contentType === '__custom__'
+    ? (document.getElementById('customContentType')?.value.trim() || 'application/octet-stream')
+    : null;
 
   const isCustomBinary = contentType === '__custom__' && document.getElementById('customIsBinary')?.checked;
   const effectiveBinary = (isBinaryContentType(contentType) && contentType !== '__custom__') || isCustomBinary;
@@ -281,6 +298,7 @@ export function collectFormData() {
 
   clearStatusCodeWarning();
   const statusCode = document.getElementById('modifyStatusCode').value.trim();
+  ruleData.modifyStatusCode = null;
   if (statusCode) {
     const validation = validateStatusCode(statusCode);
     if (!validation.valid) {
@@ -292,7 +310,7 @@ export function collectFormData() {
   }
 
   const modifyHeaders = getHeaderModifications();
-  if (modifyHeaders.length > 0) ruleData.modifyHeaders = modifyHeaders;
+  ruleData.modifyHeaders = modifyHeaders.length > 0 ? modifyHeaders : null;
 
   const groupValue = document.getElementById('ruleGroup').value;
   if (groupValue) ruleData.groupId = groupValue;

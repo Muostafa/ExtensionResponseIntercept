@@ -16,7 +16,7 @@
           </div>
           <div>
             <h1>API Interceptor</h1>
-            <div class="subtitle">Response modifier</div>
+            <div class="subtitle" id="headerSubtitle">Mock API responses</div>
           </div>
         </div>
         <div class="header-actions">
@@ -43,11 +43,12 @@
             <span class="status-card-label" title="Attaches Chrome's debugger to the current tab so matching requests are mocked">Intercept this tab</span>
             <div id="tabInterceptIndicator" class="status-indicator"></div>
           </div>
-          <div class="status-card-value">
+          <div class="status-card-value status-card-value-row">
             <div class="toggle-switch">
-              <input type="checkbox" id="tabInterceptToggle" class="toggle-input">
+              <input type="checkbox" id="tabInterceptToggle" class="toggle-input" title="Toggle interception (Alt+Shift+I)">
               <label for="tabInterceptToggle" class="toggle-label"></label>
             </div>
+            <span id="tabInterceptHost" class="status-card-host"></span>
           </div>
           <div id="tabInterceptHint" class="status-card-hint" style="display:none"></div>
         </div>
@@ -59,6 +60,7 @@
           <div class="status-card-value" id="enabledRulesText">0 enabled</div>
         </div>
       </div>
+      <div id="hintBanner" class="hint-banner" style="display: none;"></div>
     </section>
 
     <section class="quick-actions">
@@ -119,6 +121,7 @@
           <line x1="21" y1="21" x2="16.65" y2="16.65"/>
         </svg>
         <input type="text" id="searchInput" class="search-input" placeholder="Search rules...">
+        <kbd class="search-kbd">/</kbd>
       </div>
 
       <div id="filterOptions" class="filter-options" style="display: none;">
@@ -165,8 +168,12 @@
           </svg>
         </div>
         <h3>No Rules Yet</h3>
-        <p>Create your first rule to start intercepting API responses</p>
-        <button id="emptyAddRuleBtn" class="btn btn-primary" style="margin-top: 8px;">Create Rule</button>
+        <p>The quickest way in: turn on <strong>Intercept this tab</strong>, reload the page, then hit <strong>+ Rule</strong> on any request in the Network tab — the mock is prefilled with the real response.</p>
+        <div class="empty-actions">
+          <button id="emptyRecordBtn" class="btn btn-primary">Record requests</button>
+          <button id="emptyPasteCurlBtn" class="btn btn-secondary">Paste cURL</button>
+        </div>
+        <button id="emptyAddRuleBtn" class="empty-link">Or build one from scratch</button>
       </div>
 
       <div id="noSearchResults" class="empty-state" style="display: none;">
@@ -213,6 +220,7 @@
           <line x1="21" y1="21" x2="16.65" y2="16.65"/>
         </svg>
         <input type="text" id="networkSearchInput" class="search-input" placeholder="Filter by URL or method...">
+        <kbd class="search-kbd">/</kbd>
       </div>
 
       <div class="network-filter-chips" id="networkFilterChips">
@@ -250,6 +258,7 @@
         </div>
         <h3>No Network Requests</h3>
         <p>Turn on “Intercept this tab” to start capturing network requests</p>
+        <div class="empty-actions" id="networkEmptyActions"></div>
       </div>
     </section>
 

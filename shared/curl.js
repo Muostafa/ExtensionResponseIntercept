@@ -118,6 +118,17 @@ function tokenize(text, flavor) {
         (flavor === 'powershell' && ch === '`' && next === '"');
       if (isEscapedQuote) { token += '"'; i++; hasToken = true; continue; }
       if (ch === '\\' && next === '\\') { token += '\\'; i++; hasToken = true; continue; }
+      // cmd escapes a " as \" and *then* prefixes both characters with ^, so an
+      // embedded quote arrives as the four-character run ^\^" (and a literal
+      // backslash as ^\^\). The generic ^ rule below would decode those one
+      // character at a time and leave the backslash behind, so take the pair first.
+      if (flavor === 'cmd' && ch === '^' && next === '\\'
+          && text[i + 2] === '^' && (text[i + 3] === '"' || text[i + 3] === '\\')) {
+        token += text[i + 3];
+        i += 3;
+        hasToken = true;
+        continue;
+      }
       // cmd keeps escaping metacharacters ({ } & ! ^ ...) with ^ even inside quotes.
       if (flavor === 'cmd' && ch === '^' && next) { token += next; i++; hasToken = true; continue; }
       if (ch === '"') { quote = null; continue; }
@@ -146,8 +157,15 @@ function tokenize(text, flavor) {
 // Bare `example.com/api` (no scheme) is a reasonable thing to paste or to write
 // in a curl command. Requiring a dotted host keeps stray words like "hello"
 // from being mistaken for a URL.
+//
+// Two exceptions, because a dev tool's most-pasted host has no dot in it:
+// `localhost` (with or without a port), and any single-label host that carries
+// an explicit port — `dev-api:8080`. The port form requires a leading letter so
+// a stray `12:30` still reads as text rather than host 12 on port 30.
 function looksLikeHost(s) {
-  return /^[\w-]+(\.[\w-]+)+(:\d+)?([/?#]|$)/i.test(s);
+  return /^[\w-]+(\.[\w-]+)+(:\d+)?([/?#]|$)/i.test(s)
+    || /^localhost(:\d+)?([/?#]|$)/i.test(s)
+    || /^[a-z][\w-]*:\d+([/?#]|$)/i.test(s);
 }
 
 // The rule suggester runs the URL through `new URL()`, which rejects a bare

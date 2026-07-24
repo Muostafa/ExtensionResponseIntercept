@@ -80,10 +80,10 @@
       : notification.url;
 
     toast.innerHTML = `
-      <div class="api-interceptor-toast-icon">${actionIcon}</div>
+      <div class="api-interceptor-toast-icon">${escapeHtml(actionIcon)}</div>
       <div class="api-interceptor-toast-content">
         <div class="api-interceptor-toast-title">
-          <span class="api-interceptor-toast-action">${actionLabel}</span>
+          <span class="api-interceptor-toast-action">${escapeHtml(actionLabel)}</span>
           <span class="api-interceptor-toast-rule">${escapeHtml(notification.ruleName)}</span>
         </div>
         <div class="api-interceptor-toast-url" title="${escapeHtml(notification.url)}">${escapeHtml(displayUrl)}</div>

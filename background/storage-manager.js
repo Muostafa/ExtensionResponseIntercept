@@ -1,5 +1,3 @@
-import { debounce } from '../shared/debounce.js';
-import { DEBOUNCE_SAVE_MS } from '../shared/constants.js';
 import { debug } from '../shared/debug.js';
 
 // --- Legacy rule migration helpers ---------------------------------------
@@ -14,6 +12,45 @@ function parseMaybeJson(value) {
   } catch {
     return value;
   }
+}
+
+/**
+ * Bring one rule up to the current mock-only shape. Returns true if it changed.
+ *
+ * Runs on load *and* on import — an exported file can be arbitrarily old, and
+ * without this an imported legacy rule would serve `{}` until the next
+ * service-worker restart happened to migrate it.
+ */
+function migrateLegacyRule(rule) {
+  let changed = false;
+
+  if (!rule.createdAt) {
+    rule.createdAt = Date.now();
+    rule.modifiedAt = Date.now();
+    changed = true;
+  }
+  if (!rule.contentType) {
+    rule.contentType = 'application/json';
+    changed = true;
+  }
+
+  if (rule.modifyType === 'json-path') {
+    const obj = {};
+    setNestedProperty(obj, rule.modification?.path, parseMaybeJson(rule.modification?.value));
+    rule.modifyType = 'replace';
+    rule.modification = { type: 'json', value: JSON.stringify(obj, null, 2) };
+    changed = true;
+  } else if (rule.modifyType === 'regex') {
+    // The 'regex' modify type never produced a usable mock body. Convert it to
+    // an empty replace body and disable it so the developer notices.
+    rule.modifyType = 'replace';
+    rule.modification = { type: 'json', value: '{}' };
+    rule.enabled = false;
+    debug.warn(`Rule "${rule.name || rule.id}" used the removed 'regex' modify type and has been disabled; set a mock response body to re-enable it.`);
+    changed = true;
+  }
+
+  return changed;
 }
 
 function setNestedProperty(obj, path, value) {
@@ -31,6 +68,20 @@ function setNestedProperty(obj, path, value) {
   }
   const lastKey = keys[keys.length - 1];
   if (lastKey) current[lastKey] = value;
+}
+
+/**
+ * Delete every key of `target` that `source` explicitly set to null.
+ *
+ * Callers use null to mean "this optional field is now empty" — a distinction a
+ * shallow merge can't otherwise express, since leaving the key out has to keep
+ * meaning "don't touch it" for partial updates.
+ */
+function dropNullFields(target, source) {
+  for (const [key, value] of Object.entries(source)) {
+    if (value === null) delete target[key];
+  }
+  return target;
 }
 
 // Storage Manager - Handles all storage operations
@@ -51,9 +102,6 @@ export class StorageManager {
     this.QUOTA_WARNING_THRESHOLD = 0.8;
     this.QUOTA_BYTES_LIMIT = 10485760; // 10MB — chrome.storage.local hard limit
     this._warnedOrphanRuleIds = new Set();
-
-    this.saveRulesDebounced = debounce(this.saveRules.bind(this), DEBOUNCE_SAVE_MS);
-    this.saveGroupsDebounced = debounce(this.saveGroups.bind(this), DEBOUNCE_SAVE_MS);
   }
 
   async loadRules() {
@@ -63,34 +111,9 @@ export class StorageManager {
 
       if (data.rules) {
         this.rules = data.rules;
-        // Migrate old rules without timestamps
         let needsUpdate = false;
         this.rules.forEach(rule => {
-          if (!rule.createdAt) {
-            rule.createdAt = Date.now();
-            rule.modifiedAt = Date.now();
-            needsUpdate = true;
-          }
-          if (!rule.contentType) {
-            rule.contentType = 'application/json';
-            needsUpdate = true;
-          }
-          // Migrate legacy modify types to the mock-only 'replace' model.
-          if (rule.modifyType === 'json-path') {
-            const obj = {};
-            setNestedProperty(obj, rule.modification?.path, parseMaybeJson(rule.modification?.value));
-            rule.modifyType = 'replace';
-            rule.modification = { type: 'json', value: JSON.stringify(obj, null, 2) };
-            needsUpdate = true;
-          } else if (rule.modifyType === 'regex') {
-            // The 'regex' modify type never produced a usable mock body. Convert
-            // it to an empty replace body and disable it so the developer notices.
-            rule.modifyType = 'replace';
-            rule.modification = { type: 'json', value: '{}' };
-            rule.enabled = false;
-            debug.warn(`Rule "${rule.name || rule.id}" used the removed 'regex' modify type and has been disabled; set a mock response body to re-enable it.`);
-            needsUpdate = true;
-          }
+          if (migrateLegacyRule(rule)) needsUpdate = true;
         });
         if (needsUpdate) {
           await this.saveRules();
@@ -252,13 +275,15 @@ export class StorageManager {
 
   async addRule(rule) {
     const now = Date.now();
-    const newRule = {
+    // Same null convention as updateRule: the form sends null for "left empty",
+    // which on a new rule just means the key shouldn't be there at all.
+    const newRule = dropNullFields({
       ...rule,
       id: this.generateId(),
       enabled: rule.enabled !== undefined ? rule.enabled : true,
       createdAt: now,
       modifiedAt: now
-    };
+    }, rule);
     this.rules.push(newRule);
     await this.saveRules();
     return newRule;
@@ -278,13 +303,13 @@ export class StorageManager {
     if (!Array.isArray(rules) || rules.length === 0) return [];
 
     const now = Date.now();
-    const created = rules.map(rule => ({
+    const created = rules.map(rule => dropNullFields({
       ...rule,
       id: this.generateId(),
       enabled: rule.enabled !== undefined ? rule.enabled : true,
       createdAt: now,
       modifiedAt: now
-    }));
+    }, rule));
 
     this.rules.push(...created);
     await this.saveRules();
@@ -294,14 +319,22 @@ export class StorageManager {
   async updateRule(ruleId, updates) {
     const index = this.rules.findIndex(r => r.id === ruleId);
     if (index !== -1) {
-      this.rules[index] = { ...this.rules[index], ...updates, modifiedAt: Date.now() };
+      const merged = { ...this.rules[index], ...updates, modifiedAt: Date.now() };
+
+      // An explicit null means "clear this field"; an absent key means "leave it
+      // alone". Without this a shallow merge can only ever add or change a
+      // value, so clearing Status Code / Delay / Response Headers in the rule
+      // form silently kept the old value. The form can't signal a clear by
+      // omission, because omission already means something else for groupId.
+      dropNullFields(merged, updates);
 
       // If the original rule had a groupId but updates doesn't include it, remove it
       // This allows removing a rule from a group by not including groupId in updates
-      if (this.rules[index].groupId && !('groupId' in updates)) {
-        delete this.rules[index].groupId;
+      if (merged.groupId && !('groupId' in updates)) {
+        delete merged.groupId;
       }
 
+      this.rules[index] = merged;
       await this.saveRules();
       return this.rules[index];
     }
@@ -360,11 +393,6 @@ export class StorageManager {
   notifyListeners() {
     // Pass only enabled rules (respecting both rule and group enabled status)
     this.listeners.forEach(callback => callback(this.getEnabledRules()));
-  }
-
-  flushPendingSaves() {
-    this.saveRulesDebounced.flush();
-    this.saveGroupsDebounced.flush();
   }
 
   generateId() {
@@ -482,6 +510,7 @@ export class StorageManager {
             createdAt: rule.createdAt || now,
             modifiedAt: rule.modifiedAt || now
           };
+          migrateLegacyRule(newRule); // the file may predate the mock-only model
           // Update groupId if rule was in a group
           if (newRule.groupId && groupIdMap[newRule.groupId]) {
             newRule.groupId = groupIdMap[newRule.groupId];
@@ -509,14 +538,16 @@ export class StorageManager {
           continue;
         }
 
-        validRules.push({
+        const newRule = {
           ...rule,
           id: this.generateId(),
           enabled: rule.enabled !== false, // Default to enabled
-          groupId: undefined, // Clear any group references from old import
           createdAt: rule.createdAt || now,
           modifiedAt: rule.modifiedAt || now
-        });
+        };
+        delete newRule.groupId; // no groups in a v1 export
+        migrateLegacyRule(newRule); // the file may predate the mock-only model
+        validRules.push(newRule);
       }
 
       this.rules = [...this.rules, ...validRules];

@@ -22,6 +22,8 @@
 // `regex` rules cannot be expressed as a glob at all — one of them forces the
 // whole tab back to the wide '*' pattern (i.e. today's behaviour).
 
+import { isSafeRegex } from '../shared/regex.js';
+
 /** Escape the characters Chrome's Fetch glob treats as special. */
 function escapeGlob(literal, { keepStar = false } = {}) {
   let out = '';
@@ -34,10 +36,14 @@ function escapeGlob(literal, { keepStar = false } = {}) {
   return out;
 }
 
-/** @returns {string|null} a Fetch glob, or null if the rule can't be expressed as one */
+/**
+ * @returns {string|null|undefined} a Fetch glob; null if the rule can't be
+ *   expressed as one (caller must widen); undefined if the rule can never match
+ *   anything and should simply be skipped.
+ */
 function ruleToGlob(rule) {
   const pattern = rule?.urlPattern;
-  if (!pattern) return null;
+  if (!pattern) return undefined;
 
   switch (rule.matchType) {
     case 'wildcard':
@@ -51,8 +57,13 @@ function ruleToGlob(rule) {
       return `*${escapeGlob(pattern)}*`;
 
     case 'regex':
+      // A regex the engine rejected will never match a request, so widening the
+      // whole tab on its behalf would pause every request for nothing. The
+      // rule engine logs the rejection when it compiles; this is only a probe.
+      return isSafeRegex(pattern) ? null : undefined;
+
     default:
-      return null;
+      return undefined;
   }
 }
 
@@ -70,6 +81,7 @@ export function buildFetchPatterns(enabledRules) {
 
   for (const rule of rules) {
     const glob = ruleToGlob(rule);
+    if (glob === undefined) continue; // rule can never match — contributes nothing
     if (glob === null) {
       // Can't narrow safely — pause everything, exactly as before.
       return { patterns: [{ urlPattern: '*', requestStage: 'Request' }], wide: true };
