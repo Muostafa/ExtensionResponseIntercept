@@ -1,11 +1,13 @@
 // "Paste cURL or URL" on the options page. Parses the command and drops the
 // user straight into the full rule form, prefilled.
 //
-// The popup has a lighter version of this (popup/modules/paste-curl-modal.js)
-// that hands off to the compact create-rule modal instead. Both share
-// parseCurl + generateRuleFromRequest, so the suggested rule is identical.
+// The popup has a lighter destination for the same dialog
+// (popup/modules/paste-curl-modal.js) that hands off to the compact create-rule
+// modal instead. The dialog mechanics are shared in shared/curl-paste.js, and
+// both go through generateRuleFromRequest, so the suggested rule is identical
+// whichever surface you paste into.
 
-import { parseCurl } from '../../shared/curl.js';
+import { setupCurlPasteDialog } from '../../shared/curl-paste.js';
 import { generateRuleFromRequest } from '../../shared/rule-suggest.js';
 import { state } from './state.js';
 import { showToast } from './toast.js';
@@ -14,51 +16,15 @@ import { populateForm } from './rule-form.js';
 import { loadGroups } from './groups.js';
 
 export function setupPasteCurl() {
-  const modal = document.getElementById('pasteCurlModal');
-
-  document.getElementById('pasteCurlBtn')?.addEventListener('click', openPasteCurlModal);
-  document.getElementById('closePasteCurlModal')?.addEventListener('click', closePasteCurlModal);
-  document.getElementById('cancelPasteCurlBtn')?.addEventListener('click', closePasteCurlModal);
-  document.getElementById('confirmPasteCurlBtn')?.addEventListener('click', confirmPasteCurl);
-
-  modal?.addEventListener('click', (e) => {
-    if (e.target === modal) closePasteCurlModal();
-  });
-
-  document.getElementById('pasteCurlInput')?.addEventListener('keydown', (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-      e.preventDefault();
-      confirmPasteCurl();
-    }
+  setupCurlPasteDialog({
+    onParsed: prefillFormFrom,
+    onError: (message) => showToast(message, 'error'),
+    ids: { cancel: 'cancelPasteCurlBtn', confirm: 'confirmPasteCurlBtn' },
+    submitOnCtrlEnter: true,
   });
 }
 
-function openPasteCurlModal() {
-  const input = document.getElementById('pasteCurlInput');
-  if (input) input.value = '';
-  const modal = document.getElementById('pasteCurlModal');
-  if (modal) modal.style.display = 'flex';
-  input?.focus();
-}
-
-function closePasteCurlModal() {
-  const modal = document.getElementById('pasteCurlModal');
-  if (modal) modal.style.display = 'none';
-}
-
-async function confirmPasteCurl() {
-  const text = document.getElementById('pasteCurlInput')?.value || '';
-
-  let entry;
-  try {
-    entry = parseCurl(text);
-  } catch (error) {
-    showToast(error.message || 'Could not parse that cURL command', 'error');
-    return;
-  }
-
-  closePasteCurlModal();
-
+async function prefillFormFrom(entry) {
   // The group <select> has to be populated before populateForm sets its value.
   await loadGroups();
 

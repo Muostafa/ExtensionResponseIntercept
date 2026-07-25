@@ -2,7 +2,7 @@ import { isBinaryContentType } from '../../shared/content-types.js';
 import { MESSAGES } from '../../shared/messages.js';
 import { escapeHtml } from '../../shared/dom.js';
 import { debug } from '../../shared/debug.js';
-import { STATUS_CODE_MIN, STATUS_CODE_MAX } from '../../shared/constants.js';
+import { validateStatusCode } from '../../shared/rules-model.js';
 import { icon } from '../../shared/icons.js';
 import { safeCompileRegex } from '../../shared/regex.js';
 import { state, BODY_PLACEHOLDERS, MATCH_TYPE_HINTS } from './state.js';
@@ -69,15 +69,6 @@ function showStatusCodeWarning(message) {
 function clearStatusCodeWarning() {
   document.getElementById('statusCodeWarning')?.remove();
 }
-
-const VALID_STATUS_CODES = [
-  100, 101, 102, 103,
-  200, 201, 202, 203, 204, 205, 206, 207, 208, 226,
-  300, 301, 302, 303, 304, 305, 306, 307, 308,
-  400, 401, 402, 403, 404, 405, 406, 407, 408, 409, 410, 411, 412, 413, 414, 415, 416, 417, 418,
-  421, 422, 423, 424, 425, 426, 428, 429, 431, 451,
-  500, 501, 502, 503, 504, 505, 506, 507, 508, 510, 511
-];
 
 export function updateResponseTypeUI(contentType) {
   const isBinary = isBinaryContentType(contentType);
@@ -220,17 +211,6 @@ export async function saveRule() {
   }
 }
 
-export function validateStatusCode(statusCode) {
-  const code = parseInt(statusCode);
-  if (isNaN(code) || code < STATUS_CODE_MIN || code > STATUS_CODE_MAX) {
-    return { valid: false, message: `Status code must be between ${STATUS_CODE_MIN} and ${STATUS_CODE_MAX}` };
-  }
-  if (!VALID_STATUS_CODES.includes(code)) {
-    return { valid: true, warning: `Status code ${code} is not a standard HTTP status code. Continue anyway?` };
-  }
-  return { valid: true };
-}
-
 export function collectFormData() {
   const errors = [];
   const name = document.getElementById('ruleName').value.trim();
@@ -297,16 +277,16 @@ export function collectFormData() {
   ruleData.modification = modification;
 
   clearStatusCodeWarning();
-  const statusCode = document.getElementById('modifyStatusCode').value.trim();
-  ruleData.modifyStatusCode = null;
-  if (statusCode) {
-    const validation = validateStatusCode(statusCode);
-    if (!validation.valid) {
-      errors.push({ fieldId: 'modifyStatusCode', message: validation.message });
-    } else {
-      if (validation.warning) showStatusCodeWarning(validation.warning);
-      ruleData.modifyStatusCode = parseInt(statusCode, 10);
-    }
+  // Blank comes back as {valid: true, value: null}, which is exactly what an
+  // absent override should store — no separate empty check needed here.
+  const status = validateStatusCode(document.getElementById('modifyStatusCode').value);
+  ruleData.modifyStatusCode = status.valid ? status.value : null;
+  if (!status.valid) {
+    errors.push({ fieldId: 'modifyStatusCode', message: status.message });
+  } else if (status.warning) {
+    // The shared validator states the fact; this form adds its own framing,
+    // since the chip sits beside a field the user can still edit before saving.
+    showStatusCodeWarning(`${status.warning}. Continue anyway?`);
   }
 
   const modifyHeaders = getHeaderModifications();

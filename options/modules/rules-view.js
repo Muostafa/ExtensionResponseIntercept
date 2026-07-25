@@ -1,8 +1,19 @@
 import { MESSAGES } from '../../shared/messages.js';
 import { escapeHtml } from '../../shared/dom.js';
 import { debug } from '../../shared/debug.js';
-import { DRAG_AUTOEXPAND_MS, STATUS_CODE_MIN, STATUS_CODE_MAX } from '../../shared/constants.js';
+import { DRAG_AUTOEXPAND_MS } from '../../shared/constants.js';
 import { icon } from '../../shared/icons.js';
+import {
+  ruleMatchesQuery,
+  sortRules,
+  partitionRulesByGroup,
+  sortGroupsByName,
+  validateStatusCode,
+  validatePriority,
+  PRIORITY_MIN,
+  PRIORITY_MAX,
+} from '../../shared/rules-model.js';
+import { fetchRules, toggleRuleEnabled, updateRule } from '../../shared/rule-actions.js';
 import { state, groupsState } from './state.js';
 import { showToast } from './toast.js';
 import { toggleGroup, editGroup, deleteGroup, loadGroups } from './groups.js';
@@ -68,12 +79,11 @@ function renderSkeletonRows(n = 3) {
 export async function loadRules() {
   renderSkeletonRows();
   try {
-    const [response, statsResponse] = await Promise.all([
-      chrome.runtime.sendMessage({ action: MESSAGES.GET_RULES }),
+    const [rules, statsResponse] = await Promise.all([
+      fetchRules(),
       chrome.runtime.sendMessage({ action: MESSAGES.GET_RULE_STATS }).catch(() => null),
     ]);
     ruleStats = statsResponse?.stats || {};
-    const rules = response.rules || [];
     window.currentRules = rules;
     const container = document.getElementById('groupedRulesList');
     if (container) container.dataset.loaded = '1';
@@ -83,29 +93,13 @@ export async function loadRules() {
   }
 }
 
-function sortAndFilterRules(rules) {
-  const sortBy = document.getElementById('ruleSortBy')?.value || 'created';
-  const sortOrder = document.getElementById('ruleSortOrder')?.value || 'desc';
-  const enabledRulesFirst = document.getElementById('enabledRulesFirst')?.checked ?? false;
-
-  return [...rules].sort((a, b) => {
-    if (enabledRulesFirst) {
-      const enabledDiff = (b.enabled ? 1 : 0) - (a.enabled ? 1 : 0);
-      if (enabledDiff !== 0) return enabledDiff;
-    }
-
-    let comparison = 0;
-    if (sortBy === 'modified') {
-      comparison = (a.modifiedAt || a.createdAt || 0) - (b.modifiedAt || b.createdAt || 0);
-    } else if (sortBy === 'created') {
-      comparison = (a.createdAt || 0) - (b.createdAt || 0);
-    } else if (sortBy === 'name') {
-      comparison = (a.name || '').localeCompare(b.name || '');
-    } else if (sortBy === 'priority') {
-      comparison = (a.priority || 0) - (b.priority || 0);
-    }
-
-    return sortOrder === 'desc' ? -comparison : comparison;
+// Sort only — this view renders every rule and hides non-matches in
+// filterOptionsRules(), so that drag-and-drop targets stay put while searching.
+function sortRulesForView(rules) {
+  return sortRules(rules, {
+    sortBy: document.getElementById('ruleSortBy')?.value || 'created',
+    sortOrder: document.getElementById('ruleSortOrder')?.value || 'desc',
+    enabledFirst: document.getElementById('enabledRulesFirst')?.checked ?? false,
   });
 }
 
@@ -113,7 +107,7 @@ export function displayRules(rules) {
   const groupedRulesList = document.getElementById('groupedRulesList');
   const emptyState = document.getElementById('emptyState');
 
-  const processedRules = sortAndFilterRules(rules);
+  const processedRules = sortRulesForView(rules);
 
   const _kpiTotal = document.getElementById('kpi-total');
   const _kpiActive = document.getElementById('kpi-active');
@@ -133,23 +127,12 @@ export function displayRules(rules) {
   groupedRulesList.style.display = 'block';
   emptyState.style.display = 'none';
 
-  const groupedRules = {};
-  const ungroupedRules = [];
-
-  processedRules.forEach(rule => {
-    if (rule.groupId) {
-      if (!groupedRules[rule.groupId]) groupedRules[rule.groupId] = [];
-      groupedRules[rule.groupId].push(rule);
-    } else {
-      ungroupedRules.push(rule);
-    }
-  });
-
-  const sortedGroups = [...groupsState.list].sort((a, b) => a.name.localeCompare(b.name));
+  const { byGroup, ungrouped: ungroupedRules } = partitionRulesByGroup(processedRules);
+  const sortedGroups = sortGroupsByName(groupsState.list);
 
   let html = '';
   sortedGroups.forEach(group => {
-    const groupRules = groupedRules[group.id] || [];
+    const groupRules = byGroup.get(group.id) || [];
     const isCollapsed = state.collapsedGroups.has(group.id);
     const enabledInGroup = groupRules.filter(r => r.enabled).length;
 
@@ -300,7 +283,7 @@ function renderRuleCard(rule, group) {
       <div class="ort-td ort-td-priority">
         <input type="number" class="ort-priority-input" data-rule-id="${rule.id}"
           value="${rule.priority || ''}" placeholder="0"
-          min="0" max="999" ${isGroupDisabled ? 'disabled' : ''}
+          min="${PRIORITY_MIN}" max="${PRIORITY_MAX}" ${isGroupDisabled ? 'disabled' : ''}
           title="Match priority — higher wins when several rules match the same request">
       </div>
       <div class="ort-td ort-td-toggle">
@@ -432,30 +415,32 @@ function attachRuleEventListeners() {
   document.querySelectorAll('.ort-status-input').forEach(input => {
     const save = async (e) => {
       const ruleId = e.target.dataset.ruleId;
-      const raw = e.target.value.trim();
       const rule = (window.currentRules || []).find(r => r.id === ruleId);
       if (!rule) return;
 
-      const updated = { ...rule };
-      if (!raw) {
-        // null, not delete: an absent key means "leave it alone" on the way
-        // through updateRule, so deleting here would keep the old code.
-        updated.modifyStatusCode = null;
-      } else {
-        const code = parseInt(raw, 10);
-        if (isNaN(code) || code < STATUS_CODE_MIN || code > STATUS_CODE_MAX) {
-          e.target.value = rule.modifyStatusCode || '';
-          showToast(`Status code must be ${STATUS_CODE_MIN}–${STATUS_CODE_MAX}`, 'error');
-          return;
-        }
-        updated.modifyStatusCode = code;
+      // Same validator as the popup's quick editor and the full rule form, so
+      // all three agree on what a legal code is — including the non-standard-code
+      // warning, which this field previously didn't give.
+      const status = validateStatusCode(e.target.value);
+      if (!status.valid) {
+        e.target.value = rule.modifyStatusCode || '';
+        showToast(status.message, 'error');
+        return;
       }
 
+      const updated = { ...rule, modifyStatusCode: status.value };
+
       try {
-        await chrome.runtime.sendMessage({ action: MESSAGES.UPDATE_RULE, ruleId, rule: updated });
+        await updateRule(ruleId, updated);
         const idx = (window.currentRules || []).findIndex(r => r.id === ruleId);
         if (idx !== -1) window.currentRules[idx] = updated;
-        showToast('Status code saved', 'success');
+        // A non-standard code still saves — the interceptor serves whatever you
+        // set — so the warning rides along with the confirmation, never replaces
+        // it. Leaving the user unsure whether the edit stuck is worse than terse.
+        showToast(
+          status.warning ? `Saved — ${status.warning}` : 'Status code saved',
+          status.warning ? 'warning' : 'success'
+        );
       } catch (err) {
         showToast('Failed to save status code', 'error');
       }
@@ -475,25 +460,20 @@ function attachRuleEventListeners() {
   document.querySelectorAll('.ort-priority-input').forEach(input => {
     const save = async (e) => {
       const ruleId = e.target.dataset.ruleId;
-      const raw = e.target.value.trim();
       const rule = (window.currentRules || []).find(r => r.id === ruleId);
       if (!rule) return;
 
-      const updated = { ...rule };
-      if (!raw) {
-        updated.priority = 0;
-      } else {
-        const p = parseInt(raw, 10);
-        if (isNaN(p) || p < 0 || p > 999) {
-          e.target.value = rule.priority || '';
-          showToast('Priority must be 0–999', 'error');
-          return;
-        }
-        updated.priority = p;
+      const priority = validatePriority(e.target.value);
+      if (!priority.valid) {
+        e.target.value = rule.priority || '';
+        showToast(priority.message, 'error');
+        return;
       }
 
+      const updated = { ...rule, priority: priority.value };
+
       try {
-        await chrome.runtime.sendMessage({ action: MESSAGES.UPDATE_RULE, ruleId, rule: updated });
+        await updateRule(ruleId, updated);
         const idx = (window.currentRules || []).findIndex(r => r.id === ruleId);
         if (idx !== -1) window.currentRules[idx] = updated;
         showToast('Priority saved', 'success');
@@ -610,11 +590,7 @@ export function filterOptionsRules(query) {
   document.querySelectorAll('.rule-card').forEach(card => {
     const rule = (window.currentRules || []).find(r => r.id === card.dataset.ruleId);
     if (!rule) return;
-    const matches = !q ||
-      rule.name.toLowerCase().includes(q) ||
-      rule.urlPattern.toLowerCase().includes(q) ||
-      (rule.description && rule.description.toLowerCase().includes(q));
-    card.style.display = matches ? '' : 'none';
+    card.style.display = ruleMatchesQuery(rule, q) ? '' : 'none';
   });
 
   document.querySelectorAll('.options-group-container').forEach(container => {
@@ -632,18 +608,8 @@ export function filterOptionsRules(query) {
 
 async function toggleRule(ruleId) {
   try {
-    const response = await chrome.runtime.sendMessage({ action: MESSAGES.GET_RULES });
-    const rule = (response.rules || []).find(r => r.id === ruleId);
-
-    if (rule) {
-      rule.enabled = !rule.enabled;
-      await chrome.runtime.sendMessage({
-        action: MESSAGES.UPDATE_RULE,
-        ruleId,
-        rule
-      });
-      await loadRules();
-    }
+    // No toast here — unlike the popup, the row's own toggle is the feedback.
+    if (await toggleRuleEnabled(ruleId)) await loadRules();
   } catch (error) {
     debug.error('Failed to toggle rule:', error);
     showToast('Failed to toggle rule', 'error');

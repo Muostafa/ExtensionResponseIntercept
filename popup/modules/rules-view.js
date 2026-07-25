@@ -1,22 +1,19 @@
 import { MESSAGES } from '../../shared/messages.js';
 import { escapeHtml } from '../../shared/dom.js';
 import { debug } from '../../shared/debug.js';
-import { STATUS_CODE_MIN, STATUS_CODE_MAX } from '../../shared/constants.js';
 import { icon } from '../../shared/icons.js';
 import { openOptionsPage } from '../../shared/open-options.js';
+import {
+  filterRules,
+  sortRules,
+  partitionRulesByGroup,
+  sortGroupsByName,
+  validateStatusCode,
+} from '../../shared/rules-model.js';
+import { fetchRules, toggleRuleEnabled, updateRule } from '../../shared/rule-actions.js';
 import { state } from './state.js';
 import { showToast } from './toast.js';
 import { refreshHintBanner } from './hint-banner.js';
-
-// Valid HTTP status codes for the inline status-code editor's "non-standard" warning.
-const VALID_STATUS_CODES = [
-  100, 101, 102, 103,
-  200, 201, 202, 203, 204, 205, 206, 207, 208, 226,
-  300, 301, 302, 303, 304, 305, 306, 307, 308,
-  400, 401, 402, 403, 404, 405, 406, 407, 408, 409, 410, 411, 412, 413, 414, 415, 416, 417, 418,
-  421, 422, 423, 424, 425, 426, 428, 429, 431, 451,
-  500, 501, 502, 503, 504, 505, 506, 507, 508, 510, 511
-];
 
 function renderRulesSkeleton(n = 3) {
   const container = document.getElementById('rulesList');
@@ -32,8 +29,7 @@ function renderRulesSkeleton(n = 3) {
 export async function loadRules() {
   renderRulesSkeleton();
   try {
-    const response = await chrome.runtime.sendMessage({ action: MESSAGES.GET_RULES });
-    const rules = response.rules || [];
+    const rules = await fetchRules();
     window.currentRules = rules;
     const container = document.getElementById('rulesList');
     if (container) container.dataset.loaded = '1';
@@ -43,41 +39,15 @@ export async function loadRules() {
   }
 }
 
+// The popup filters before rendering (the list is short and re-rendered wholesale);
+// the options page renders everything and hides non-matches. Same predicate either
+// way — see shared/rules-model.js.
 function sortAndFilterRules(rules) {
-  const sortBy = document.getElementById('popupSortBy')?.value || 'modified';
-  const sortOrder = document.getElementById('popupSortOrder')?.value || 'desc';
-  const enabledRulesFirst = document.getElementById('popupEnabledRulesFirst')?.checked ?? true;
-
-  let filteredRules = [...rules];
-
-  if (state.searchQuery.trim()) {
-    const query = state.searchQuery.toLowerCase();
-    filteredRules = filteredRules.filter(rule =>
-      rule.name.toLowerCase().includes(query) ||
-      rule.urlPattern.toLowerCase().includes(query) ||
-      (rule.description && rule.description.toLowerCase().includes(query))
-    );
-  }
-
-  const sortedRules = filteredRules.sort((a, b) => {
-    if (enabledRulesFirst) {
-      const enabledDiff = (b.enabled ? 1 : 0) - (a.enabled ? 1 : 0);
-      if (enabledDiff !== 0) return enabledDiff;
-    }
-
-    let comparison = 0;
-    if (sortBy === 'modified') {
-      comparison = (a.modifiedAt || a.createdAt || 0) - (b.modifiedAt || b.createdAt || 0);
-    } else if (sortBy === 'created') {
-      comparison = (a.createdAt || 0) - (b.createdAt || 0);
-    } else if (sortBy === 'name') {
-      comparison = (a.name || '').localeCompare(b.name || '');
-    }
-
-    return sortOrder === 'desc' ? -comparison : comparison;
+  return sortRules(filterRules(rules, state.searchQuery), {
+    sortBy: document.getElementById('popupSortBy')?.value || 'modified',
+    sortOrder: document.getElementById('popupSortOrder')?.value || 'desc',
+    enabledFirst: document.getElementById('popupEnabledRulesFirst')?.checked ?? true,
   });
-
-  return sortedRules;
 }
 
 export async function displayRules(rules) {
@@ -123,22 +93,12 @@ export async function displayRules(rules) {
   emptyState.style.display = 'none';
   noSearchResults.style.display = 'none';
 
-  const groupedRules = {};
-  const ungroupedRules = [];
-  processedRules.forEach(rule => {
-    if (rule.groupId) {
-      if (!groupedRules[rule.groupId]) groupedRules[rule.groupId] = [];
-      groupedRules[rule.groupId].push(rule);
-    } else {
-      ungroupedRules.push(rule);
-    }
-  });
-
-  const sortedGroups = [...groups].sort((a, b) => a.name.localeCompare(b.name));
+  const { byGroup, ungrouped: ungroupedRules } = partitionRulesByGroup(processedRules);
+  const sortedGroups = sortGroupsByName(groups);
 
   let html = '';
   sortedGroups.forEach(group => {
-    const groupRules = groupedRules[group.id] || [];
+    const groupRules = byGroup.get(group.id) || [];
     if (groupRules.length === 0 && state.searchQuery.trim()) return;
 
     const isCollapsed = state.collapsedGroups.has(group.id);
@@ -395,21 +355,10 @@ async function toggleGroup(groupId) {
 
 async function toggleRule(ruleId) {
   try {
-    const response = await chrome.runtime.sendMessage({ action: MESSAGES.GET_RULES });
-    const rules = response.rules || [];
-    const rule = rules.find(r => r.id === ruleId);
-
-    if (rule) {
-      rule.enabled = !rule.enabled;
-      await chrome.runtime.sendMessage({
-        action: MESSAGES.UPDATE_RULE,
-        ruleId,
-        rule
-      });
-
-      showToast(rule.enabled ? 'Rule enabled' : 'Rule disabled', 'success');
-      await loadRules();
-    }
+    const result = await toggleRuleEnabled(ruleId);
+    if (!result) return;
+    showToast(result.enabled ? 'Rule enabled' : 'Rule disabled', 'success');
+    await loadRules();
   } catch (error) {
     debug.error('Failed to toggle rule:', error);
     showToast('Failed to toggle rule', 'error');
@@ -434,13 +383,7 @@ async function toggleEditMode(ruleId, show) {
     state.activeEditRuleIds.add(ruleId);
 
     try {
-      const response = await chrome.runtime.sendMessage({ action: MESSAGES.GET_RULES });
-      if (!response || !response.rules) {
-        debug.error('Failed to get rules: Invalid response');
-        return;
-      }
-
-      const rule = response.rules.find(r => r && r.id === ruleId);
+      const rule = (await fetchRules()).find(r => r && r.id === ruleId);
       if (!rule) {
         debug.warn(`Rule not found: ${ruleId}`);
         return;
@@ -497,25 +440,14 @@ function prettifyJson(ruleId) {
   }
 }
 
-function validateStatusCode(statusCode) {
-  const code = parseInt(statusCode);
-  if (isNaN(code) || code < STATUS_CODE_MIN || code > STATUS_CODE_MAX) {
-    return { valid: false, message: `Status code must be between ${STATUS_CODE_MIN} and ${STATUS_CODE_MAX}` };
-  }
-  if (!VALID_STATUS_CODES.includes(code)) {
-    return { valid: true, warning: `Status code ${code} is not a standard HTTP status code` };
-  }
-  return { valid: true };
-}
-
 async function saveJsonEdit(ruleId) {
   const textarea = document.getElementById(`json-${ruleId}`);
   const statusInput = document.getElementById(`status-${ruleId}`);
   const errorDiv = document.getElementById(`error-${ruleId}`);
 
-  const ruleResp = await chrome.runtime.sendMessage({ action: MESSAGES.GET_RULES });
-  const ruleForValidation = (ruleResp.rules || []).find(r => r.id === ruleId);
-  const ruleContentType = ruleForValidation?.contentType || 'application/json';
+  const rules = await fetchRules();
+  const rule = rules.find(r => r.id === ruleId);
+  const ruleContentType = rule?.contentType || 'application/json';
 
   if (textarea && textarea.value.trim() && ruleContentType === 'application/json') {
     try {
@@ -527,17 +459,14 @@ async function saveJsonEdit(ruleId) {
     }
   }
 
-  if (statusInput && statusInput.value) {
-    const validation = validateStatusCode(statusInput.value);
-    if (!validation.valid) {
-      errorDiv.textContent = validation.message;
-      errorDiv.style.display = 'block';
-      return;
-    }
+  const status = validateStatusCode(statusInput?.value);
+  if (!status.valid) {
+    errorDiv.textContent = status.message;
+    errorDiv.style.display = 'block';
+    return;
   }
 
   try {
-    const rule = (ruleResp.rules || []).find(r => r.id === ruleId);
     if (!rule) return;
 
     if (textarea) {
@@ -549,19 +478,11 @@ async function saveJsonEdit(ruleId) {
       }
     }
 
-    if (statusInput) {
-      // null, not delete: an absent key means "leave it alone" on the way
-      // through updateRule, so deleting here would keep the old code.
-      rule.modifyStatusCode = statusInput.value === ''
-        ? null
-        : parseInt(statusInput.value);
-    }
+    // status.value is null for a blank field — see validateStatusCode on why
+    // that matters. Only touch the key if the field is actually on screen.
+    if (statusInput) rule.modifyStatusCode = status.value;
 
-    await chrome.runtime.sendMessage({
-      action: MESSAGES.UPDATE_RULE,
-      ruleId,
-      rule
-    });
+    await updateRule(ruleId, rule);
 
     state.activeEditRuleIds.delete(ruleId);
 
@@ -570,7 +491,14 @@ async function saveJsonEdit(ruleId) {
     if (editContainer) editContainer.style.display = 'none';
     if (ruleItem) ruleItem.classList.remove('editing');
 
-    showToast('Rule saved successfully', 'success');
+    // A non-standard code is allowed — the interceptor serves whatever you set —
+    // so this reports rather than blocks, and rides along with the confirmation
+    // instead of replacing it. Before the validator was shared, this warning was
+    // computed here and silently thrown away.
+    showToast(
+      status.warning ? `Saved — ${status.warning}` : 'Rule saved successfully',
+      status.warning ? 'warning' : 'success'
+    );
   } catch (error) {
     debug.error('Failed to save rule edit:', error);
     errorDiv.textContent = `Failed to save: ${error.message}`;
