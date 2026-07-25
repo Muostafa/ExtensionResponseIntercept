@@ -5,6 +5,7 @@ import { MESSAGES } from '../shared/messages.js';
 import { loadTheme as loadThemeShared, toggleTheme as toggleThemeShared } from '../shared/theme.js';
 import { SEARCH_DEBOUNCE_MS } from '../shared/constants.js';
 import { debug } from '../shared/debug.js';
+import { openOptionsPage } from '../shared/open-options.js';
 
 import { state } from './modules/state.js';
 import { showToast } from './modules/toast.js';
@@ -22,7 +23,7 @@ import {
   startNetworkRefresh,
   stopNetworkRefresh,
 } from './modules/network.js';
-import { setupCreateRuleModal } from './modules/create-rule-modal.js';
+import { setupCreateRuleModal, openBlankCreateRuleModal } from './modules/create-rule-modal.js';
 import { setupPasteCurlModal, openPasteCurlModal } from './modules/paste-curl-modal.js';
 import { primeLogCount, refreshHintBanner } from './modules/hint-banner.js';
 import { setupKeyboardShortcuts } from './modules/keyboard.js';
@@ -158,19 +159,19 @@ function setupEventListeners() {
     }
   });
 
-  // The empty state points at the two fast paths first; "from scratch" (the
-  // options form) is the fallback link underneath them.
+  // The empty state points at the two fast paths first; writing one by hand is
+  // the fallback link underneath them.
   document.getElementById('emptyRecordBtn')?.addEventListener('click', () => switchView('network'));
   document.getElementById('emptyPasteCurlBtn')?.addEventListener('click', openPasteCurlModal);
 
-  const optionsButtons = [
-    document.getElementById('addRuleBtn'),
-    document.getElementById('emptyAddRuleBtn'),
-    document.getElementById('openOptions'),
-    document.getElementById('openSettingsBtn'),
-    document.getElementById('viewAllRulesBtn'),
-  ];
-  optionsButtons.forEach(btn => {
-    btn?.addEventListener('click', () => chrome.runtime.openOptionsPage());
-  });
+  // Creating a rule stays in the popup. The modal's "Full editor" button is the
+  // one way from here into the options form, so a click on "Add Rule" never
+  // closes the popup out from under the user.
+  document.getElementById('addRuleBtn')?.addEventListener('click', openBlankCreateRuleModal);
+  document.getElementById('emptyAddRuleBtn')?.addEventListener('click', openBlankCreateRuleModal);
+
+  // One label per destination — see shared/open-options.js.
+  document.getElementById('openOptions')?.addEventListener('click', () => openOptionsPage('settings'));
+  document.getElementById('viewAllRulesBtn')?.addEventListener('click', () => openOptionsPage('rules'));
+  document.getElementById('openHelpBtn')?.addEventListener('click', () => openOptionsPage('help'));
 }

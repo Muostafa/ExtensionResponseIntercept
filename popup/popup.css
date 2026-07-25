@@ -1064,6 +1064,28 @@ header .subtitle {
   to   { opacity: 1; transform: translateY(0); }
 }
 
+/* Names what this editor can and can't do, so the pencil here isn't mistaken
+   for the full form the same icon opens in the options page. */
+.edit-scope-note {
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+
+.edit-full-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.edit-full-link:hover { filter: brightness(1.15); }
+
 .edit-section { margin-bottom: 10px; }
 .edit-section:last-of-type { margin-bottom: 0; }
 

@@ -23,6 +23,13 @@ export function showTab(tabName) {
     if (nav.dataset.tab === tabName) nav.classList.add('active');
   });
 
+  // Keep the URL honest: a reload or a bookmark then lands on the same tab, and
+  // options.html#settings works as a real link. replaceState, not pushState —
+  // sidebar clicks shouldn't build up browser history to back out of.
+  if (tabName && location.hash !== `#${tabName}`) {
+    history.replaceState(null, '', `#${tabName}`);
+  }
+
   if (tabName === 'new-rule') {
     state.currentEditingRuleId = null;
     resetForm();

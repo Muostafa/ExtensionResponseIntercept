@@ -7,6 +7,7 @@ import { escapeHtml } from '../shared/dom.js';
 import { SEARCH_DEBOUNCE_MS } from '../shared/constants.js';
 import { confirmModal } from '../shared/confirm-modal.js';
 import { MESSAGES } from '../shared/messages.js';
+import { OPTIONS_TABS, NAV_INTENT_TTL_MS } from '../shared/open-options.js';
 
 import { state, groupsState } from './modules/state.js';
 import { showToast } from './modules/toast.js';
@@ -25,6 +26,7 @@ import {
   saveRule,
   resetForm,
   populateForm,
+  editRule,
   updateResponseTypeUI,
   fileToBase64,
   fetchUrlAsBase64,
@@ -61,18 +63,91 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupActivityListener();
   setupPasteCurl();
   setupRuleDraftListener();
-  setupAdvancedSettings();
+  setupNavIntentListener();
+  setupHelpNavLinks();
+  setupSettingsTab();
   loadInterceptionStatus();
+
+  // Where to land: an explicit intent from the popup wins over the URL hash.
+  // Falling through to applyHashTab() after one was applied would re-run
+  // showTab('new-rule') and wipe the rule editRule() just loaded.
+  const navigated = await applyPendingNavIntent();
+  if (!navigated) applyHashTab();
 
   // loadGroups() has already run, so the group <select> is populated and
   // populateForm() can set its value.
   await applyPendingRuleDraft();
 });
 
-// Kill-switch for the narrowed CDP Fetch patterns. If a rule ever stops firing
-// under them, the user needs a way back to "pause everything" without a
-// reinstall — that's what this is.
-async function setupAdvancedSettings() {
+// A nav intent recorded by the popup — see shared/open-options.js. Applied on
+// load *and* from a storage listener, because openOptionsPage() may only focus
+// an options tab that is already open, where DOMContentLoaded won't fire again.
+function setupNavIntentListener() {
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'session' && changes.optionsNavIntent?.newValue) {
+      applyPendingNavIntent();
+    }
+  });
+}
+
+async function applyPendingNavIntent() {
+  let intent;
+  try {
+    // Read *and clear* before acting, so the load path and the listener can't
+    // both apply the same intent.
+    const stored = await chrome.storage.session.get('optionsNavIntent');
+    intent = stored?.optionsNavIntent;
+    if (!intent) return false;
+    await chrome.storage.session.remove('optionsNavIntent');
+  } catch {
+    return false;
+  }
+
+  // An intent only describes what the user just clicked. If the page never
+  // opened, a stale one must not hijack a later visit.
+  if (Date.now() - (intent.at || 0) > NAV_INTENT_TTL_MS) return false;
+
+  if (intent.ruleId) {
+    // editRule() switches to the form itself and reports its own failures.
+    await editRule(intent.ruleId);
+    return true;
+  }
+
+  if (OPTIONS_TABS.includes(intent.tab)) {
+    showTab(intent.tab);
+    return true;
+  }
+  return false;
+}
+
+/** options.html#settings and friends — real, linkable deep links. */
+function applyHashTab() {
+  const tab = location.hash.replace(/^#/, '');
+  if (OPTIONS_TABS.includes(tab)) showTab(tab);
+}
+
+// Cross-references inside the Help tab. Delegated rather than inline onclick,
+// which the extension CSP blocks.
+function setupHelpNavLinks() {
+  document.querySelectorAll('.help-nav-link').forEach(link => {
+    link.addEventListener('click', (e) => {
+      e.preventDefault();
+      const tab = e.currentTarget.dataset.tab;
+      if (OPTIONS_TABS.includes(tab)) showTab(tab);
+    });
+  });
+}
+
+// The Settings tab. Currently one real setting — the kill-switch for the
+// narrowed CDP Fetch patterns. If a rule ever stops firing under them, the user
+// needs a way back to "pause everything" without a reinstall, and they need to
+// find it under Settings rather than buried in Import/Export.
+async function setupSettingsTab() {
+  document.getElementById('openShortcutsBtn')?.addEventListener('click', () => {
+    // chrome:// pages can't be reached from an <a href> on an extension page.
+    chrome.tabs.create({ url: 'chrome://extensions/shortcuts' });
+  });
+
   const checkbox = document.getElementById('narrowInterceptPatterns');
   if (!checkbox) return;
 
@@ -589,13 +664,10 @@ function setupKeyboardShortcuts() {
       }
     }
 
-    // 1-4: tab navigation
+    // 1-5: tab navigation, in sidebar order (OPTIONS_TABS).
     if (!e.ctrlKey && !e.metaKey && !e.altKey) {
-      const tabMap = { '1': 'rules', '2': 'new-rule', '3': 'import-export', '4': 'help' };
-      if (tabMap[e.key]) showTab(tabMap[e.key]);
+      const tab = OPTIONS_TABS[Number(e.key) - 1];
+      if (tab) showTab(tab);
     }
   });
 }
-
-// Inline help section in options.html calls window.showTab(...) — keep this exposed.
-window.showTab = showTab;

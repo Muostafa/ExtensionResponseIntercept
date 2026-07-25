@@ -3,6 +3,7 @@ import { escapeHtml } from '../../shared/dom.js';
 import { debug } from '../../shared/debug.js';
 import { STATUS_CODE_MIN, STATUS_CODE_MAX } from '../../shared/constants.js';
 import { icon } from '../../shared/icons.js';
+import { openOptionsPage } from '../../shared/open-options.js';
 import { state } from './state.js';
 import { showToast } from './toast.js';
 import { refreshHintBanner } from './hint-banner.js';
@@ -257,7 +258,7 @@ function renderRuleItem(rule, group) {
         </div>
         <div class="rule-cell rule-cell-method">${methods}</div>
         <div class="rule-cell rule-cell-actions">
-          <button class="btn-icon edit-rule-btn" data-rule-id="${rule.id}" title="Edit Rule">
+          <button class="btn-icon edit-rule-btn" data-rule-id="${rule.id}" title="Quick edit — status code and response body">
             ${icon('edit', { size: 14 })}
           </button>
           <div class="toggle-switch rule-toggle">
@@ -267,6 +268,11 @@ function renderRuleItem(rule, group) {
         </div>
       </div>
       <div class="rule-edit-container" id="edit-${rule.id}" style="display: none;">
+        <div class="edit-scope-note">
+          Quick edit — status code and body only.
+          <button class="edit-full-link full-editor-btn" data-rule-id="${rule.id}">Full editor</button>
+          for pattern, methods, headers, delay, group.
+        </div>
         <div class="edit-section">
           <div class="edit-header">
             <label>Status Code</label>
@@ -323,6 +329,17 @@ function setupRuleEventListeners() {
   document.querySelectorAll('.btn-cancel').forEach(btn => {
     btn.addEventListener('click', (e) => {
       toggleEditMode(e.target.dataset.ruleId, false);
+    });
+  });
+
+  // Escalate the same rule to the options form. Unsaved quick-edit text is
+  // deliberately not carried over — the form loads the rule from storage, and
+  // silently importing half-typed JSON into a different editor is worse than
+  // starting from what is actually saved.
+  document.querySelectorAll('.full-editor-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openOptionsPage('new-rule', { ruleId: e.currentTarget.dataset.ruleId });
     });
   });
 }

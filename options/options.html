@@ -76,6 +76,24 @@
               Import/Export
             </span>
           </a>
+          <a href="#" class="nav-item" data-tab="settings">
+            <span>
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <circle cx="12" cy="12" r="3" />
+                <path
+                  d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"
+                />
+              </svg>
+              Settings
+            </span>
+          </a>
           <a href="#" class="nav-item" data-tab="help">
             <span>
               <svg
@@ -788,21 +806,6 @@
             </div>
           </div>
 
-          <div class="card">
-            <h3>Advanced</h3>
-            <label class="settings-row">
-              <input type="checkbox" id="narrowInterceptPatterns" checked />
-              <span class="settings-row-text">
-                <strong>Only pause requests your rules can match</strong>
-                <span
-                  >Faster browsing on intercepted tabs — unrelated requests go
-                  straight through instead of being routed via the debugger.
-                  Turn this off if a rule ever stops firing.</span
-                >
-              </span>
-            </label>
-          </div>
-
           <div class="card danger">
             <h3>Clear All Rules</h3>
             <p>
@@ -847,6 +850,53 @@
           </div>
         </div>
 
+        <!-- Settings Tab -->
+        <div id="settings-tab" class="tab-content">
+          <div class="header">
+            <h2>Settings</h2>
+          </div>
+
+          <div class="card">
+            <h3>Interception</h3>
+            <p>
+              Interception is turned on per tab, from the extension popup —
+              there is no global switch. These settings control how it behaves
+              once it is on.
+            </p>
+            <label class="settings-row">
+              <input type="checkbox" id="narrowInterceptPatterns" checked />
+              <span class="settings-row-text">
+                <strong>Only pause requests your rules can match</strong>
+                <span
+                  >Faster browsing on intercepted tabs — unrelated requests go
+                  straight through instead of being routed via the debugger.
+                  Turn this off if a rule ever stops firing.</span
+                >
+              </span>
+            </label>
+          </div>
+
+          <div class="card">
+            <h3>Keyboard Shortcut</h3>
+            <p>
+              <kbd>Alt</kbd> + <kbd>Shift</kbd> + <kbd>I</kbd> toggles
+              interception on the current tab from anywhere in Chrome. Chrome
+              owns this binding, so it is re-bound on its own page.
+            </p>
+            <button id="openShortcutsBtn" class="btn btn-secondary">
+              Change shortcut
+            </button>
+          </div>
+
+          <div class="card">
+            <h3>Appearance</h3>
+            <p>
+              Light and dark mode are switched from the button at the bottom of
+              the sidebar. The choice is shared with the popup.
+            </p>
+          </div>
+        </div>
+
         <!-- Help Tab -->
         <div id="help-tab" class="tab-content">
           <div class="header">
@@ -855,15 +905,56 @@
 
           <div class="help-content">
             <section class="help-section">
-              <h3>Getting Started</h3>
-              <ol>
-                <li>Create a new rule with a URL pattern to match</li>
-                <li>Enter the mock response body (and optionally status code, headers, delay)</li>
+              <h3>Popup vs. This Page</h3>
+              <p>
+                Two surfaces, one split: the <strong>popup</strong> is
+                <em>this tab, right now</em>; <strong>this page</strong> is your
+                rule library.
+              </p>
+              <ul>
                 <li>
-                  Click the extension icon and turn on “Intercept this tab”
+                  <strong>In the popup:</strong> turn interception on for a tab,
+                  watch requests come in, mock one in a click, quick-edit a
+                  rule’s status code or body.
                 </li>
                 <li>
-                  Navigate to URLs matching your pattern to see the mock response
+                  <strong>Here:</strong> everything that outlives one tab —
+                  groups, priorities, delays, response headers, pattern testing,
+                  import/export, settings.
+                </li>
+              </ul>
+              <p>
+                Anywhere the popup is too small, it hands off here rather than
+                duplicating: <strong>Full editor</strong> in the create-rule
+                dialog and in a quick edit both open the same rule on the
+                <a href="#" class="help-nav-link" data-tab="new-rule"
+                  >New Rule</a
+                >
+                form.
+              </p>
+            </section>
+
+            <section class="help-section">
+              <h3>Getting Started</h3>
+              <ol>
+                <li>
+                  Click the extension icon and turn on “Intercept this tab”,
+                  then reload the page
+                </li>
+                <li>
+                  Open the <strong>Network</strong> tab in the popup and hit
+                  <strong>+ Rule</strong> on a request — the mock is prefilled
+                  with the real response
+                </li>
+                <li>
+                  Reload again: matching requests are now answered by your mock
+                </li>
+                <li>
+                  Need groups, headers, delays, or priorities? Open
+                  <a href="#" class="help-nav-link" data-tab="rules"
+                    >Rules &amp; Groups</a
+                  >
+                  here
                 </li>
               </ol>
             </section>
@@ -941,7 +1032,7 @@
                   >
                 </div>
                 <div class="shortcut-item">
-                  <span class="shortcut-keys"><kbd>1</kbd> - <kbd>4</kbd></span>
+                  <span class="shortcut-keys"><kbd>1</kbd> - <kbd>5</kbd></span>
                   <span class="shortcut-desc">Quick tab navigation</span>
                 </div>
               </div>

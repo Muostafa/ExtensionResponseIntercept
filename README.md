@@ -18,7 +18,7 @@ A Chrome extension that lets you mock API responses on the fly. When a request m
 
 - **From the network log**: Turn on "Intercept this tab", browse, then hit **+ Rule** on any captured request — the mock is prefilled with the response the server actually returned. Tick several rows to mock them all at once.
 - **Paste a cURL command or a URL**: In DevTools → Network, right-click a request → **Copy** → **Copy as cURL**, then paste it into **Paste cURL**. Works with the bash, cmd, and PowerShell flavors, or with a bare URL.
-- **The full rule editor**: Build a rule from scratch on the Options page. Any prefilled draft from the popup can be handed over to it with **Full editor**.
+- **By hand**: **Add Rule** in the popup opens the same compact dialog with nothing prefilled. Need the fields it doesn't have — group, priority, delay, response headers? **Full editor** carries whatever you've typed over to the Options form.
 
 ### Organization & Workflow
 
@@ -27,7 +27,7 @@ A Chrome extension that lets you mock API responses on the fly. When a request m
 - **Network Logging**: Inspect requests on intercepted tabs — URL, status, duration, headers, and captured response bodies. Logs survive a service-worker restart and are cleared when the tab or browser closes.
 - **Guidance Strip**: The popup tells you when your rules can't fire — tab not intercepted, page not reloaded since attaching, or nothing enabled — with a one-click fix for each
 - **Keyboard Shortcuts**: `Alt+Shift+I` toggles interception on the current tab from anywhere; `/`, `Esc`, and `Ctrl+Enter` drive the popup
-- **User-Friendly Interface**: Popup for quick access and a full options page for managing rules
+- **Two Surfaces, One Split**: The popup is *this tab, right now* — interception, the network log, quick mocks, quick edits. The Options page is your library — groups, priorities, headers, pattern testing, import/export, settings. Anything the popup is too small for hands off to the same rule on the Options form instead of duplicating it.
 - **Import/Export**: Save and share your rule configurations
 
 ## Installation
@@ -54,7 +54,7 @@ A Chrome extension that lets you mock API responses on the fly. When a request m
 4. Open the **Network** tab in the popup and hit **+ Rule** on the request you want to fake. The mock is prefilled with the response the server actually returned
 5. Edit the body/status and save — the rule takes effect on the next matching request
 
-Prefer to start from scratch? Use **Paste cURL** in the popup, or build a rule field-by-field on the Options page.
+Prefer to start from scratch? Use **Paste cURL** or **Add Rule** in the popup. Both open the same dialog, and both can hand off to the Options form with **Full editor** when you need groups, priorities, delays, or response headers.
 
 The strip under the toggle tells you whenever something is stopping your rules
 from firing (tab not intercepted, page not reloaded, no rules enabled) and gives

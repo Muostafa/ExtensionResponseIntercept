@@ -4,6 +4,7 @@ import { icon } from '../../shared/icons.js';
 import { escapeHtml } from '../../shared/dom.js';
 import { generateRuleFromRequest } from '../../shared/rule-suggest.js';
 import { MAX_BULK_MOCK } from '../../shared/constants.js';
+import { openOptionsPage } from '../../shared/open-options.js';
 import { state } from './state.js';
 import { showToast } from './toast.js';
 import { switchView } from './network.js';
@@ -37,6 +38,53 @@ export function setupCreateRuleModal() {
   document.getElementById('confirmBulkCreate')?.addEventListener('click', createRulesFromBulkModal);
 }
 
+function setModalTitle(text) {
+  const title = document.getElementById('createRuleModalTitle');
+  if (title) title.textContent = text;
+}
+
+/**
+ * The <select> keeps its value for as long as the popup is open, so a rule
+ * started after an XML one would inherit that. Both open paths produce a JSON
+ * draft — reset to match, and fire `change` so the body label/placeholder follow.
+ */
+function resetContentTypeToJson() {
+  const contentType = document.getElementById('modalContentType');
+  if (!contentType || contentType.value === 'application/json') return;
+  contentType.value = 'application/json';
+  contentType.dispatchEvent(new Event('change'));
+}
+
+/**
+ * Open the modal with nothing prefilled — the "Add Rule" path.
+ *
+ * Rule creation deliberately lives here rather than jumping straight to the
+ * options form: the popup is where the user already is, and "Full editor" in the
+ * footer carries whatever they typed onward if they need the extra fields.
+ */
+export function openBlankCreateRuleModal() {
+  state.selectedLogEntry = null;
+  state.suggestedMatchType = 'wildcard';
+
+  setModalTitle('Create Rule');
+  document.getElementById('modalRuleName').value = '';
+  document.getElementById('modalUrlPattern').value = '';
+  document.getElementById('modalResponseBody').value = '';
+  document.getElementById('modalStatusCode').value = '';
+
+  resetContentTypeToJson();
+
+  // GET on by default: without a method checked the rule can't be saved, and
+  // GET is what the overwhelming majority of mocks target.
+  document.querySelectorAll('#modalMethods input[type="checkbox"]').forEach(checkbox => {
+    checkbox.checked = checkbox.value === 'GET';
+  });
+
+  const modal = document.getElementById('createRuleModal');
+  if (modal) modal.style.display = 'flex';
+  document.getElementById('modalRuleName')?.focus();
+}
+
 /**
  * Prefill and open the modal from a captured request. `logEntry` only needs to
  * be log-entry shaped ({ url, method, ... }), so a parsed cURL command works
@@ -45,6 +93,9 @@ export function setupCreateRuleModal() {
 export function openCreateRuleModal(logEntry) {
   state.selectedLogEntry = logEntry;
   const modal = document.getElementById('createRuleModal');
+
+  setModalTitle('Create Rule from Request');
+  resetContentTypeToJson();
 
   const suggestedRule = generateRuleFromRequest(logEntry);
   // The suggester picks the match type (`contains` when the URL wouldn't
@@ -72,20 +123,25 @@ function closeCreateRuleModal() {
 
 /**
  * Read the modal's fields into a rule object.
- * @returns {object|null} the rule, or null if validation failed (a toast is shown)
+ *
+ * @param {{strict?: boolean}} [opts] `strict` (the default) rejects an
+ *   incomplete rule with a toast — that's the "Create Rule" path, which writes
+ *   straight to storage. Non-strict fills defaults and never blocks: it's for
+ *   handing a half-finished draft to the full editor, which validates on save.
+ * @returns {object|null} the rule, or null if strict validation failed
  */
-function collectModalRule() {
+function collectModalRule({ strict = true } = {}) {
   const name = document.getElementById('modalRuleName').value.trim();
   const urlPattern = document.getElementById('modalUrlPattern').value.trim();
   const responseBody = document.getElementById('modalResponseBody').value.trim();
   const statusCode = document.getElementById('modalStatusCode').value;
 
-  if (!name) { showToast('Rule name is required', 'error'); return null; }
-  if (!urlPattern) { showToast('URL pattern is required', 'error'); return null; }
+  if (strict && !name) { showToast('Rule name is required', 'error'); return null; }
+  if (strict && !urlPattern) { showToast('URL pattern is required', 'error'); return null; }
 
   const contentType = document.getElementById('modalContentType')?.value || 'application/json';
 
-  if (responseBody && contentType === 'application/json') {
+  if (strict && responseBody && contentType === 'application/json') {
     try {
       JSON.parse(responseBody);
     } catch (e) {
@@ -95,11 +151,14 @@ function collectModalRule() {
   }
 
   const methodCheckboxes = document.querySelectorAll('#modalMethods input[type="checkbox"]:checked');
-  const methods = Array.from(methodCheckboxes).map(cb => cb.value);
+  let methods = Array.from(methodCheckboxes).map(cb => cb.value);
 
   if (methods.length === 0) {
-    showToast('Select at least one HTTP method', 'error');
-    return null;
+    if (strict) {
+      showToast('Select at least one HTTP method', 'error');
+      return null;
+    }
+    methods = ['GET'];
   }
 
   const rule = {
@@ -127,9 +186,13 @@ function collectModalRule() {
  * Goes through storage.session rather than a message because the popup is a
  * trusted context and can write it directly — and because openOptionsPage()
  * closes the popup, so there is nobody left to answer a response.
+ *
+ * Collected non-strictly: this is an escape hatch, not a submit. Being told
+ * "rule name is required" by the button whose whole job is to give you more
+ * fields would be absurd.
  */
 async function openInFullEditor() {
-  const rule = collectModalRule();
+  const rule = collectModalRule({ strict: false });
   if (!rule) return;
 
   try {
@@ -141,7 +204,9 @@ async function openInFullEditor() {
   }
 
   closeCreateRuleModal();
-  chrome.runtime.openOptionsPage();
+  // The draft handler on the other side switches to the form itself, so there is
+  // no destination to pass here.
+  await openOptionsPage();
 }
 
 async function createRuleFromModal() {
